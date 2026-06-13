@@ -143,11 +143,19 @@ BasicInfoV4.init = function init() {
 				case 'navigation':
 					Navigation.toggle();
 					break;
-				case 'achievment':
-					if (Configs.get('enableAchievements') && PACKETVER.value >= 20150513) {
-						Achievement.toggle();
-					}
-					break;
+			case 'achievment':
+				if (Configs.get('enableAchievements') && PACKETVER.value >= 20150513) {
+					Achievement.toggle();
+				}
+				break;
+			case 'bot':
+				// Phase 11-02: BotAutoHunt plugin bridge.
+				// Plugin loads via PluginManager; toggle is null-safe in case the
+				// plugin is disabled or failed to initialise.
+				if (window.botAutoHunt && typeof window.botAutoHunt.toggle === 'function') {
+					window.botAutoHunt.toggle();
+				}
+				break;
 			}
 		});
 	});

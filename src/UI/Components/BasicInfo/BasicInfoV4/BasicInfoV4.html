@@ -247,5 +247,23 @@
 			<span class="name">Adventurer's Agency (Ctrl + Z)</span>
 		</button>
 		<!--<button class="reputation" data-background="menu_icon/" data-hover="menu_icon/" data-down="menu_icon/"></button> -->
+
+		<!--
+			Bot Auto-Hunt toggle (Phase 11-02).
+			Uses the RO native .ui-btn CSS button (Common.css:62-136) instead of a BMP
+			sprite, since no dedicated menu icon exists for this custom feature.
+			The 22x22px sizing matches the neighbouring .buttons button rule; the
+			inline font-size keeps the "Bot" label legible inside the small tile.
+			Click is dispatched in BasicInfoV4.js via window.botAutoHunt.toggle()
+			(null-safe: plugin may not be loaded if PacketManager disabled it).
+		-->
+		<button
+			id="bot"
+			class="event_add_cursor"
+			style="font-size: 0.55rem; line-height: 22px; text-align: center; color: #3f3f3f; text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.85);"
+		>
+			<span class="name">Bot Auto-Hunt</span>
+			Bot
+		</button>
 	</div>
 </div>
