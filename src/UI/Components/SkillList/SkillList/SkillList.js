@@ -1290,4 +1290,17 @@ SkillList.onIncreaseSkill = function onIncreaseSkill() {};
 SkillList.onUpdateSkill = function onUpdateSkill() {};
 SkillList.getSkillById = getSkillById;
 
+/**
+ * Expose the module-private _list array (read-only reference).
+ *
+ * Used by external consumers (e.g. BotAutoHunt plugin) that need to enumerate
+ * the character's currently known skills. Returns the live array; callers must
+ * not mutate it.
+ *
+ * @returns {Array<object>} list of skill objects ({SKID, level, type, ...})
+ */
+SkillList.getList = function getList() {
+	return _list;
+};
+
 export default UIManager.addComponent(SkillList);
