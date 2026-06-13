@@ -31,6 +31,18 @@
 import Configs from 'Core/Configs.js';
 
 /**
+ * Eager-load all plugin modules at build time so Vite bundles them into the
+ * single-file production output (builder-web.mjs uses codeSplitting:false).
+ *
+ * Without this, the runtime dynamic `import(resolvedPath)` below would 404 in
+ * production (the plugin file is not served alongside the bundled Online.js).
+ * The glob keys are paths relative to this file (e.g. './BotAutoHunt/BotAutoHunt.js').
+ *
+ * A runtime-import fallback is kept for dev mode (vite dev serves src/ directly).
+ */
+const pluginModules = import.meta.glob('./*/*.js', { eager: true });
+
+/**
  * Plugin namespace
  */
 const Plugins = {};
@@ -78,31 +90,51 @@ Plugins.init = function init(context) {
 		}
 	}
 
-	const _count = paths.length;
-
-	// Dynamic plugin loading in ESM
 	paths.forEach((pluginPath, i) => {
 		// Ensure .js extension for native ES module resolution (Vite resolves it automatically)
 		let resolvedPath = pluginPath;
 		if (!resolvedPath.endsWith('.js') && !resolvedPath.endsWith('.mjs')) {
 			resolvedPath += '.js';
 		}
+
+		// Production path: plugin bundled at build time via import.meta.glob
+		const bundledModule = pluginModules[resolvedPath];
+		if (bundledModule) {
+			_loadPlugin(bundledModule, pluginPath, params[i]);
+			return;
+		}
+
+		// Dev fallback: runtime dynamic import (vite dev serves src/ directly)
+		// @vite-ignore keeps Vite from trying to analyze this computed specifier
 		import(/* @vite-ignore */ resolvedPath)
 			.then(module => {
-				const plugin = module.default || module;
-				if (typeof plugin === 'function') {
-					if (plugin(params[i])) {
-						console.log('[PluginManager] Initialized plugin: ' + pluginPath);
-					} else {
-						console.error('[PluginManager] Failed to intialize plugin: ' + pluginPath);
-					}
-				}
+				_loadPlugin(module, pluginPath, params[i]);
 			})
 			.catch(err => {
 				console.error('[PluginManager] Error loading plugin: ' + pluginPath, err);
 			});
 	});
 };
+
+/**
+ * Initialize a single plugin module
+ *
+ * @param {object} module - plugin module (default export = init function)
+ * @param {string} pluginPath - path string for logging
+ * @param {*} params - plugin parameters (or null)
+ */
+function _loadPlugin(module, pluginPath, params) {
+	const plugin = module.default || module;
+	if (typeof plugin === 'function') {
+		if (plugin(params)) {
+			console.log('[PluginManager] Initialized plugin: ' + pluginPath);
+		} else {
+			console.error('[PluginManager] Failed to intialize plugin: ' + pluginPath);
+		}
+	} else {
+		console.error('[PluginManager] Plugin has no init function: ' + pluginPath);
+	}
+}
 
 /**
  * Export
