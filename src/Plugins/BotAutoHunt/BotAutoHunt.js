@@ -28,6 +28,14 @@ import BinaryWriter from 'Utils/BinaryWriter.js';
 import Inventory from 'UI/Components/Inventory/Inventory.js';
 import SkillTargetSelection from 'UI/Components/SkillTargetSelection/SkillTargetSelection.js';
 import StatusIcons from 'UI/Components/StatusIcons/StatusIcons.js';
+// Task 2 补充导入 — 三循环 + 面板下拉数据源
+import EntityManager from 'Renderer/EntityManager.js'; // forEach/get/getClosestEntity/getFocusEntity/setFocusEntity
+import Entity from 'Renderer/Entity/Entity.js'; // TYPE_MOB / ACTION.DIE 常量
+import Renderer from 'Renderer/Renderer.js'; // Renderer.tick (amotion 冷却判定)
+import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名
+import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
+import SkillInfo from 'DB/Skills/SkillInfo.js'; // 技能名解析 (SkillName 字段)
+import SkillListUI from 'UI/Components/SkillList/SkillList.js'; // getUI().getList() 技能下拉数据源 (R4-问题6)
 
 // =====================================================================
 // 封包定义
@@ -259,11 +267,44 @@ class BotAutoHunt {
 	}
 
 	_showPanel() {
-		// Task 2 实现：创建/显示面板 DOM overlay
+		if (this._panel) {
+			// 已存在 → 直接显示并刷新当前状态
+			this._panel.style.display = 'block';
+			this._refreshPanel();
+			return;
+		}
+
+		// 构建根 overlay（D-57 用户审核: 复用 RO 原生配色/边框样式，不引入新主题）
+		// R4-问题3-A: 面板用 inline DOM 构建，无独立 .html/.css 文件
+		const panel = document.createElement('div');
+		panel.id = 'bot-autohunt-panel';
+		Object.assign(panel.style, {
+			position: 'fixed',
+			top: '100px',
+			left: '300px',
+			zIndex: '200',
+			background: 'white',
+			border: '1px solid #c1c6c2', // RO 原生边框色 (SkillList.css/NpcMenu.css)
+			borderRadius: '5px',
+			padding: '0',
+			fontFamily: 'Gulim, Dotum, "Malgun Gothic", sans-serif',
+			fontSize: '11px',
+			color: '#484848',
+			boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+			userSelect: 'none',
+			minWidth: '260px'
+		});
+
+		panel.innerHTML = this._buildPanelHTML();
+		document.body.appendChild(panel);
+		this._panel = panel;
+
+		this._bindPanelEvents();
+		this._makeDraggable(panel, panel.querySelector('.bot-titlebar'));
+		this._refreshPanel();
 	}
 
 	_hidePanel() {
-		// Task 2 实现：隐藏面板 DOM
 		if (this._panel) {
 			this._panel.style.display = 'none';
 		}
@@ -278,7 +319,444 @@ class BotAutoHunt {
 	}
 
 	_updateButtonLabel() {
-		// Task 2 实现：刷新开始/停止按钮文字
+		if (!this._panel) return;
+		const btn = this._panel.querySelector('.bot-toggle-btn');
+		if (btn) btn.textContent = this.active ? '停止挂机' : '开始挂机';
+	}
+
+	/**
+	 * 构建面板内部 HTML（参照 bot-panel-prototype.html 像素级原型）
+	 * 复用 Common.css 的 .ui-btn 按钮样式（D1 决策），其他元素用 inline style
+	 */
+	_buildPanelHTML() {
+		return (
+			'<div class="bot-titlebar" style="height:17px;background:#fff;border-bottom:1px solid #c1c6c2;' +
+			'border-radius:5px 5px 0 0;cursor:move;padding:0 4px;display:flex;' +
+			'align-items:center;justify-content:space-between;">' +
+			'<span style="font-size:11px;font-weight:bold;text-shadow:1px 1px white;">挂机助手</span>' +
+			'<span class="bot-close" style="cursor:pointer;font-size:14px;color:#888;">×</span>' +
+			'</div>' +
+			'<div style="padding:8px;">' +
+			// HP 阈值滑块（D2 用户决策 #1: 0-100）
+			'<div style="margin-bottom:6px;">' +
+			'<label>HP: <span class="hp-val">' + this.hpThreshold + '%</span></label>' +
+			'<input type="range" min="0" max="100" value="' + this.hpThreshold + '" ' +
+			'class="bot-hp-slider" style="width:100px;vertical-align:middle;"></div>' +
+			// SP 阈值滑块
+			'<div style="margin-bottom:8px;">' +
+			'<label>SP: <span class="sp-val">' + this.spThreshold + '%</span></label>' +
+			'<input type="range" min="0" max="100" value="' + this.spThreshold + '" ' +
+			'class="bot-sp-slider" style="width:100px;vertical-align:middle;"></div>' +
+			// 技能列表 6 格
+			'<div style="font-size:11px;font-weight:bold;margin-bottom:2px;">技能列表</div>' +
+			'<div class="bot-skill-grid" style="display:flex;gap:6px;margin-bottom:14px;">' +
+			this._buildCellGrid('skill', 6) + '</div>' +
+			// 辅助列表 6 格
+			'<div style="font-size:11px;font-weight:bold;margin-bottom:2px;">辅助列表</div>' +
+			'<div class="bot-aux-grid" style="display:flex;gap:6px;margin-bottom:14px;">' +
+			this._buildCellGrid('aux', 6) + '</div>' +
+			// 跟随 + 飞翅勾选（D2 #11/#12）
+			'<div style="margin-bottom:8px;">' +
+			'<label><input type="checkbox" class="bot-follow"' + (this.followEnabled ? ' checked' : '') +
+			'> 跟随队友</label> ' +
+			'<label><input type="checkbox" class="bot-fly-nomobs"' + (this.flyNoMobs ? ' checked' : '') +
+			'> 无怪飞翅</label> ' +
+			'<label><input type="checkbox" class="bot-fly-lowhp"' + (this.flyLowHp ? ' checked' : '') +
+			'> 低血飞翅</label></div>' +
+			// 按钮行：开始/停止 toggle（同一按钮两状态）+ 离线挂机（D2 #1, D-14b）
+			'<div style="display:flex;gap:6px;margin-bottom:6px;">' +
+			'<button class="bot-toggle-btn" style="flex:1;">' +
+			(this.active ? '停止挂机' : '开始挂机') + '</button>' +
+			'<button class="bot-offline-btn" style="flex:1;">离线挂机</button></div>' +
+			// 状态栏：计时器 + 积分
+			'<div style="min-height:14px;">' +
+			'<span class="bot-timer">' + this._formatTime(this.timerSec) + '</span>' +
+			'<span style="margin-left:8px;">积分: <span class="bot-points">' + this.currentPoints +
+			'</span></span></div>' +
+			// 消息区（D2 #9: 面板内红色/灰色文字，不阻塞）
+			'<div class="bot-msg" style="min-height:12px;font-size:10px;margin-top:2px;"></div>' +
+			'</div>'
+		);
+	}
+
+	/**
+	 * 构建格子行 HTML（6 个方形格子，+ 号占位，参照 prototype 像素级样式）
+	 * D2 #17: 资源耗尽灰化 — 由 _refreshPanel 根据物品/技能可用性切换 .grayed 类
+	 */
+	_buildCellGrid(slot, count) {
+		let html = '';
+		for (let i = 0; i < count; i++) {
+			html +=
+				'<div class="cell" data-slot="' + slot + '" data-index="' + i + '" ' +
+				'style="width:32px;height:32px;border:1px solid #ccc;border-radius:3px;' +
+				'background:linear-gradient(to bottom,#f5f5f5,#e8e8e8);cursor:pointer;' +
+				'position:relative;display:flex;align-items:center;justify-content:center;' +
+				'transition:border-color 0.15s;">' +
+				'<span class="plus" style="font-size:18px;color:#bbb;line-height:1;">+</span>' +
+				'<div class="icon" style="width:24px;height:24px;display:none;' +
+				'border-radius:2px;background-size:contain;background-repeat:no-repeat;' +
+				'background-position:center;"></div>' +
+				'<span class="cell-name" style="display:none;position:absolute;bottom:-14px;' +
+				'left:50%;transform:translateX(-50%);font-size:0.55rem;white-space:nowrap;' +
+				'background:rgba(0,0,0,0.7);color:white;padding:1px 3px;border-radius:1px;z-index:10;"></span>' +
+				'</div>';
+		}
+		return html;
+	}
+
+	/**
+	 * 绑定面板内所有事件（HP/SP 滑块、toggle/offline 按钮、勾选项、格子点击）
+	 * R2-07: 所有变更点都触发 _saveSettings 持久化
+	 */
+	_bindPanelEvents() {
+		const p = this._panel;
+
+		// 关闭按钮
+		const closeBtn = p.querySelector('.bot-close');
+		if (closeBtn) closeBtn.addEventListener('click', () => this._hidePanel());
+
+		// HP 滑块
+		const hpSlider = p.querySelector('.bot-hp-slider');
+		if (hpSlider) {
+			hpSlider.addEventListener('input', () => {
+				this.hpThreshold = +hpSlider.value;
+				const hpVal = p.querySelector('.hp-val');
+				if (hpVal) hpVal.textContent = this.hpThreshold + '%';
+				this._saveSettings();
+			});
+		}
+
+		// SP 滑块
+		const spSlider = p.querySelector('.bot-sp-slider');
+		if (spSlider) {
+			spSlider.addEventListener('input', () => {
+				this.spThreshold = +spSlider.value;
+				const spVal = p.querySelector('.sp-val');
+				if (spVal) spVal.textContent = this.spThreshold + '%';
+				this._saveSettings();
+			});
+		}
+
+		// 开始/停止 toggle（D-14b: 同一按钮两状态）
+		const toggleBtn = p.querySelector('.bot-toggle-btn');
+		if (toggleBtn) {
+			toggleBtn.addEventListener('click', () => this.toggleAutoHunt());
+		}
+
+		// 离线挂机按钮
+		const offlineBtn = p.querySelector('.bot-offline-btn');
+		if (offlineBtn) {
+			offlineBtn.addEventListener('click', () => this.startOffline());
+		}
+
+		// 跟随/飞翅勾选
+		const followCb = p.querySelector('.bot-follow');
+		if (followCb) {
+			followCb.addEventListener('change', e => {
+				this.followEnabled = e.target.checked;
+				this._saveSettings();
+			});
+		}
+		const flyNoMobsCb = p.querySelector('.bot-fly-nomobs');
+		if (flyNoMobsCb) {
+			flyNoMobsCb.addEventListener('change', e => {
+				this.flyNoMobs = e.target.checked;
+				this._saveSettings();
+			});
+		}
+		const flyLowHpCb = p.querySelector('.bot-fly-lowhp');
+		if (flyLowHpCb) {
+			flyLowHpCb.addEventListener('change', e => {
+				this.flyLowHp = e.target.checked;
+				this._saveSettings();
+			});
+		}
+
+		// 格子点击 → dropdown（点击已填格子 = 清空该格，点击空格子 = 弹出选择面板）
+		p.querySelectorAll('.cell').forEach(cell => {
+			cell.addEventListener('click', () => {
+				const slot = cell.dataset.slot;
+				const index = +cell.dataset.index;
+				const list = slot === 'skill' ? this.skillList : this.auxList;
+				if (list[index]) {
+					// 已填 → 清空
+					list[index] = null;
+					this._saveSettings();
+					this._refreshPanel();
+				} else {
+					// 空 → 弹出 dropdown
+					this._showDropdown(slot, index, cell);
+				}
+			});
+		});
+	}
+
+	/**
+	 * 显示技能/消耗品 dropdown 选择面板
+	 * D-14a: 4列 grid, icon 在上 + 名称在下（≤4 字省略号）
+	 */
+	_showDropdown(slot, index, anchorCell) {
+		this._hideDropdown();
+
+		const items = slot === 'skill' ? this._getAvailableSkills() : this._getAvailableConsumables();
+		if (items.length === 0) {
+			this._showInfo(slot === 'skill' ? '无可选技能' : '无可选消耗品');
+			return;
+		}
+
+		const dd = document.createElement('div');
+		Object.assign(dd.style, {
+			position: 'fixed',
+			zIndex: '300',
+			background: 'white',
+			border: '1px solid #c1c6c2',
+			borderRadius: '5px',
+			padding: '11px',
+			boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+			fontFamily: 'Gulim, Dotum, "Malgun Gothic", sans-serif'
+		});
+
+		let gridHtml =
+			'<div style="display:grid;grid-template-columns:repeat(4,54px);gap:4px;' +
+			'max-height:320px;overflow-y:auto;">';
+		for (const item of items) {
+			// 名称截断 ≤4 字 + 省略号（D-14a）
+			const name = item.name.length > 4 ? item.name.slice(0, 4) + '…' : item.name;
+			gridHtml +=
+				'<div class="dd-item" data-id="' + item.id + '" ' +
+				'style="width:54px;height:50px;border:none;border-radius:2px;background:transparent;' +
+				'cursor:pointer;display:flex;flex-direction:column;align-items:center;' +
+				'justify-content:center;gap:5px;">' +
+				'<div class="dd-icon" style="width:24px;height:24px;border-radius:2px;' +
+				'background:' + (item.color || '#5a8') + ';"></div>' +
+				'<div class="dd-name" style="font-size:10px;color:#484848;text-align:center;line-height:1.1;' +
+				'max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+				name + '</div></div>';
+		}
+		gridHtml += '</div>';
+		dd.innerHTML = gridHtml;
+
+		// 定位到锚点格子下方
+		const rect = anchorCell.getBoundingClientRect();
+		dd.style.left = rect.left + 'px';
+		dd.style.top = rect.bottom + 2 + 'px';
+
+		// 选择项点击
+		dd.querySelectorAll('.dd-item').forEach(itemEl => {
+			itemEl.addEventListener('click', () => {
+				const id = +itemEl.dataset.id;
+				const info = items.find(it => it.id === id);
+				this._selectSlotItem(slot, index, id, info);
+				this._hideDropdown();
+			});
+			itemEl.addEventListener('mouseenter', () => {
+				itemEl.style.background = '#eef2f8';
+			});
+			itemEl.addEventListener('mouseleave', () => {
+				itemEl.style.background = 'transparent';
+			});
+		});
+
+		document.body.appendChild(dd);
+		this._dropdown = dd;
+
+		// 点击外部关闭 dropdown
+		const closeHandler = e => {
+			if (!dd.contains(e.target) && !anchorCell.contains(e.target)) {
+				this._hideDropdown();
+				document.removeEventListener('mousedown', closeHandler, true);
+			}
+		};
+		setTimeout(() => document.addEventListener('mousedown', closeHandler, true), 0);
+	}
+
+	/**
+	 * 获取角色可用技能列表（dropdown 数据源）
+	 * R4-问题6: SkillListUI.getUI() 获取实际组件实例，再调 getList()
+	 * 过滤: level > 0 && type > 0 (主动技能，剔除被动/未学习)
+	 */
+	_getAvailableSkills() {
+		try {
+			const component = SkillListUI.getUI && SkillListUI.getUI();
+			if (!component || typeof component.getList !== 'function') return [];
+			const skills = component.getList();
+			if (!Array.isArray(skills)) return [];
+			// 只展示已学习(level>0)且主动(type>0)的技能
+			return skills
+				.filter(s => s && s.level > 0 && s.type > 0)
+				.map(s => {
+					// 技能名从 SkillInfo DB 获取（src/DB/Skills/SkillInfo.js，已 Vite alias）
+					let name = 'Skill ' + s.SKID;
+					if (SkillInfo && SkillInfo[s.SKID] && SkillInfo[s.SKID].SkillName) {
+						name = SkillInfo[s.SKID].SkillName;
+					}
+					return {
+						id: s.SKID,
+						name: name,
+						color: '#5a8',
+						level: s.level,
+						type: s.type
+					};
+				});
+		} catch (_) {
+			return [];
+		}
+	}
+
+	/**
+	 * 获取背包消耗品列表（dropdown 数据源）
+	 * Source: InventoryV0.list / ItemType.HEALING=0, USABLE=2, CASH=18
+	 */
+	_getAvailableConsumables() {
+		try {
+			const inv = Inventory.getUI && Inventory.getUI();
+			if (!inv || !inv.list) return [];
+			return inv.list
+				.filter(
+					item =>
+						item &&
+						(item.type === ItemType.HEALING ||
+							item.type === ItemType.USABLE ||
+							item.type === ItemType.CASH)
+				)
+				.map(item => {
+					let name = 'Item ' + item.ITID;
+					try {
+						const info = DB.getItemInfo(item.ITID);
+						if (info && info.identifiedDisplayName) {
+							name = info.identifiedDisplayName;
+						}
+					} catch (_) {
+						// ignore
+					}
+					return {
+						id: item.ITID,
+						name: name,
+						color: '#c44',
+						index: item.index,
+						count: item.count
+					};
+				});
+		} catch (_) {
+			return [];
+		}
+	}
+
+	/**
+	 * dropdown 选中 → 填入对应格子，保存设置并刷新面板
+	 * 技能类型默认设为 'attack'（开发时可在 BUFF_EFST_MAP 配置后自动判为 buff）
+	 * 消耗品默认设为 'potion'（在 BUFF_EFST_MAP 配置后自动判为 buff_item）
+	 */
+	_selectSlotItem(slot, index, id, info) {
+		const list = slot === 'skill' ? this.skillList : this.auxList;
+		// 根据 BUFF_EFST_MAP 是否含此 id 推断 buff 子类型
+		let type;
+		if (slot === 'skill') {
+			type = BUFF_EFST_MAP[id] ? SKILL_TYPE_BUFF : SKILL_TYPE_ATTACK;
+		} else {
+			type = BUFF_EFST_MAP[id] ? AUX_TYPE_BUFF_ITEM : AUX_TYPE_POTION;
+		}
+		list[index] = { id: id, type: type, level: info ? info.level || 1 : 1 };
+		this._saveSettings();
+		this._refreshPanel();
+	}
+
+	/**
+	 * 刷新面板格子显示：遍历 skillList/auxList，根据是否有数据 + 资源可用性切换样式
+	 * D2 #17: 消耗品 count <= 0 → icon 变灰
+	 */
+	_refreshPanel() {
+		if (!this._panel) return;
+
+		// 切换 toggle 按钮文字
+		this._updateButtonLabel();
+
+		// 刷新技能格子
+		this._refreshCells('skill', this.skillList);
+		// 刷新辅助格子（含数量灰化检查）
+		this._refreshCells('aux', this.auxList);
+	}
+
+	_refreshCells(slot, list) {
+		const cells = this._panel.querySelectorAll('.cell[data-slot="' + slot + '"]');
+		cells.forEach((cell, i) => {
+			const item = list[i];
+			const plus = cell.querySelector('.plus');
+			const icon = cell.querySelector('.icon');
+			const nameEl = cell.querySelector('.cell-name');
+
+			if (item && item.id) {
+				// 已填格子
+				cell.classList.add('filled');
+				cell.classList.remove('grayed');
+				cell.style.borderColor = '#6a8';
+				cell.style.background = 'linear-gradient(to bottom,#f0faf0,#e0f0e0)';
+				if (plus) plus.style.display = 'none';
+				if (icon) {
+					icon.style.display = 'block';
+					icon.style.background = slot === 'skill' ? '#5a8' : '#c44';
+				}
+				if (nameEl) {
+					nameEl.style.display = 'block';
+					// 名称优先从下拉数据源中找，否则用 id
+					const lookup = slot === 'skill' ? this._getAvailableSkills() : this._getAvailableConsumables();
+					const info = lookup.find(x => x.id === item.id);
+					nameEl.textContent = info ? info.name : '#' + item.id;
+				}
+
+				// D2 #17: 消耗品 count <= 0 → 灰化
+				if (slot === 'aux') {
+					const lookup = this._getAvailableConsumables();
+					const info = lookup.find(x => x.id === item.id);
+					if (info && info.count <= 0) {
+						cell.classList.add('grayed');
+						cell.style.opacity = '0.45';
+					} else {
+						cell.classList.remove('grayed');
+						cell.style.opacity = '';
+					}
+				}
+			} else {
+				// 空格子
+				cell.classList.remove('filled', 'grayed');
+				cell.style.borderColor = '#ccc';
+				cell.style.background = 'linear-gradient(to bottom,#f5f5f5,#e8e8e8)';
+				cell.style.opacity = '';
+				if (plus) plus.style.display = '';
+				if (icon) icon.style.display = 'none';
+				if (nameEl) nameEl.style.display = 'none';
+			}
+		});
+	}
+
+	/**
+	 * 拖拽功能（面板 titlebar 抓手）
+	 * Source: 原生 mousedown/mousemove/mouseup 实现（不依赖 jQuery）
+	 */
+	_makeDraggable(element, handle) {
+		if (!handle) return;
+		let startX = 0;
+		let startY = 0;
+		let origX = 0;
+		let origY = 0;
+		handle.addEventListener('mousedown', e => {
+			// 关闭按钮点击不触发拖拽
+			if (e.target.classList && e.target.classList.contains('bot-close')) return;
+			startX = e.clientX;
+			startY = e.clientY;
+			origX = element.offsetLeft;
+			origY = element.offsetTop;
+			const onMove = ev => {
+				element.style.left = origX + ev.clientX - startX + 'px';
+				element.style.top = origY + ev.clientY - startY + 'px';
+			};
+			const onUp = () => {
+				document.removeEventListener('mousemove', onMove);
+				document.removeEventListener('mouseup', onUp);
+			};
+			document.addEventListener('mousemove', onMove);
+			document.addEventListener('mouseup', onUp);
+		});
 	}
 
 	// =================================================================
@@ -388,21 +866,164 @@ class BotAutoHunt {
 	}
 
 	// =================================================================
-	// 战斗循环 (~100ms) — Task 2 完整实现
+	// 战斗循环 (~100ms)
+	// API 参考已在 11-02 PLAN/RESEARCH 验证（R3）:
+	//   - Session.Entity.isDead() — EntityState.js
+	//   - EntityManager.getClosestEntity(source, Entity.TYPE_MOB) — EntityManager.js:447
+	//   - EntityManager.getFocusEntity() / setFocusEntity() — EntityManager.js:243/251
+	//   - SkillTargetSelection.onUseSkillToId(skillId, level, targetGID)
+	//   - PACKET.CZ.REQUEST_ACT2 { action:7, targetGID } (0x437)
+	//   - PACKET.CZ.REQUEST_MOVE2 { dest:[x,y] } (0x35f)
+	//   - Entity.amotionTick vs Renderer.tick (amotion 冷却)
 	// =================================================================
 
 	_combatLoop() {
 		if (!this.active) return;
-		// Task 2 实现：死亡检测 / 跟随队友 / 飞翅 / 寻怪 / 攻击型技能 / 普攻
+
+		// 1. 死亡检测 (D-31) — 角色 dead 则停止挂机循环
+		if (!Session.Entity || Session.Entity.isDead()) {
+			this.active = false;
+			this.stopLoops();
+			this._updateButtonLabel();
+			this._showError('角色已死亡，挂机已停止');
+			return;
+		}
+
+		// 2. 跟随队友模式 (D2 #11)
+		if (this.followEnabled && this.followTarget) {
+			const teammate = EntityManager.get(+this.followTarget);
+			if (teammate && !teammate.isDead()) {
+				const dx = teammate.position[0] - Session.Entity.position[0];
+				const dy = teammate.position[1] - Session.Entity.position[1];
+				const distSq = dx * dx + dy * dy;
+				// 距离 > 2 格时移向队友
+				if (distSq > 4) {
+					const pkt = new PACKET.CZ.REQUEST_MOVE2();
+					pkt.dest[0] = teammate.position[0];
+					pkt.dest[1] = teammate.position[1];
+					Network.sendPacket(pkt);
+					return; // 移动中不执行攻击
+				}
+				// 队友有目标 → 自动选中（辅助职业辅助攻击）
+				if (teammate.targetGID && !EntityManager.getFocusEntity()) {
+					const target = EntityManager.get(teammate.targetGID);
+					if (
+						target &&
+						target.objecttype === Entity.TYPE_MOB &&
+						!target.isDead()
+					) {
+						EntityManager.setFocusEntity(target);
+					}
+				}
+			}
+			// 不同地图: 原地等待，不停止挂机
+		}
+
+		// 3. 飞翅检查 — 四周无怪 (D2 #12)
+		if (this.flyNoMobs) {
+			let hasMob = false;
+			EntityManager.forEach(entity => {
+				if (
+					entity.objecttype === Entity.TYPE_MOB &&
+					entity.action !== Entity.ACTION.DIE &&
+					entity.remove_tick === 0
+				) {
+					hasMob = true;
+					return false; // break
+				}
+			});
+			if (!hasMob) {
+				this._useItemById(ITEM_FLY_WING); // 苍蝇翅膀 ITID=601
+				return;
+			}
+		}
+
+		// 4. 获取当前目标，无目标则寻找最近怪物
+		let target = EntityManager.getFocusEntity();
+		if (!target || target.isDead() || target.objecttype !== Entity.TYPE_MOB) {
+			target = EntityManager.getClosestEntity(Session.Entity, Entity.TYPE_MOB);
+			if (!target) return; // 地图无怪
+			EntityManager.setFocusEntity(target);
+		}
+
+		// 5. amotion 冷却检查（技能/普攻后摇未结束则等下一 tick）
+		if (Session.Entity.amotionTick > Renderer.tick) return;
+
+		// 6. 遍历技能列表 — 攻击型 / 治疗型(对不死系怪物当攻击用，D2 #13)
+		for (const skill of this.skillList) {
+			if (!skill || !skill.id) continue;
+			if (skill.type === SKILL_TYPE_ATTACK || skill.type === SKILL_TYPE_HEAL) {
+				SkillTargetSelection.onUseSkillToId(skill.id, skill.level || 1, target.GID);
+				return; // 释放一个技能后等下一 tick
+			}
+		}
+
+		// 7. 无技能可用 → 普通攻击 (PACKET.CZ.REQUEST_ACT2 action=7)
+		const pkt = new PACKET.CZ.REQUEST_ACT2();
+		pkt.action = 7;
+		pkt.targetGID = target.GID;
+		Network.sendPacket(pkt);
 	}
 
 	// =================================================================
-	// 药水/治疗循环 (~200ms) — Task 2 完整实现
+	// 药水/治疗循环 (~200ms)
+	// API 参考已在 11-02 PLAN/RESEARCH 验证（R3）:
+	//   - Session.Entity.life.hp / hp_max / sp / sp_max — EntityLife.js
+	//   - Inventory.getUI().getItemById(id) / useItem(item)
+	//   - SkillTargetSelection.onUseSkillToId(skillId, level, Session.Entity.GID) — 治疗自己
 	// =================================================================
 
 	_potionLoop() {
 		if (!this.active) return;
-		// Task 2 实现：HP/SP 阈值触发药水 + 治疗技能 + 低血飞翅
+		if (!Session.Entity || Session.Entity.isDead()) return;
+
+		const life = Session.Entity.life;
+		if (!life) return;
+
+		const hp = life.hp;
+		const hpMax = life.hp_max;
+		const sp = life.sp;
+		const spMax = life.sp_max;
+
+		// 防御: hpMax/spMax 可能为 -1（未初始化）
+		if (hpMax <= 0 || spMax <= 0) return;
+
+		const hpPct = (hp / hpMax) * 100;
+		const spPct = (sp / spMax) * 100;
+
+		// 1. 低血飞翅 (D2 #12): HP<10% → 优先苍蝇次选蝴蝶
+		if (this.flyLowHp && hpPct < 10) {
+			if (!this._useItemById(ITEM_FLY_WING)) {
+				this._useItemById(ITEM_BUTTERFLY_WING);
+			}
+			return;
+		}
+
+		// 2. HP 低于阈值 → 使用药水 + 治疗技能(对自己)
+		if (hpPct < this.hpThreshold) {
+			// 2a. 辅助列表中的药水
+			for (const aux of this.auxList) {
+				if (aux && aux.type === AUX_TYPE_POTION) {
+					if (this._useItemById(aux.id)) break; // 使用一种后等下一 tick
+				}
+			}
+			// 2b. 治疗技能(对自己释放)
+			for (const skill of this.skillList) {
+				if (skill && skill.type === SKILL_TYPE_HEAL) {
+					SkillTargetSelection.onUseSkillToId(skill.id, skill.level || 1, Session.Entity.GID);
+					break;
+				}
+			}
+		}
+
+		// 3. SP 低于阈值 → 使用 SP 恢复消耗品
+		if (spPct < this.spThreshold) {
+			for (const aux of this.auxList) {
+				if (aux && aux.type === AUX_TYPE_POTION) {
+					if (this._useItemById(aux.id)) break;
+				}
+			}
+		}
 	}
 
 	// =================================================================
