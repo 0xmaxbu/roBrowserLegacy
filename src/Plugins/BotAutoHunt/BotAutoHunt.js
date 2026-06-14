@@ -582,17 +582,31 @@ class BotAutoHunt {
 			'border:1px solid #ccc;border-radius:3px;background:#f5f5f5;cursor:pointer;color:#c44;">清除</button>' : '') +
 			'</div>';
 
+		// 当前已选中的 id 列表（排除正在编辑的格子，允许替换）
+		const currentList = slot === 'skill' ? this.skillList : this.auxList;
+		const selectedIds = new Set();
+		for (let i = 0; i < currentList.length; i++) {
+			if (i !== index && currentList[i] && currentList[i].id) {
+				selectedIds.add(currentList[i].id);
+			}
+		}
+
 		let gridHtml = headerHtml +
-			'<div style="display:grid;grid-template-columns:repeat(6,36px);gap:4px;' +
+			'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;' +
 			'max-height:320px;overflow-y:auto;">';
 		for (const item of items) {
+			// #4 fix: 跳过已选中的项（禁止重复）
+			if (selectedIds.has(item.id)) continue;
+			const name = item.name.length > 5 ? item.name.slice(0, 5) + '…' : item.name;
 			gridHtml +=
 				'<div class="dd-item" data-id="' + item.id + '" ' +
-				'style="width:36px;height:36px;border:1px solid #ddd;border-radius:2px;background:transparent;' +
-				'cursor:pointer;display:flex;align-items:center;justify-content:center;">' +
+				'style="display:flex;align-items:center;gap:4px;padding:3px 4px;border-radius:2px;' +
+				'background:transparent;cursor:pointer;">' +
 				'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
-				'style="width:28px;height:28px;border-radius:2px;' +
+				'style="min-width:22px;height:22px;border-radius:2px;' +
 				'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
+				'<span class="dd-name" style="font-size:10px;color:#484848;white-space:nowrap;' +
+				'overflow:hidden;text-overflow:ellipsis;">' + name + '</span>' +
 				'</div>';
 		}
 		gridHtml += '</div>';
@@ -609,14 +623,16 @@ class BotAutoHunt {
 		dd.style.left = rect.left + 'px';
 		dd.style.top = rect.bottom + 2 + 'px';
 
-		// 选择项点击
+		// 选择项点击 — stopPropagation 确保不被 canvas 拦截
 		dd.querySelectorAll('.dd-item').forEach(itemEl => {
-			itemEl.addEventListener('click', () => {
+			itemEl.addEventListener('click', e => {
+				e.stopPropagation();
 				const id = +itemEl.dataset.id;
 				const info = items.find(it => it.id === id);
 				this._selectSlotItem(slot, index, id, info);
 				this._hideDropdown();
 			});
+			itemEl.addEventListener('mousedown', e => { e.stopPropagation(); });
 			itemEl.addEventListener('mouseenter', () => {
 				itemEl.style.background = '#eef2f8';
 			});
@@ -628,7 +644,8 @@ class BotAutoHunt {
 		// #10 fix: clear button — 按顺序压缩（清除后后方前移）
 		const clearBtn = dd.querySelector('.dd-clear');
 		if (clearBtn) {
-			clearBtn.addEventListener('click', () => {
+			clearBtn.addEventListener('click', e => {
+				e.stopPropagation();
 				const list2 = slot === 'skill' ? this.skillList : this.auxList;
 				// 移除当前格，后方元素前移，末尾补 null
 				list2.splice(index, 1);
@@ -638,6 +655,7 @@ class BotAutoHunt {
 				this._hideDropdown();
 				this._showInfo('已清除');
 			});
+			clearBtn.addEventListener('mousedown', e => { e.stopPropagation(); });
 		}
 
 		document.body.appendChild(dd);
@@ -676,9 +694,9 @@ class BotAutoHunt {
 			if (!ui || typeof ui.getList !== 'function') return [];
 			const skills = ui.getList();
 			if (!Array.isArray(skills)) return [];
-			// 只展示已学习(level>0)且主动(type>0)的技能
+			// 只展示已学习(level>0)且主动(type>0, spcost>0)的技能，排除被动
 			return skills
-				.filter(s => s && s.level > 0 && s.type > 0)
+				.filter(s => s && s.level > 0 && s.type > 0 && s.spcost > 0)
 				.map(s => {
 					// 技能名从 SkillInfo DB 获取（src/DB/Skills/SkillInfo.js，已 Vite alias）
 					let name = 'Skill ' + s.SKID;
@@ -809,13 +827,8 @@ class BotAutoHunt {
 						this._loadIcon(icon, info.iconName);
 					}
 				}
-				if (nameEl) {
-					nameEl.style.display = 'block';
-					// 名称优先从下拉数据源中找，否则用 id
-					const lookup = slot === 'skill' ? this._getAvailableSkills() : this._getAvailableConsumables();
-					const info = lookup.find(x => x.id === item.id);
-					nameEl.textContent = info ? info.name : '#' + item.id;
-				}
+				// #5 fix: 面板格子不显示名称，只显示图标
+				if (nameEl) nameEl.style.display = 'none';
 
 				// D2 #17: 消耗品 count <= 0 → 灰化
 				if (slot === 'aux') {
