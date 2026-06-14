@@ -104,6 +104,15 @@ Network.hookPacket(ZC_BOT_STATUS, function (pkt) {
 const ITEM_FLY_WING = 601; // 苍蝇翅膀 — 随机传送
 const ITEM_BUTTERFLY_WING = 602; // 蝴蝶翅膀 — 回存储点
 
+/** #12 fix: 城镇地图列表 — 城镇内禁止自动挂机 */
+const TOWN_MAPS = new Set([
+	'prontera', 'geffen', 'morocc', 'alberta', 'aldebaran', 'payon',
+	'izlude', 'lutie', 'comodo', 'umbala', 'amatsu', 'gonryun',
+	'ayothaya', 'einbroch', 'einbech', 'lighthalzen', 'hugel',
+	'rachel', 'veins', 'brasilis', 'dewata', 'malangdo', 'malaya',
+	'moscovia', 'paramk', 'splendide', 'manuk', 'prontera_guild'
+]);
+
 /** 技能触发类型（开发时预分类，D-03c） */
 const SKILL_TYPE_ATTACK = 'attack'; // 有目标+冷却→释放
 const SKILL_TYPE_HEAL = 'heal'; // HP<阈值→释放（双模式：不死系→攻击）
@@ -160,12 +169,20 @@ class BotAutoHunt {
 		this.flyNoMobs = false; // 四周无怪→苍蝇翅膀
 		this.flyLowHp = false; // HP<10%→苍蝇翅膀
 
+		// ---------- #13 fix: 独立自动药水 ----------
+		this.autoPotion = false; // 独立开关，不依赖 active(挂机)
+		this._autoPotionTick = null; // 独立药水循环定时器
+
 		// ---------- 防重复启停 ----------
 		this._lastCmdTime = 0;
 		this._cmdCooldownMs = 2000; // 2 秒冷却（拦截连点器/手抖）
 		this._pendingCmd = null; // 正在等待回包的指令编号
 		this._pendingCmdTime = 0; // pending 锁设置时间（HI-02 fix: 超时恢复）
 		this._pendingCmdTimeoutMs = 10000; // 10 秒超时（防丢包永久锁死）
+
+		// ---------- 巡逻状态 (#3 fix) ----------
+		this._lastMobSeenTick = 0; // 最后一次看到怪物的时间
+		this._lastPatrolMoveTick = 0; // 最后一次巡逻移动的时间
 
 		// ---------- 三循环定时器（D-57） ----------
 		this.combatTick = null; // ~100ms 战斗循环
@@ -300,9 +317,23 @@ class BotAutoHunt {
 		document.body.appendChild(panel);
 		this._panel = panel;
 
+		// #1 fix: Block ALL mouse events from propagating to the WebGL canvas
+		// Without this, clicking the panel causes the character to walk
+		const _stop = e => { e.stopPropagation(); };
+		panel.addEventListener('mousedown', _stop, true);
+		panel.addEventListener('mouseup', _stop, true);
+		panel.addEventListener('click', _stop, true);
+		panel.addEventListener('mousemove', _stop, true);
+		panel.addEventListener('wheel', _stop, true);
+		panel.addEventListener('contextmenu', _stop, true);
+		panel.addEventListener('dblclick', _stop, true);
+
 		this._bindPanelEvents();
 		this._makeDraggable(panel, panel.querySelector('.bot-titlebar'));
 		this._refreshPanel();
+
+		// #13 fix: 如果 autoPotion 已启用，启动独立药水循环
+		if (this.autoPotion) this._startAutoPotion();
 	}
 
 	_hidePanel() {
@@ -352,8 +383,8 @@ class BotAutoHunt {
 			'<div style="font-size:11px;font-weight:bold;margin-bottom:2px;">技能列表</div>' +
 			'<div class="bot-skill-grid" style="display:flex;gap:6px;margin-bottom:14px;">' +
 			this._buildCellGrid('skill', 6) + '</div>' +
-			// 辅助列表 6 格
-			'<div style="font-size:11px;font-weight:bold;margin-bottom:2px;">辅助列表</div>' +
+			// 消耗品列表 6 格 (#11 rename)
+			'<div style="font-size:11px;font-weight:bold;margin-bottom:2px;">消耗品</div>' +
 			'<div class="bot-aux-grid" style="display:flex;gap:6px;margin-bottom:14px;">' +
 			this._buildCellGrid('aux', 6) + '</div>' +
 			// 跟随 + 飞翅勾选（D2 #11/#12）
@@ -364,6 +395,10 @@ class BotAutoHunt {
 			'> 无怪飞翅</label> ' +
 			'<label><input type="checkbox" class="bot-fly-lowhp"' + (this.flyLowHp ? ' checked' : '') +
 			'> 低血飞翅</label></div>' +
+			// #13 fix: 独立自动药水（不依赖挂机开关）
+			'<div style="margin-bottom:8px;">' +
+			'<label><input type="checkbox" class="bot-auto-potion"' + (this.autoPotion ? ' checked' : '') +
+			'> 自动吃药（独立）</label></div>' +
 			// 按钮行：开始/停止 toggle（同一按钮两状态）+ 离线挂机（D2 #1, D-14b）
 			'<div style="display:flex;gap:6px;margin-bottom:6px;">' +
 			'<button class="bot-toggle-btn" style="flex:1;">' +
@@ -472,22 +507,23 @@ class BotAutoHunt {
 				this._saveSettings();
 			});
 		}
+		// #13 fix: 独立自动药水开关
+		const autoPotionCb = p.querySelector('.bot-auto-potion');
+		if (autoPotionCb) {
+			autoPotionCb.addEventListener('change', e => {
+				this.autoPotion = e.target.checked;
+				this._saveSettings();
+				if (this.autoPotion) this._startAutoPotion();
+				else this._stopAutoPotion();
+			});
+		}
 
-		// 格子点击 → dropdown（点击已填格子 = 清空该格，点击空格子 = 弹出选择面板）
+		// #10 fix: click slot = open dropdown (to select or change). Clear button is in the dropdown.
 		p.querySelectorAll('.cell').forEach(cell => {
 			cell.addEventListener('click', () => {
 				const slot = cell.dataset.slot;
 				const index = +cell.dataset.index;
-				const list = slot === 'skill' ? this.skillList : this.auxList;
-				if (list[index]) {
-					// 已填 → 清空
-					list[index] = null;
-					this._saveSettings();
-					this._refreshPanel();
-				} else {
-					// 空 → 弹出 dropdown
-					this._showDropdown(slot, index, cell);
-				}
+				this._showDropdown(slot, index, cell);
 			});
 		});
 	}
@@ -517,7 +553,19 @@ class BotAutoHunt {
 			fontFamily: 'Gulim, Dotum, "Malgun Gothic", sans-serif'
 		});
 
-		let gridHtml =
+		// #10 fix: header with title + clear button
+		const list = slot === 'skill' ? this.skillList : this.auxList;
+		const isFilled = !!(list[index] && list[index].id);
+		const headerHtml =
+			'<div style="display:flex;justify-content:space-between;align-items:center;' +
+			'margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #eee;">' +
+			'<span style="font-size:11px;font-weight:bold;color:#484848;">' +
+			(slot === 'skill' ? '技能' : '消耗品') + '</span>' +
+			(isFilled ? '<button class="dd-clear" style="font-size:10px;padding:2px 8px;' +
+			'border:1px solid #ccc;border-radius:3px;background:#f5f5f5;cursor:pointer;color:#c44;">清除</button>' : '') +
+			'</div>';
+
+		let gridHtml = headerHtml +
 			'<div style="display:grid;grid-template-columns:repeat(4,54px);gap:4px;' +
 			'max-height:320px;overflow-y:auto;">';
 		for (const item of items) {
@@ -558,6 +606,19 @@ class BotAutoHunt {
 			});
 		});
 
+		// #10 fix: clear button
+		const clearBtn = dd.querySelector('.dd-clear');
+		if (clearBtn) {
+			clearBtn.addEventListener('click', () => {
+				const list2 = slot === 'skill' ? this.skillList : this.auxList;
+				list2[index] = null;
+				this._saveSettings();
+				this._refreshPanel();
+				this._hideDropdown();
+				this._showInfo('已清除');
+			});
+		}
+
 		document.body.appendChild(dd);
 		this._dropdown = dd;
 
@@ -578,9 +639,10 @@ class BotAutoHunt {
 	 */
 	_getAvailableSkills() {
 		try {
-			const component = SkillListUI.getUI && SkillListUI.getUI();
-			if (!component || typeof component.getList !== 'function') return [];
-			const skills = component.getList();
+			// #2 fix: getList() is a static method on the SkillList module object.
+			// Do NOT go through getUI() — the V4 component instance doesn't inherit it.
+			if (typeof SkillListUI.getList !== 'function') return [];
+			const skills = SkillListUI.getList();
 			if (!Array.isArray(skills)) return [];
 			// 只展示已学习(level>0)且主动(type>0)的技能
 			return skills
@@ -819,6 +881,12 @@ class BotAutoHunt {
 	}
 
 	startAutoHunt() {
+		// #12 fix: 城镇地图禁止挂机
+		const mapName = this._getCurrentMapName();
+		if (mapName && TOWN_MAPS.has(mapName)) {
+			this._showError('城镇内禁止自动挂机');
+			return;
+		}
 		// cmd 0: autohunt_start → 服务端写入 autohunt_log（D-52）
 		if (!this.sendCommand(0)) return;
 		// 乐观更新：立即启动循环，不等回包
@@ -834,6 +902,10 @@ class BotAutoHunt {
 	}
 
 	startOffline() {
+		// #6 fix: 确认对话框，防止误触
+		if (!confirm('确定要开始离线挂机吗？\n你将被踢下线，挂机收益将通过邮件发送。')) {
+			return;
+		}
 		// cmd 2: offline_start — 服务器将踢下线
 		if (!this.sendCommand(2)) return;
 		// 关闭面板 + 停止挂机循环（被踢前清理 UI 状态）
@@ -866,6 +938,24 @@ class BotAutoHunt {
 		this._timerTick = null;
 	}
 
+	// #13 fix: 独立自动药水 — 不依赖挂机开关 active
+	_startAutoPotion() {
+		this._stopAutoPotion();
+		this._autoPotionTick = setInterval(() => {
+			if (this.active) return; // 挂机中由主药水循环处理
+			try {
+				this._potionLoopInner();
+			} catch (e) {
+				console.error('[BotAutoHunt] auto-potion loop error:', e);
+			}
+		}, 200);
+	}
+
+	_stopAutoPotion() {
+		if (this._autoPotionTick) clearInterval(this._autoPotionTick);
+		this._autoPotionTick = null;
+	}
+
 	/** 计时器循环：累计挂机时长，每 60s 请求积分更新 */
 	_timerLoop() {
 		this.timerSec++;
@@ -888,6 +978,15 @@ class BotAutoHunt {
 	// =================================================================
 
 	_combatLoop() {
+		if (!this.active) return;
+		try {
+			this._combatLoopInner();
+		} catch (e) {
+			console.error('[BotAutoHunt] combat loop error:', e);
+		}
+	}
+
+	_combatLoopInner() {
 		if (!this.active) return;
 
 		// 1. 死亡检测 (D-31) — 角色 dead 则停止挂机循环
@@ -929,8 +1028,8 @@ class BotAutoHunt {
 			// 不同地图: 原地等待，不停止挂机
 		}
 
-		// 3. 飞翅检查 — 四周无怪 (D2 #12)
-		if (this.flyNoMobs) {
+		// 3. 飞翅检查 + 巡逻 (#3 fix: 5秒无怪才飞翅，否则随机走动)
+		{
 			let hasMob = false;
 			EntityManager.forEach(entity => {
 				if (
@@ -942,8 +1041,30 @@ class BotAutoHunt {
 					return false; // break
 				}
 			});
-			if (!hasMob) {
-				this._useItemById(ITEM_FLY_WING); // 苍蝇翅膀 ITID=601
+
+			if (hasMob) {
+				this._lastMobSeenTick = Renderer.tick;
+			} else {
+				// 无怪状态
+				const noMobMs = Renderer.tick - this._lastMobSeenTick;
+				// 5 秒无怪 + 勾选了飞翅 → 使用苍蝇翅膀
+				if (this.flyNoMobs && noMobMs > 5000) {
+					this._useItemById(ITEM_FLY_WING);
+					this._lastMobSeenTick = Renderer.tick; // 重置计时
+					return;
+				}
+				// 巡逻：每 3 秒随机移动
+				if (Renderer.tick - this._lastPatrolMoveTick > 3000) {
+					this._lastPatrolMoveTick = Renderer.tick;
+					const cx = Session.Entity.position[0];
+					const cy = Session.Entity.position[1];
+					const dx = ((Math.random() * 20) | 0) - 10;
+					const dy = ((Math.random() * 20) | 0) - 10;
+					const pkt = new PACKET.CZ.REQUEST_MOVE2();
+					pkt.dest[0] = cx + dx;
+					pkt.dest[1] = cy + dy;
+					Network.sendPacket(pkt);
+				}
 				return;
 			}
 		}
@@ -985,6 +1106,14 @@ class BotAutoHunt {
 
 	_potionLoop() {
 		if (!this.active) return;
+		try {
+			this._potionLoopInner();
+		} catch (e) {
+			console.error('[BotAutoHunt] potion loop error:', e);
+		}
+	}
+
+	_potionLoopInner() {
 		if (!Session.Entity || Session.Entity.isDead()) return;
 
 		const life = Session.Entity.life;
@@ -1047,6 +1176,15 @@ class BotAutoHunt {
 	 */
 	_buffLoop() {
 		if (!this.active) return;
+		try {
+			this._buffLoopInner();
+		} catch (e) {
+			console.error('[BotAutoHunt] buff loop error:', e);
+		}
+	}
+
+	_buffLoopInner() {
+		if (!this.active) return;
 		if (!Session.Entity || Session.Entity.isDead()) return;
 
 		// 1. 技能列表中的 buff 技能
@@ -1088,6 +1226,16 @@ class BotAutoHunt {
 		if (!item || item.count <= 0) return false;
 		inv.useItem(item);
 		return true;
+	}
+
+	/** #12 fix: 获取当前地图名（小写，不含扩展名） */
+	_getCurrentMapName() {
+		try {
+			if (Session && Session.Entity && Session.Entity.mapname) {
+				return Session.Entity.mapname.replace(/\.gat$/i, '').toLowerCase();
+			}
+		} catch (_) {}
+		return '';
 	}
 
 	/** 面板内错误消息 — 红色文字，3 秒后消失（D2 #9） */
@@ -1196,6 +1344,7 @@ class BotAutoHunt {
 				this.followTarget = s.followTarget ?? '';
 				this.flyNoMobs = s.flyNoMobs ?? false;
 				this.flyLowHp = s.flyLowHp ?? false;
+				this.autoPotion = s.autoPotion ?? false;
 				return;
 			}
 		} catch (_) {
@@ -1209,6 +1358,7 @@ class BotAutoHunt {
 		this.followTarget = '';
 		this.flyNoMobs = false;
 		this.flyLowHp = false;
+		this.autoPotion = false;
 	}
 
 	_saveSettings() {
@@ -1222,7 +1372,8 @@ class BotAutoHunt {
 				follow: this.followEnabled,
 				followTarget: this.followTarget,
 				flyNoMobs: this.flyNoMobs,
-				flyLowHp: this.flyLowHp
+				flyLowHp: this.flyLowHp,
+				autoPotion: this.autoPotion
 			})
 		);
 	}
