@@ -31,8 +31,8 @@ import StatusIcons from 'UI/Components/StatusIcons/StatusIcons.js';
 // Task 2 补充导入 — 三循环 + 面板下拉数据源
 import EntityManager from 'Renderer/EntityManager.js'; // forEach/get/getClosestEntity/getFocusEntity/setFocusEntity
 import Entity from 'Renderer/Entity/Entity.js'; // TYPE_MOB / ACTION.DIE 常量
-import Renderer from 'Renderer/Renderer.js'; // Renderer.tick (amotion 冷却判定)
-import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名
+import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_PATH 图标路径
+import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import SkillInfo from 'DB/Skills/SkillInfo.js'; // 技能名解析 (SkillName 字段)
 import SkillListUI from 'UI/Components/SkillList/SkillList.js'; // getUI().getList() 技能下拉数据源 (R4-问题6)
@@ -180,9 +180,9 @@ class BotAutoHunt {
 		this._pendingCmdTime = 0; // pending 锁设置时间（HI-02 fix: 超时恢复）
 		this._pendingCmdTimeoutMs = 10000; // 10 秒超时（防丢包永久锁死）
 
-		// ---------- 巡逻状态 (#3 fix) ----------
-		this._lastMobSeenTick = 0; // 最后一次看到怪物的时间
-		this._lastPatrolMoveTick = 0; // 最后一次巡逻移动的时间
+		// ---------- 巡逻状态 (#3 fix) — 使用 Date.now() 而非 Renderer.tick（后台 tab 时 rAF 冻结） ----------
+		this._lastMobSeenTick = 0; // 最后一次看到怪物的时间 (Date.now())
+		this._lastPatrolMoveTick = 0; // 最后一次巡逻移动的时间 (Date.now())
 
 		// ---------- 三循环定时器（D-57） ----------
 		this.combatTick = null; // ~100ms 战斗循环
@@ -218,6 +218,15 @@ class BotAutoHunt {
 				} else {
 					delete this._buffMap[pkt.index];
 				}
+			}
+		});
+
+		// ---------- 后台 tab 恢复 ----------
+		// Renderer.tick 由 rAF 驱动，后台 tab 时冻结。setInterval 虽被限流但仍在运行。
+		// 当 tab 重新可见时，用 Date.now() 重置巡逻计时器避免误触飞翅。
+		document.addEventListener('visibilitychange', () => {
+			if (!document.hidden && this.active) {
+				this._lastMobSeenTick = Date.now();
 			}
 		});
 
@@ -577,14 +586,22 @@ class BotAutoHunt {
 				'style="width:54px;height:50px;border:none;border-radius:2px;background:transparent;' +
 				'cursor:pointer;display:flex;flex-direction:column;align-items:center;' +
 				'justify-content:center;gap:5px;">' +
-				'<div class="dd-icon" style="width:24px;height:24px;border-radius:2px;' +
-				'background:' + (item.color || '#5a8') + ';"></div>' +
+				'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
+				'style="width:24px;height:24px;border-radius:2px;' +
+				'background:' + (item.color || '#5a8') + ';' +
+				'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
 				'<div class="dd-name" style="font-size:10px;color:#484848;text-align:center;line-height:1.1;' +
 				'max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
 				name + '</div></div>';
 		}
 		gridHtml += '</div>';
 		dd.innerHTML = gridHtml;
+
+		// 异步加载每个 dropdown 项的真实图标
+		dd.querySelectorAll('.dd-icon').forEach(iconEl => {
+			const iconName = iconEl.dataset.icon;
+			if (iconName) this._loadIcon(iconEl, iconName);
+		});
 
 		// 定位到锚点格子下方
 		const rect = anchorCell.getBoundingClientRect();
@@ -652,12 +669,20 @@ class BotAutoHunt {
 				.map(s => {
 					// 技能名从 SkillInfo DB 获取（src/DB/Skills/SkillInfo.js，已 Vite alias）
 					let name = 'Skill ' + s.SKID;
-					if (SkillInfo && SkillInfo[s.SKID] && SkillInfo[s.SKID].SkillName) {
-						name = SkillInfo[s.SKID].SkillName;
+					let iconName = '';
+					if (SkillInfo && SkillInfo[s.SKID]) {
+						if (SkillInfo[s.SKID].SkillName) {
+							name = SkillInfo[s.SKID].SkillName;
+						}
+						// 技能图标资源名（SkillList.js 使用的同一字段）
+						if (SkillInfo[s.SKID].Name) {
+							iconName = SkillInfo[s.SKID].Name;
+						}
 					}
 					return {
 						id: s.SKID,
 						name: name,
+						iconName: iconName,
 						color: '#5a8',
 						level: s.level,
 						type: s.type
@@ -686,10 +711,14 @@ class BotAutoHunt {
 				)
 				.map(item => {
 					let name = 'Item ' + item.ITID;
+					let iconName = '';
 					try {
 						const info = DB.getItemInfo(item.ITID);
 						if (info && info.identifiedDisplayName) {
 							name = info.identifiedDisplayName;
+						}
+						if (info && info.identifiedResourceName) {
+							iconName = info.identifiedResourceName;
 						}
 					} catch (_) {
 						// ignore
@@ -697,6 +726,7 @@ class BotAutoHunt {
 					return {
 						id: item.ITID,
 						name: name,
+						iconName: iconName,
 						color: '#c44',
 						index: item.index,
 						count: item.count
@@ -759,7 +789,14 @@ class BotAutoHunt {
 				if (plus) plus.style.display = 'none';
 				if (icon) {
 					icon.style.display = 'block';
+					// 先设 fallback 颜色，再异步加载真实图标
 					icon.style.background = slot === 'skill' ? '#5a8' : '#c44';
+					// 从下拉数据源中找 iconName
+					const lookup = slot === 'skill' ? this._getAvailableSkills() : this._getAvailableConsumables();
+					const info = lookup.find(x => x.id === item.id);
+					if (info && info.iconName) {
+						this._loadIcon(icon, info.iconName);
+					}
 				}
 				if (nameEl) {
 					nameEl.style.display = 'block';
@@ -797,6 +834,8 @@ class BotAutoHunt {
 	/**
 	 * 拖拽功能（面板 titlebar 抓手）
 	 * Source: 原生 mousedown/mousemove/mouseup 实现（不依赖 jQuery）
+	 * 关键: mousemove/mouseup 必须挂到 window + capture 阶段，
+	 * 否则面板根的 stopPropagation(bubble) 会拦截 document 上的 drag handler。
 	 */
 	_makeDraggable(element, handle) {
 		if (!handle) return;
@@ -804,24 +843,26 @@ class BotAutoHunt {
 		let startY = 0;
 		let origX = 0;
 		let origY = 0;
+		let dragging = false;
 		handle.addEventListener('mousedown', e => {
 			// 关闭按钮点击不触发拖拽
 			if (e.target.classList && e.target.classList.contains('bot-close')) return;
+			dragging = true;
 			startX = e.clientX;
 			startY = e.clientY;
 			origX = element.offsetLeft;
 			origY = element.offsetTop;
-			const onMove = ev => {
-				element.style.left = origX + ev.clientX - startX + 'px';
-				element.style.top = origY + ev.clientY - startY + 'px';
-			};
-			const onUp = () => {
-				document.removeEventListener('mousemove', onMove);
-				document.removeEventListener('mouseup', onUp);
-			};
-			document.addEventListener('mousemove', onMove);
-			document.addEventListener('mouseup', onUp);
+			e.preventDefault(); // 防止文本选中
 		});
+		// capture=true: 在面板 stopPropagation 之前截获
+		window.addEventListener('mousemove', e => {
+			if (!dragging) return;
+			element.style.left = origX + e.clientX - startX + 'px';
+			element.style.top = origY + e.clientY - startY + 'px';
+		}, true);
+		window.addEventListener('mouseup', () => {
+			dragging = false;
+		}, true);
 	}
 
 	// =================================================================
@@ -937,6 +978,9 @@ class BotAutoHunt {
 
 	startLoops() {
 		this.stopLoops();
+		// 初始化巡逻计时器，避免启动瞬间误触飞翅（Date.now() 不依赖 rAF）
+		this._lastMobSeenTick = Date.now();
+		this._lastPatrolMoveTick = 0;
 		this.combatTick = setInterval(() => this._combatLoop(), 100);
 		this.potionTick = setInterval(() => this._potionLoop(), 200);
 		this.buffTick = setInterval(() => this._buffLoop(), 1000);
@@ -1045,6 +1089,7 @@ class BotAutoHunt {
 		}
 
 		// 3. 飞翅检查 + 巡逻 (#3 fix: 5秒无怪才飞翅，否则随机走动)
+		// 使用 Date.now() 而非 Renderer.tick，后台 tab rAF 冻结时仍能工作
 		{
 			let hasMob = false;
 			EntityManager.forEach(entity => {
@@ -1059,19 +1104,19 @@ class BotAutoHunt {
 			});
 
 			if (hasMob) {
-				this._lastMobSeenTick = Renderer.tick;
+				this._lastMobSeenTick = Date.now();
 			} else {
 				// 无怪状态
-				const noMobMs = Renderer.tick - this._lastMobSeenTick;
+				const noMobMs = Date.now() - this._lastMobSeenTick;
 				// 5 秒无怪 + 勾选了飞翅 → 使用苍蝇翅膀
 				if (this.flyNoMobs && noMobMs > 5000) {
 					this._useItemById(ITEM_FLY_WING);
-					this._lastMobSeenTick = Renderer.tick; // 重置计时
+					this._lastMobSeenTick = Date.now(); // 重置计时
 					return;
 				}
 				// 巡逻：每 3 秒随机移动
-				if (Renderer.tick - this._lastPatrolMoveTick > 3000) {
-					this._lastPatrolMoveTick = Renderer.tick;
+				if (Date.now() - this._lastPatrolMoveTick > 3000) {
+					this._lastPatrolMoveTick = Date.now();
 					const cx = Session.Entity.position[0];
 					const cy = Session.Entity.position[1];
 					const dx = ((Math.random() * 20) | 0) - 10;
@@ -1093,8 +1138,9 @@ class BotAutoHunt {
 			EntityManager.setFocusEntity(target);
 		}
 
-		// 5. amotion 冷却检查（技能/普攻后摇未结束则等下一 tick）
-		if (Session.Entity.amotionTick > Renderer.tick) return;
+		// 5. amotion 冷却检查（使用 Date.now() 而非 Renderer.tick，后台兼容）
+		// amotionTick 由游戏引擎设置 = Renderer.tick + amotion（Renderer.tick 在前台等于 Date.now()）
+		if (Session.Entity.amotionTick > Date.now()) return;
 
 		// 6. 遍历技能列表 — 攻击型 / 治疗型(对不死系怪物当攻击用，D2 #13)
 		for (const skill of this.skillList) {
@@ -1242,6 +1288,23 @@ class BotAutoHunt {
 		if (!item || item.count <= 0) return false;
 		inv.useItem(item);
 		return true;
+	}
+
+	/**
+	 * 加载 GRF 中的 BMP 图标到 DOM 元素的 background-image
+	 * Source: 与 SkillList/Equipment/Inventory 等组件使用相同的 Client.loadFile + INTERFACE_PATH 模式
+	 * @param {HTMLElement} el - icon div 元素
+	 * @param {string} iconName - 资源名（identifiedResourceName 或 SkillInfo.Name）
+	 */
+	_loadIcon(el, iconName) {
+		if (!el || !iconName) return;
+		try {
+			Client.loadFile(
+				DB.INTERFACE_PATH + 'item/' + iconName + '.bmp',
+				url => { el.style.backgroundImage = 'url(' + url + ')'; },
+				() => {} // 加载失败 → 保留 fallback 颜色
+			);
+		} catch (_) {}
 	}
 
 	/** 发送聊天指令（如 @autoloot）— 封包格式: "角色名 : 消息" */
