@@ -1213,8 +1213,11 @@ class BotAutoHunt {
 					this._lastMobSeenTick = Date.now(); // 重置计时
 					return;
 				}
-				// 巡逻：每 3 秒随机移动
-				if (Date.now() - this._lastPatrolMoveTick > 3000) {
+				// 巡逻：角色行走中不重复发指令；停下后立即寻路（短冷却防刷包）
+				if (Session.Entity.action === Session.Entity.ACTION.WALK) {
+					return; // 正在走，继续等待
+				}
+				if (Date.now() - this._lastPatrolMoveTick > 500) {
 					this._lastPatrolMoveTick = Date.now();
 					const cx = Session.Entity.position[0];
 					const cy = Session.Entity.position[1];
