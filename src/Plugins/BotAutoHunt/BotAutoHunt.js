@@ -640,10 +640,11 @@ class BotAutoHunt {
 	 */
 	_getAvailableSkills() {
 		try {
-			// #2 fix: getList() is a static method on the SkillList module object.
-			// Do NOT go through getUI() — the V4 component instance doesn't inherit it.
-			if (typeof SkillListUI.getList !== 'function') return [];
-			const skills = SkillListUI.getList();
+			// SkillListUI is the UIVersionManager Controller wrapper.
+			// getList() is defined on the component instance, accessible via getUI().
+			const ui = SkillListUI.getUI();
+			if (!ui || typeof ui.getList !== 'function') return [];
+			const skills = ui.getList();
 			if (!Array.isArray(skills)) return [];
 			// 只展示已学习(level>0)且主动(type>0)的技能
 			return skills
@@ -893,6 +894,8 @@ class BotAutoHunt {
 		// 乐观更新：立即启动循环，不等回包
 		this.active = true;
 		this.startLoops();
+		// 自动开启 @autoloot — 聊天封包格式必须是 "角色名 : 消息"
+		this._sendChat('@autoloot');
 	}
 
 	stopAutoHunt() {
@@ -900,6 +903,7 @@ class BotAutoHunt {
 		if (!this.sendCommand(1)) return;
 		this.active = false;
 		this.stopLoops();
+		this._sendChat('@autoloot off');
 	}
 
 	startOffline() {
@@ -1046,7 +1050,7 @@ class BotAutoHunt {
 			EntityManager.forEach(entity => {
 				if (
 					entity.objecttype === Entity.TYPE_MOB &&
-					entity.action !== Entity.ACTION.DIE &&
+					entity.action !== entity.ACTION.DIE &&
 					entity.remove_tick === 0
 				) {
 					hasMob = true;
@@ -1238,6 +1242,16 @@ class BotAutoHunt {
 		if (!item || item.count <= 0) return false;
 		inv.useItem(item);
 		return true;
+	}
+
+	/** 发送聊天指令（如 @autoloot）— 封包格式: "角色名 : 消息" */
+	_sendChat(msg) {
+		try {
+			if (!Session.Entity || !Session.Entity.display || !Session.Entity.display.name) return;
+			const pkt = new PACKET.CZ.REQUEST_CHAT();
+			pkt.msg = Session.Entity.display.name + ' : ' + msg;
+			Network.sendPacket(pkt);
+		} catch (_) {}
 	}
 
 	/** #12 fix: 获取当前地图名（小写，不含扩展名） */
