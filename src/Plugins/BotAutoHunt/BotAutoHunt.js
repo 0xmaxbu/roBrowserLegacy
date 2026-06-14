@@ -298,6 +298,7 @@ class BotAutoHunt {
 			// 已存在 → 直接显示并刷新当前状态
 			this._panel.style.display = 'block';
 			this._refreshPanel();
+			this.sendCommand(4); // 立即请求积分更新
 			return;
 		}
 
@@ -341,6 +342,7 @@ class BotAutoHunt {
 		this._bindPanelEvents();
 		this._makeDraggable(panel, panel.querySelector('.bot-titlebar'));
 		this._refreshPanel();
+		this.sendCommand(4); // 面板首次打开时立即请求积分
 
 		// #13 fix: 如果 autoPotion 已启用，启动独立药水循环
 		if (this.autoPotion) this._startAutoPotion();
@@ -416,9 +418,9 @@ class BotAutoHunt {
 			// 按钮行：开始/停止 toggle（同一按钮两状态）+ 离线挂机（D2 #1, D-14b）
 			// 按钮文字减小 2px（11px → 9px）
 			'<div style="display:flex;gap:6px;margin-bottom:6px;">' +
-			'<button class="bot-toggle-btn" style="flex:1;font-size:9px;">' +
+			'<button class="bot-toggle-btn" style="flex:1;font-size:10px;">' +
 			(this.active ? '停止挂机' : '开始挂机') + '</button>' +
-			'<button class="bot-offline-btn" style="flex:1;font-size:9px;">离线挂机</button></div>' +
+			'<button class="bot-offline-btn" style="flex:1;font-size:10px;">离线挂机</button></div>' +
 			// 状态栏：计时器 + 积分
 			'<div style="min-height:14px;">' +
 			'<span class="bot-timer">' + this._formatTime(this.timerSec) + '</span>' +
@@ -581,22 +583,17 @@ class BotAutoHunt {
 			'</div>';
 
 		let gridHtml = headerHtml +
-			'<div style="display:grid;grid-template-columns:repeat(4,54px);gap:4px;' +
+			'<div style="display:grid;grid-template-columns:repeat(6,36px);gap:4px;' +
 			'max-height:320px;overflow-y:auto;">';
 		for (const item of items) {
-			// 名称截断 ≤4 字 + 省略号（D-14a）
-			const name = item.name.length > 4 ? item.name.slice(0, 4) + '…' : item.name;
 			gridHtml +=
 				'<div class="dd-item" data-id="' + item.id + '" ' +
-				'style="width:54px;height:50px;border:none;border-radius:2px;background:transparent;' +
-				'cursor:pointer;display:flex;flex-direction:column;align-items:center;' +
-				'justify-content:center;gap:5px;">' +
+				'style="width:36px;height:36px;border:1px solid #ddd;border-radius:2px;background:transparent;' +
+				'cursor:pointer;display:flex;align-items:center;justify-content:center;">' +
 				'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
-				'style="width:24px;height:24px;border-radius:2px;' +
+				'style="width:28px;height:28px;border-radius:2px;' +
 				'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
-				'<div class="dd-name" style="font-size:10px;color:#484848;text-align:center;line-height:1.1;' +
-				'max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-				name + '</div></div>';
+				'</div>';
 		}
 		gridHtml += '</div>';
 		dd.innerHTML = gridHtml;
@@ -645,6 +642,16 @@ class BotAutoHunt {
 
 		document.body.appendChild(dd);
 		this._dropdown = dd;
+
+		// 阻止 dropdown 事件冒泡到 canvas（与面板相同处理）
+		const _stop2 = e => { e.stopPropagation(); };
+		dd.addEventListener('mousedown', _stop2, false);
+		dd.addEventListener('mouseup', _stop2, false);
+		dd.addEventListener('click', _stop2, false);
+		dd.addEventListener('mousemove', _stop2, false);
+		dd.addEventListener('wheel', _stop2, false);
+		dd.addEventListener('contextmenu', _stop2, false);
+		dd.addEventListener('dblclick', _stop2, false);
 
 		// 点击外部关闭 dropdown
 		const closeHandler = e => {
@@ -952,9 +959,9 @@ class BotAutoHunt {
 	}
 
 	startOffline() {
-		// #6+#7 fix: 确认对话框 + 显示积分和预估时间
+		// #6+#7 fix: RO 风格确认弹窗（替代 alert/confirm）
 		const pts = this.currentPoints;
-		const ratePerMin = 1; // 服务器默认 1 积分/分钟（$bot_offline_points_per_min$ 默认值）
+		const ratePerMin = 1;
 		const estMin = Math.floor(pts / ratePerMin);
 		const estH = Math.floor(estMin / 60);
 		const estM = estMin % 60;
@@ -964,16 +971,91 @@ class BotAutoHunt {
 			'当前积分: ' + pts + '\n' +
 			'预估时长: ' + timeStr + '\n\n' +
 			'你将被踢下线，挂机收益将通过邮件发送。';
-		if (!confirm(msg)) {
-			return;
-		}
-		// cmd 2: offline_start — 服务器将踢下线
-		if (!this.sendCommand(2)) return;
-		// 关闭面板 + 停止挂机循环（被踢前清理 UI 状态）
-		this.active = false;
-		this.stopLoops();
-		this._hidePanel();
-		// 正常路径会先收到 status=4 (pending)
+		this._showConfirmDialog(msg, () => {
+			// cmd 2: offline_start — 服务器将踢下线
+			if (!this.sendCommand(2)) return;
+			this.active = false;
+			this.stopLoops();
+			this._hidePanel();
+		});
+	}
+
+	/**
+	 * RO 风格确认弹窗（模拟游戏内 NPC 对话框样式）
+	 * 半透明黑色遮罩 + 居中弹窗 + 确定/取消按钮
+	 */
+	_showConfirmDialog(message, onConfirm) {
+		// 移除已有弹窗
+		const existing = document.getElementById('bot-confirm-dialog');
+		if (existing) existing.remove();
+
+		const overlay = document.createElement('div');
+		overlay.id = 'bot-confirm-dialog';
+		Object.assign(overlay.style, {
+			position: 'fixed',
+			top: '0',
+			left: '0',
+			width: '100%',
+			height: '100%',
+			background: 'rgba(0,0,0,0.5)',
+			zIndex: '500',
+			display: 'flex',
+			alignItems: 'center',
+			justifyContent: 'center'
+		});
+
+		// 阻止事件冒泡到 canvas
+		const _stop = e => { e.stopPropagation(); };
+		overlay.addEventListener('mousedown', _stop, false);
+		overlay.addEventListener('mouseup', _stop, false);
+		overlay.addEventListener('click', _stop, false);
+
+		const box = document.createElement('div');
+		Object.assign(box.style, {
+			background: 'linear-gradient(to bottom,#2a2a3a,#1a1a28)',
+			border: '2px solid #8a7a4a',
+			borderRadius: '6px',
+			padding: '20px 24px',
+			maxWidth: '320px',
+			minWidth: '240px',
+			fontFamily: 'Gulim, Dotum, "Malgun Gothic", sans-serif',
+			color: '#e8e0c8',
+			fontSize: '11px',
+			textAlign: 'center',
+			boxShadow: '0 8px 32px rgba(0,0,0,0.7)'
+		});
+
+		// 消息内容（支持 \n 换行）
+		const msgEl = document.createElement('div');
+		msgEl.style.cssText = 'white-space:pre-line;line-height:1.6;margin-bottom:16px;';
+		msgEl.textContent = message;
+		box.appendChild(msgEl);
+
+		// 按钮容器
+		const btnRow = document.createElement('div');
+		btnRow.style.cssText = 'display:flex;gap:10px;justify-content:center;';
+
+		const makeBtn = (text, bg, onClick) => {
+			const btn = document.createElement('button');
+			btn.textContent = text;
+			btn.style.cssText =
+				'flex:1;padding:6px 16px;font-size:11px;border:1px solid #8a7a4a;border-radius:3px;' +
+				'cursor:pointer;color:#e8e0c8;background:' + bg + ';';
+			btn.addEventListener('mouseenter', () => { btn.style.filter = 'brightness(1.2)'; });
+			btn.addEventListener('mouseleave', () => { btn.style.filter = ''; });
+			btn.addEventListener('click', () => {
+				overlay.remove();
+				if (onClick) onClick();
+			});
+			return btn;
+		};
+
+		btnRow.appendChild(makeBtn('确定', '#4a6a3a', onConfirm));
+		btnRow.appendChild(makeBtn('取消', '#6a3a3a', null));
+		box.appendChild(btnRow);
+
+		overlay.appendChild(box);
+		document.body.appendChild(overlay);
 	}
 
 	// =================================================================
