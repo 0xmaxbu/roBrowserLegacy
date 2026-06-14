@@ -906,8 +906,19 @@ class BotAutoHunt {
 	}
 
 	startOffline() {
-		// #6 fix: 确认对话框，防止误触
-		if (!confirm('确定要开始离线挂机吗？\n你将被踢下线，挂机收益将通过邮件发送。')) {
+		// #6+#7 fix: 确认对话框 + 显示积分和预估时间
+		const pts = this.currentPoints;
+		const ratePerMin = 1; // 服务器默认 1 积分/分钟（$bot_offline_points_per_min$ 默认值）
+		const estMin = Math.floor(pts / ratePerMin);
+		const estH = Math.floor(estMin / 60);
+		const estM = estMin % 60;
+		const timeStr = estH > 0 ? estH + ' 小时 ' + estM + ' 分钟' : estM + ' 分钟';
+		const msg =
+			'确定要开始离线挂机吗？\n\n' +
+			'当前积分: ' + pts + '\n' +
+			'预估时长: ' + timeStr + '\n\n' +
+			'你将被踢下线，挂机收益将通过邮件发送。';
+		if (!confirm(msg)) {
 			return;
 		}
 		// cmd 2: offline_start — 服务器将踢下线
