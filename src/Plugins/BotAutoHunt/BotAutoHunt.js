@@ -892,6 +892,8 @@ class BotAutoHunt {
 		// 乐观更新：立即启动循环，不等回包
 		this.active = true;
 		this.startLoops();
+		// #5 fix: 开启自动拾取
+		this._sendChat('@autoloot');
 	}
 
 	stopAutoHunt() {
@@ -899,6 +901,8 @@ class BotAutoHunt {
 		if (!this.sendCommand(1)) return;
 		this.active = false;
 		this.stopLoops();
+		// #5 fix: 关闭自动拾取
+		this._sendChat('@autoloot off');
 	}
 
 	startOffline() {
@@ -1226,6 +1230,17 @@ class BotAutoHunt {
 		if (!item || item.count <= 0) return false;
 		inv.useItem(item);
 		return true;
+	}
+
+	/** #5 fix: 发送聊天/指令到服务器（如 @autoloot） */
+	_sendChat(msg) {
+		try {
+			const pkt = new PACKET.CZ.REQUEST_CHAT();
+			pkt.msg = msg;
+			Network.sendPacket(pkt);
+		} catch (e) {
+			console.error('[BotAutoHunt] _sendChat error:', e);
+		}
 	}
 
 	/** #12 fix: 获取当前地图名（小写，不含扩展名） */
