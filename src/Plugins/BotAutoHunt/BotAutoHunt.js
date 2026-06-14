@@ -397,23 +397,28 @@ class BotAutoHunt {
 			'<div style="font-size:11px;font-weight:bold;margin-bottom:2px;">消耗品</div>' +
 			'<div class="bot-aux-grid" style="display:flex;gap:6px;margin-bottom:14px;">' +
 			this._buildCellGrid('aux', 6) + '</div>' +
-			// 跟随 + 飞翅勾选（D2 #11/#12）
-			'<div style="margin-bottom:8px;">' +
-			'<label><input type="checkbox" class="bot-follow"' + (this.followEnabled ? ' checked' : '') +
-			'> 跟随队友</label> ' +
-			'<label><input type="checkbox" class="bot-fly-nomobs"' + (this.flyNoMobs ? ' checked' : '') +
-			'> 无怪飞翅</label> ' +
-			'<label><input type="checkbox" class="bot-fly-lowhp"' + (this.flyLowHp ? ' checked' : '') +
-			'> 低血飞翅</label></div>' +
+			// 跟随 + 飞翅勾选（D2 #11/#12）— checkbox 与文字垂直居中对齐
+			'<div style="margin-bottom:8px;display:flex;gap:10px;align-items:center;">' +
+			'<label style="display:flex;align-items:center;gap:3px;cursor:pointer;">' +
+			'<input type="checkbox" class="bot-follow"' + (this.followEnabled ? ' checked' : '') +
+			' style="margin:0;"> 跟随队友</label>' +
+			'<label style="display:flex;align-items:center;gap:3px;cursor:pointer;">' +
+			'<input type="checkbox" class="bot-fly-nomobs"' + (this.flyNoMobs ? ' checked' : '') +
+			' style="margin:0;"> 无怪飞翅</label>' +
+			'<label style="display:flex;align-items:center;gap:3px;cursor:pointer;">' +
+			'<input type="checkbox" class="bot-fly-lowhp"' + (this.flyLowHp ? ' checked' : '') +
+			' style="margin:0;"> 低血飞翅</label></div>' +
 			// #13 fix: 独立自动药水（不依赖挂机开关）
 			'<div style="margin-bottom:8px;">' +
-			'<label><input type="checkbox" class="bot-auto-potion"' + (this.autoPotion ? ' checked' : '') +
-			'> 自动吃药（独立）</label></div>' +
+			'<label style="display:flex;align-items:center;gap:3px;cursor:pointer;">' +
+			'<input type="checkbox" class="bot-auto-potion"' + (this.autoPotion ? ' checked' : '') +
+			' style="margin:0;"> 自动吃药（独立）</label></div>' +
 			// 按钮行：开始/停止 toggle（同一按钮两状态）+ 离线挂机（D2 #1, D-14b）
+			// 按钮文字减小 2px（11px → 9px）
 			'<div style="display:flex;gap:6px;margin-bottom:6px;">' +
-			'<button class="bot-toggle-btn" style="flex:1;">' +
+			'<button class="bot-toggle-btn" style="flex:1;font-size:9px;">' +
 			(this.active ? '停止挂机' : '开始挂机') + '</button>' +
-			'<button class="bot-offline-btn" style="flex:1;">离线挂机</button></div>' +
+			'<button class="bot-offline-btn" style="flex:1;font-size:9px;">离线挂机</button></div>' +
 			// 状态栏：计时器 + 积分
 			'<div style="min-height:14px;">' +
 			'<span class="bot-timer">' + this._formatTime(this.timerSec) + '</span>' +
@@ -588,7 +593,6 @@ class BotAutoHunt {
 				'justify-content:center;gap:5px;">' +
 				'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
 				'style="width:24px;height:24px;border-radius:2px;' +
-				'background:' + (item.color || '#5a8') + ';' +
 				'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
 				'<div class="dd-name" style="font-size:10px;color:#484848;text-align:center;line-height:1.1;' +
 				'max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
@@ -624,12 +628,14 @@ class BotAutoHunt {
 			});
 		});
 
-		// #10 fix: clear button
+		// #10 fix: clear button — 按顺序压缩（清除后后方前移）
 		const clearBtn = dd.querySelector('.dd-clear');
 		if (clearBtn) {
 			clearBtn.addEventListener('click', () => {
 				const list2 = slot === 'skill' ? this.skillList : this.auxList;
-				list2[index] = null;
+				// 移除当前格，后方元素前移，末尾补 null
+				list2.splice(index, 1);
+				list2.push(null);
 				this._saveSettings();
 				this._refreshPanel();
 				this._hideDropdown();
@@ -789,8 +795,6 @@ class BotAutoHunt {
 				if (plus) plus.style.display = 'none';
 				if (icon) {
 					icon.style.display = 'block';
-					// 先设 fallback 颜色，再异步加载真实图标
-					icon.style.background = slot === 'skill' ? '#5a8' : '#c44';
 					// 从下拉数据源中找 iconName
 					const lookup = slot === 'skill' ? this._getAvailableSkills() : this._getAvailableConsumables();
 					const info = lookup.find(x => x.id === item.id);
