@@ -421,11 +421,11 @@ class BotAutoHunt {
 			'<button class="bot-toggle-btn" style="flex:1;font-size:10px;">' +
 			(this.active ? '停止挂机' : '开始挂机') + '</button>' +
 			'<button class="bot-offline-btn" style="flex:1;font-size:10px;">离线挂机</button></div>' +
-			// 状态栏：计时器 + 积分
+			// 状态栏：挂机时长 + 积分（分两行）
 			'<div style="min-height:14px;">' +
-			'<span class="bot-timer">' + this._formatTime(this.timerSec) + '</span>' +
-			'<span style="margin-left:8px;">积分: <span class="bot-points">' + this.currentPoints +
-			'</span></span></div>' +
+			'挂机时长: <span class="bot-timer">' + this._formatTime(this.timerSec) + '</span></div>' +
+			'<div style="min-height:14px;">' +
+			'积分: <span class="bot-points">' + this.currentPoints + '</span></div>' +
 			// 消息区（D2 #9: 面板内红色/灰色文字，不阻塞）
 			'<div class="bot-msg" style="min-height:12px;font-size:10px;margin-top:2px;"></div>' +
 			'</div>'
