@@ -317,16 +317,17 @@ class BotAutoHunt {
 		document.body.appendChild(panel);
 		this._panel = panel;
 
-		// #1 fix: Block ALL mouse events from propagating to the WebGL canvas
-		// Without this, clicking the panel causes the character to walk
+		// #1 fix: Block mouse events from bubbling to document/window where
+		// the game's MouseEventHandler lives. Must use BUBBLE phase (false) so
+		// child elements (buttons, cells) still receive events normally.
 		const _stop = e => { e.stopPropagation(); };
-		panel.addEventListener('mousedown', _stop, true);
-		panel.addEventListener('mouseup', _stop, true);
-		panel.addEventListener('click', _stop, true);
-		panel.addEventListener('mousemove', _stop, true);
-		panel.addEventListener('wheel', _stop, true);
-		panel.addEventListener('contextmenu', _stop, true);
-		panel.addEventListener('dblclick', _stop, true);
+		panel.addEventListener('mousedown', _stop, false);
+		panel.addEventListener('mouseup', _stop, false);
+		panel.addEventListener('click', _stop, false);
+		panel.addEventListener('mousemove', _stop, false);
+		panel.addEventListener('wheel', _stop, false);
+		panel.addEventListener('contextmenu', _stop, false);
+		panel.addEventListener('dblclick', _stop, false);
 
 		this._bindPanelEvents();
 		this._makeDraggable(panel, panel.querySelector('.bot-titlebar'));
