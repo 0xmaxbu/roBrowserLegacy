@@ -164,6 +164,8 @@ class BotAutoHunt {
 		this._lastCmdTime = 0;
 		this._cmdCooldownMs = 2000; // 2 秒冷却（拦截连点器/手抖）
 		this._pendingCmd = null; // 正在等待回包的指令编号
+		this._pendingCmdTime = 0; // pending 锁设置时间（HI-02 fix: 超时恢复）
+		this._pendingCmdTimeoutMs = 10000; // 10 秒超时（防丢包永久锁死）
 
 		// ---------- 三循环定时器（D-57） ----------
 		this.combatTick = null; // ~100ms 战斗循环
@@ -782,14 +784,19 @@ class BotAutoHunt {
 		if (cmd === 1 && !this.active) return false; // 未在挂机
 		if (cmd === 2 && this._pendingCmd === 2) return false; // 离线请求未回
 
-		// 防护3: pending 锁
+		// 防护3: pending 锁 — 带超时恢复（HI-02 fix: 防丢包永久锁死）
 		if (this._pendingCmd !== null) {
-			this._showError('请等待当前操作完成');
-			return false;
+			if (now - this._pendingCmdTime < this._pendingCmdTimeoutMs) {
+				this._showError('请等待当前操作完成');
+				return false;
+			}
+			// 超时 — 清除锁并继续
+			this._pendingCmd = null;
 		}
 
 		this._lastCmdTime = now;
 		this._pendingCmd = cmd;
+		this._pendingCmdTime = now;
 
 		// 按钮 disabled 视觉反馈
 		if (cmd === 0 || cmd === 1) this._setButtonsDisabled(true);
@@ -1236,6 +1243,7 @@ class BotAutoHunt {
 	_onStatus(pkt) {
 		// 清空 pending 锁（无论成功失败）
 		this._pendingCmd = null;
+		this._pendingCmdTime = 0;
 
 		// 恢复按钮可用
 		if (pkt.command === 0 || pkt.command === 1) this._setButtonsDisabled(false);
