@@ -74,7 +74,6 @@ const ZC_BOT_STATUS = function (fp, end) {
 	this.data1 = fp.readLong(); // cmd=4 时为当前积分；其他通常为 0
 };
 ZC_BOT_STATUS.size = 9; // 总封包大小（含 packetID），框架据此识别固定封包
-ZC_BOT_STATUS.name = 'ZC_BOT_STATUS';
 
 /**
  * R2-B fix: 注册自定义封包长度到 PacketLength 系统
