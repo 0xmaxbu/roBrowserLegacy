@@ -829,6 +829,10 @@ class BotAutoHunt {
 	startOffline() {
 		// cmd 2: offline_start — 服务器将踢下线
 		if (!this.sendCommand(2)) return;
+		// 关闭面板 + 停止挂机循环（被踢前清理 UI 状态）
+		this.active = false;
+		this.stopLoops();
+		this._hidePanel();
 		// 正常路径会先收到 status=4 (pending)
 	}
 
