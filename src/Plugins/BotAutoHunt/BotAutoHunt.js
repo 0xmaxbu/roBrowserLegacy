@@ -1557,9 +1557,13 @@ class BotAutoHunt {
 	}
 
 	/**
-	 * 返回挂机地图 — 寻找最近的传送门并穿过
-	 * 传送门在客户端是 Entity.TYPE_WARP (-1) 类型实体，job=45
-	 * 策略：找最近的未尝试传送门 → 走过去（穿过坐标点而非到达坐标点）
+	 * 返回挂机地图 — 使用 naviLinkTable 导航数据查找传送门坐标
+	 * naviLinkTable 格式: [srcMap, warpId, warpType, spriteId, name, ?, srcX, srcY, destMap, destX, destY]
+	 * 策略：
+	 *   1. 在 naviLinkTable 中查找 srcMap=当前图 destMap=挂机图 的传送门
+	 *   2. 如果找到 → 走到 srcX/srcY 坐标
+	 *   3. 如果没有直达 → 用 MapPathFinder 找多跳路径，走第一跳的传送门
+	 *   4. 如果都没有 → 随机走动碰运气
 	 */
 	_returnToHuntMap() {
 		// 角色正在行走中，等待到达
@@ -1567,69 +1571,116 @@ class BotAutoHunt {
 			return;
 		}
 
-		// 收集当前地图所有传送门
-		const portals = [];
-		EntityManager.forEach(entity => {
-			if (
-				entity.objecttype === Entity.TYPE_WARP &&
-				entity.remove_tick === 0 &&
-				!this._returnTriedPortals.has(entity.GID)
-			) {
-				portals.push(entity);
-			}
-		});
-
-		if (portals.length === 0) {
-			// 所有传送门都试过了，重置重试
-			if (this._returnTriedPortals.size > 0) {
-				console.log('[BotAutoHunt] all portals tried, resetting');
-				this._returnTriedPortals = new Set();
-				this._returnTargetPortal = null;
-			}
-			return;
-		}
-
-		// 找最近的传送门
-		let nearest = null;
-		let minDist = Infinity;
-		const cx = Session.Entity.position[0];
-		const cy = Session.Entity.position[1];
-		for (const p of portals) {
-			const dx = p.position[0] - cx;
-			const dy = p.position[1] - cy;
-			const distSq = dx * dx + dy * dy;
-			if (distSq < minDist) {
-				minDist = distSq;
-				nearest = p;
-			}
-		}
-
-		if (!nearest) return;
-
-		// 已经很近了（2格内）→ 直接标记尝试，让下一轮检测
-		if (minDist < 4) {
-			console.log('[BotAutoHunt] reached portal, crossing...', nearest.GID);
-			this._returnTriedPortals.add(nearest.GID);
-			// 穿过传送门：走到传送门坐标的另一侧（继续沿当前方向走过去）
-			const pkt = new PACKET.CZ.REQUEST_MOVE2();
-			// 走到传送门位置（角色踩上去就会触发服务端传送）
-			pkt.dest[0] = nearest.position[0];
-			pkt.dest[1] = nearest.position[1];
-			Network.sendPacket(pkt);
-			return;
-		}
-
 		// 500ms 冷却防止刷包
 		if (this._isOnCooldown('return_portal')) return;
 		this._markAction('return_portal', 500);
 
-		// 走向最近的传送门
-		console.log('[BotAutoHunt] walking to portal at', nearest.position[0], nearest.position[1], 'dist', Math.sqrt(minDist).toFixed(1));
-		this._returnTargetPortal = nearest;
+		const currentMap = this._getCurrentMapName();
+		const huntMap = (this._huntMapName || '').replace(/\.gat$/i, '').toLowerCase();
+		if (!currentMap || !huntMap) return;
+
+		// 1. 查找 naviLinkTable 中的直达传送门
+		let targetX = null;
+		let targetY = null;
+		try {
+			const naviLinkTable = DB.getNaviLinkTable();
+			if (naviLinkTable && naviLinkTable.length) {
+				for (let i = 0; i < naviLinkTable.length; i++) {
+					const warp = naviLinkTable[i];
+					if (!warp || warp.length < 11) continue;
+					const srcMap = (warp[0] || '').replace(/\.gat$/i, '').toLowerCase();
+					const destMap = (warp[8] || '').replace(/\.gat$/i, '').toLowerCase();
+					if (srcMap === currentMap && destMap === huntMap) {
+						targetX = warp[6];
+						targetY = warp[7];
+						console.log('[BotAutoHunt] found direct warp to hunt map at', targetX, targetY);
+						break;
+					}
+				}
+			}
+		} catch (e) {
+			console.error('[BotAutoHunt] naviLinkTable lookup error:', e);
+		}
+
+		// 2. 没有直达 → 查找从当前图出发的任意传送门（走一步算一步）
+		if (targetX === null) {
+			try {
+				const naviLinkTable = DB.getNaviLinkTable();
+				if (naviLinkTable && naviLinkTable.length) {
+					// 优先选还没去过的目标图
+					let fallback = null;
+					for (let i = 0; i < naviLinkTable.length; i++) {
+						const warp = naviLinkTable[i];
+						if (!warp || warp.length < 11) continue;
+						const srcMap = (warp[0] || '').replace(/\.gat$/i, '').toLowerCase();
+						if (srcMap === currentMap) {
+							const destMap = (warp[8] || '').replace(/\.gat$/i, '').toLowerCase();
+							if (!this._returnTriedPortals.has(destMap)) {
+								targetX = warp[6];
+								targetY = warp[7];
+								console.log('[BotAutoHunt] trying warp to', destMap, 'at', targetX, targetY);
+								break;
+							}
+							if (!fallback) {
+								fallback = { x: warp[6], y: warp[7], dest: destMap };
+							}
+						}
+					}
+					// 所有目标图都试过了 → 重试第一个
+					if (targetX === null && fallback) {
+						targetX = fallback.x;
+						targetY = fallback.y;
+						console.log('[BotAutoHunt] retrying fallback warp to', fallback.dest);
+					}
+				}
+			} catch (e) {
+				console.error('[BotAutoHunt] naviLinkTable fallback error:', e);
+			}
+		}
+
+		// 3. naviLinkTable 没有数据 → 回退到 EntityManager 查找 TYPE_WARP 实体
+		if (targetX === null) {
+			let nearestPortal = null;
+			let minDist = Infinity;
+			const cx = Session.Entity.position[0];
+			const cy = Session.Entity.position[1];
+			EntityManager.forEach(entity => {
+				if (entity.objecttype === Entity.TYPE_WARP && entity.remove_tick === 0) {
+					const dx = entity.position[0] - cx;
+					const dy = entity.position[1] - cy;
+					const distSq = dx * dx + dy * dy;
+					if (distSq < minDist) {
+						minDist = distSq;
+						nearestPortal = entity;
+					}
+				}
+			});
+			if (nearestPortal) {
+				targetX = nearestPortal.position[0];
+				targetY = nearestPortal.position[1];
+				console.log('[BotAutoHunt] found warp entity at', targetX, targetY);
+			}
+		}
+
+		// 4. 全部失败 → 随机走动
+		if (targetX === null) {
+			console.log('[BotAutoHunt] no warp data available, random walk');
+			const cx = Session.Entity.position[0];
+			const cy = Session.Entity.position[1];
+			targetX = cx + ((Math.random() * 40) | 0) - 20;
+			targetY = cy + ((Math.random() * 40) | 0) - 20;
+		}
+
+		// 发送移动指令 — 走到传送门坐标（踩上去触发服务端传送）
 		const pkt = new PACKET.CZ.REQUEST_MOVE2();
-		pkt.dest[0] = nearest.position[0];
-		pkt.dest[1] = nearest.position[1];
+		pkt.dest[0] = targetX;
+		pkt.dest[1] = targetY;
 		Network.sendPacket(pkt);
+
+		// 标记当前图已尝试（用于多跳回退时避免重复）
+		if (!this._returnTriedPortals.has(currentMap)) {
+			this._returnTriedPortals.add(currentMap);
+		}
 	}
 
 	/** 面板内错误消息 — 红色文字，3 秒后消失（D2 #9） */
