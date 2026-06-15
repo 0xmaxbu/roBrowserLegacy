@@ -641,15 +641,13 @@ class BotAutoHunt {
 			});
 		});
 
-		// #10 fix: clear button — 按顺序压缩（清除后后方前移）
+		// clear button — 仅清空当前下标，不影响其他格子位置
 		const clearBtn = dd.querySelector('.dd-clear');
 		if (clearBtn) {
 			clearBtn.addEventListener('click', e => {
 				e.stopPropagation();
 				const list2 = slot === 'skill' ? this.skillList : this.auxList;
-				// 移除当前格，后方元素前移，末尾补 null
-				list2.splice(index, 1);
-				list2.push(null);
+				list2[index] = null;
 				this._saveSettings();
 				this._refreshPanel();
 				this._hideDropdown();
