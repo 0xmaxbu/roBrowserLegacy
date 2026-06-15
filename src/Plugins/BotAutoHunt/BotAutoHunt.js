@@ -197,7 +197,8 @@ class BotAutoHunt {
 
 		// ---------- 面板 DOM ----------
 		this._panel = null; // 面板根 DOM 元素
-		this._dropdown = null; // 当前显示的 dropdown 面板
+		this._dropdown = null; // 当前 dropdown DOM 元素
+		this._dropdownClickHandler = null; // dropdown 外部点击关闭处理器（引用以便清理）
 
 		// ---------- 加载设置（此时 GID 可能为 0，进游戏后按需重载） ----------
 		this._loadSettings();
@@ -352,10 +353,18 @@ class BotAutoHunt {
 		if (this._panel) {
 			this._panel.style.display = 'none';
 		}
-		this._hideDropdown();
+		this._closeDropdown();
 	}
 
-	_hideDropdown() {
+	/**
+	 * 关闭 dropdown 并清理所有关联资源（DOM + document 监听器）
+	 * 修复: 旧版 closeHandler 闭包泄漏到 document 上，累积后导致格子点击失效
+	 */
+	_closeDropdown() {
+		if (this._dropdownClickHandler) {
+			document.removeEventListener('mousedown', this._dropdownClickHandler, true);
+			this._dropdownClickHandler = null;
+		}
 		if (this._dropdown) {
 			this._dropdown.remove();
 			this._dropdown = null;
@@ -540,17 +549,62 @@ class BotAutoHunt {
 			cell.addEventListener('click', () => {
 				const slot = cell.dataset.slot;
 				const index = +cell.dataset.index;
-				this._showDropdown(slot, index, cell);
+				this._openDropdown(slot, index, cell);
 			});
 		});
 	}
 
+	// =====================================================================
+	// Slot 数据层 — 统一管理 skillList/auxList 的增删改查
+	// =====================================================================
+
+	_getSlotList(slot) {
+		return slot === 'skill' ? this.skillList : this.auxList;
+	}
+
+	_setSlotItem(slot, index, id, info) {
+		const list = this._getSlotList(slot);
+		let type;
+		if (slot === 'skill') {
+			type = BUFF_EFST_MAP[id] ? SKILL_TYPE_BUFF : SKILL_TYPE_ATTACK;
+		} else {
+			type = BUFF_EFST_MAP[id] ? AUX_TYPE_BUFF_ITEM : AUX_TYPE_POTION;
+		}
+		list[index] = { id: id, type: type, level: info ? info.level || 1 : 1 };
+		this._saveSettings();
+		this._refreshPanel();
+	}
+
+	_clearSlotItem(slot, index) {
+		const list = this._getSlotList(slot);
+		list[index] = null;
+		this._saveSettings();
+		this._refreshPanel();
+	}
+
+	_getSelectedIds(slot, excludeIndex) {
+		const list = this._getSlotList(slot);
+		const ids = new Set();
+		for (let i = 0; i < list.length; i++) {
+			if (i !== excludeIndex && list[i] && list[i].id) {
+				ids.add(list[i].id);
+			}
+		}
+		return ids;
+	}
+
+	// =====================================================================
+	// Dropdown UI 层 — 开启/关闭 dropdown 面板
+	// =====================================================================
+
 	/**
-	 * 显示技能/消耗品 dropdown 选择面板
-	 * D-14a: 4列 grid, icon 在上 + 名称在下（≤4 字省略号）
+	 * 打开技能/消耗品选择 dropdown
+	 * @param slot 'skill' | 'aux'
+	 * @param index 0-5 格子下标
+	 * @param anchorCell 锚定格子 DOM 元素（用于定位）
 	 */
-	_showDropdown(slot, index, anchorCell) {
-		this._hideDropdown();
+	_openDropdown(slot, index, anchorCell) {
+		this._closeDropdown();
 
 		const items = slot === 'skill' ? this._getAvailableSkills() : this._getAvailableConsumables();
 		if (items.length === 0) {
@@ -558,6 +612,26 @@ class BotAutoHunt {
 			return;
 		}
 
+		const selectedIds = this._getSelectedIds(slot, index);
+		const list = this._getSlotList(slot);
+		const isFilled = !!(list[index] && list[index].id);
+
+		const dd = this._buildDropdownDOM(slot, items, selectedIds, isFilled);
+		this._positionDropdown(dd, anchorCell);
+		this._bindDropdownEvents(dd, slot, index, items);
+		document.body.appendChild(dd);
+		this._dropdown = dd;
+
+		// 外部点击关闭 — 存储引用以便 _closeDropdown 清理
+		this._dropdownClickHandler = e => {
+			if (!dd.contains(e.target) && !anchorCell.contains(e.target)) {
+				this._closeDropdown();
+			}
+		};
+		document.addEventListener('mousedown', this._dropdownClickHandler, true);
+	}
+
+	_buildDropdownDOM(slot, items, selectedIds, isFilled) {
 		const dd = document.createElement('div');
 		Object.assign(dd.style, {
 			position: 'fixed',
@@ -570,35 +644,23 @@ class BotAutoHunt {
 			fontFamily: 'Gulim, Dotum, "Malgun Gothic", sans-serif'
 		});
 
-		// #10 fix: header with title + clear button
-		const list = slot === 'skill' ? this.skillList : this.auxList;
-		const isFilled = !!(list[index] && list[index].id);
-		const headerHtml =
+		const title = slot === 'skill' ? '技能' : '消耗品';
+		let html =
 			'<div style="display:flex;justify-content:space-between;align-items:center;' +
 			'margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #eee;">' +
-			'<span style="font-size:11px;font-weight:bold;color:#484848;">' +
-			(slot === 'skill' ? '技能' : '消耗品') + '</span>' +
-			(isFilled ? '<button class="dd-clear" style="font-size:10px;padding:2px 8px;' +
-			'border:1px solid #ccc;border-radius:3px;background:#f5f5f5;cursor:pointer;color:#c44;">清除</button>' : '') +
-			'</div>';
-
-		// 当前已选中的 id 列表（排除正在编辑的格子，允许替换）
-		const currentList = slot === 'skill' ? this.skillList : this.auxList;
-		const selectedIds = new Set();
-		for (let i = 0; i < currentList.length; i++) {
-			if (i !== index && currentList[i] && currentList[i].id) {
-				selectedIds.add(currentList[i].id);
-			}
-		}
-
-		let gridHtml = headerHtml +
+			'<span style="font-size:11px;font-weight:bold;color:#484848;">' + title + '</span>' +
+			(isFilled
+				? '<button class="dd-clear" style="font-size:10px;padding:2px 8px;' +
+				  'border:1px solid #ccc;border-radius:3px;background:#f5f5f5;cursor:pointer;color:#c44;">清除</button>'
+				: '') +
+			'</div>' +
 			'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;' +
 			'max-height:320px;overflow-y:auto;">';
+
 		for (const item of items) {
-			// #4 fix: 跳过已选中的项（禁止重复）
 			if (selectedIds.has(item.id)) continue;
 			const name = item.name.length > 5 ? item.name.slice(0, 5) + '…' : item.name;
-			gridHtml +=
+			html +=
 				'<div class="dd-item" data-id="' + item.id + '" ' +
 				'style="display:flex;align-items:center;gap:4px;padding:3px 4px;border-radius:2px;' +
 				'background:transparent;cursor:pointer;">' +
@@ -609,28 +671,39 @@ class BotAutoHunt {
 				'overflow:hidden;text-overflow:ellipsis;">' + name + '</span>' +
 				'</div>';
 		}
-		gridHtml += '</div>';
-		dd.innerHTML = gridHtml;
+		html += '</div>';
+		dd.innerHTML = html;
 
-		// 异步加载每个 dropdown 项的真实图标
+		// 异步加载图标
 		dd.querySelectorAll('.dd-icon').forEach(iconEl => {
 			const iconName = iconEl.dataset.icon;
 			if (iconName) this._loadIcon(iconEl, iconName);
 		});
 
-		// 定位到锚点格子下方
+		return dd;
+	}
+
+	_positionDropdown(dd, anchorCell) {
 		const rect = anchorCell.getBoundingClientRect();
 		dd.style.left = rect.left + 'px';
 		dd.style.top = rect.bottom + 2 + 'px';
+	}
 
-		// 选择项点击 — stopPropagation 确保不被 canvas 拦截
+	_bindDropdownEvents(dd, slot, index, items) {
+		// 阻止事件冒泡到 canvas
+		const stop = e => { e.stopPropagation(); };
+		['mousedown', 'mouseup', 'click', 'mousemove', 'wheel', 'contextmenu', 'dblclick'].forEach(
+			evt => dd.addEventListener(evt, stop, false)
+		);
+
+		// 选择项
 		dd.querySelectorAll('.dd-item').forEach(itemEl => {
 			itemEl.addEventListener('click', e => {
 				e.stopPropagation();
 				const id = +itemEl.dataset.id;
 				const info = items.find(it => it.id === id);
-				this._selectSlotItem(slot, index, id, info);
-				this._hideDropdown();
+				this._setSlotItem(slot, index, id, info);
+				this._closeDropdown();
 			});
 			itemEl.addEventListener('mousedown', e => { e.stopPropagation(); });
 			itemEl.addEventListener('mouseenter', () => {
@@ -641,42 +714,17 @@ class BotAutoHunt {
 			});
 		});
 
-		// clear button — 仅清空当前下标，不影响其他格子位置
+		// 清除按钮
 		const clearBtn = dd.querySelector('.dd-clear');
 		if (clearBtn) {
 			clearBtn.addEventListener('click', e => {
 				e.stopPropagation();
-				const list2 = slot === 'skill' ? this.skillList : this.auxList;
-				list2[index] = null;
-				this._saveSettings();
-				this._refreshPanel();
-				this._hideDropdown();
+				this._clearSlotItem(slot, index);
+				this._closeDropdown();
 				this._showInfo('已清除');
 			});
 			clearBtn.addEventListener('mousedown', e => { e.stopPropagation(); });
 		}
-
-		document.body.appendChild(dd);
-		this._dropdown = dd;
-
-		// 阻止 dropdown 事件冒泡到 canvas（与面板相同处理）
-		const _stop2 = e => { e.stopPropagation(); };
-		dd.addEventListener('mousedown', _stop2, false);
-		dd.addEventListener('mouseup', _stop2, false);
-		dd.addEventListener('click', _stop2, false);
-		dd.addEventListener('mousemove', _stop2, false);
-		dd.addEventListener('wheel', _stop2, false);
-		dd.addEventListener('contextmenu', _stop2, false);
-		dd.addEventListener('dblclick', _stop2, false);
-
-		// 点击外部关闭 dropdown
-		const closeHandler = e => {
-			if (!dd.contains(e.target) && !anchorCell.contains(e.target)) {
-				this._hideDropdown();
-				document.removeEventListener('mousedown', closeHandler, true);
-			}
-		};
-		setTimeout(() => document.addEventListener('mousedown', closeHandler, true), 0);
 	}
 
 	/**
@@ -767,25 +815,6 @@ class BotAutoHunt {
 	}
 
 	/**
-	 * dropdown 选中 → 填入对应格子，保存设置并刷新面板
-	 * 技能类型默认设为 'attack'（开发时可在 BUFF_EFST_MAP 配置后自动判为 buff）
-	 * 消耗品默认设为 'potion'（在 BUFF_EFST_MAP 配置后自动判为 buff_item）
-	 */
-	_selectSlotItem(slot, index, id, info) {
-		const list = slot === 'skill' ? this.skillList : this.auxList;
-		// 根据 BUFF_EFST_MAP 是否含此 id 推断 buff 子类型
-		let type;
-		if (slot === 'skill') {
-			type = BUFF_EFST_MAP[id] ? SKILL_TYPE_BUFF : SKILL_TYPE_ATTACK;
-		} else {
-			type = BUFF_EFST_MAP[id] ? AUX_TYPE_BUFF_ITEM : AUX_TYPE_POTION;
-		}
-		list[index] = { id: id, type: type, level: info ? info.level || 1 : 1 };
-		this._saveSettings();
-		this._refreshPanel();
-	}
-
-	/**
 	 * 刷新面板格子显示：遍历 skillList/auxList，根据是否有数据 + 资源可用性切换样式
 	 * D2 #17: 消耗品 count <= 0 → icon 变灰
 	 */
@@ -803,6 +832,8 @@ class BotAutoHunt {
 
 	_refreshCells(slot, list) {
 		const cells = this._panel.querySelectorAll('.cell[data-slot="' + slot + '"]');
+		// 获取数据源一次（用于图标和数量检查），避免循环内重复调用
+		const available = slot === 'skill' ? this._getAvailableSkills() : this._getAvailableConsumables();
 		cells.forEach((cell, i) => {
 			const item = list[i];
 			const plus = cell.querySelector('.plus');
@@ -818,20 +849,16 @@ class BotAutoHunt {
 				if (plus) plus.style.display = 'none';
 				if (icon) {
 					icon.style.display = 'block';
-					// 从下拉数据源中找 iconName
-					const lookup = slot === 'skill' ? this._getAvailableSkills() : this._getAvailableConsumables();
-					const info = lookup.find(x => x.id === item.id);
+					const info = available.find(x => x.id === item.id);
 					if (info && info.iconName) {
 						this._loadIcon(icon, info.iconName);
 					}
 				}
-				// #5 fix: 面板格子不显示名称，只显示图标
 				if (nameEl) nameEl.style.display = 'none';
 
 				// D2 #17: 消耗品 count <= 0 → 灰化
 				if (slot === 'aux') {
-					const lookup = this._getAvailableConsumables();
-					const info = lookup.find(x => x.id === item.id);
+					const info = available.find(x => x.id === item.id);
 					if (info && info.count <= 0) {
 						cell.classList.add('grayed');
 						cell.style.opacity = '0.45';
