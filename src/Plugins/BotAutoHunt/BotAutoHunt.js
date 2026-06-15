@@ -189,6 +189,9 @@ class BotAutoHunt {
 		// 需要重置内部状态 + 给予宽限期等怪物刷新
 		this._lastMapName = ''; // 上次检测到的地图名
 		this._mapChangeTick = 0; // 最近一次过图的时间戳（Date.now()），0=无过图
+		this._huntMapName = ''; // 挂机地图名（startAutoHunt 时记录）
+		this._returnTriedPortals = new Set(); // 已尝试过的传送门 GID（返回挂机图时用）
+		this._returnTargetPortal = null; // 当前正在前往的传送门 entity
 
 		// ---------- 三循环定时器（D-57） ----------
 		this.combatTick = null; // ~100ms 战斗循环
@@ -1002,6 +1005,10 @@ class BotAutoHunt {
 		if (!this.sendCommand(0)) return;
 		// 乐观更新：立即启动循环，不等回包
 		this.active = true;
+		// 记录挂机地图名（用于过图后自动返回）
+		this._huntMapName = mapName || '';
+		this._returnTriedPortals = new Set();
+		this._returnTargetPortal = null;
 		this.startLoops();
 		// 自动开启 @autoloot — 聊天封包格式必须是 "角色名 : 消息"
 		this._sendChat('@autoloot');
@@ -1208,6 +1215,12 @@ class BotAutoHunt {
 			this._actionCooldowns = {};
 			// 清除目标锁定（旧目标已不存在）
 			EntityManager.setFocusEntity(null);
+			// 如果回到挂机地图，清除返回状态
+			if (currentMap === this._huntMapName) {
+				console.log('[BotAutoHunt] returned to hunt map, resuming');
+				this._returnTriedPortals = new Set();
+				this._returnTargetPortal = null;
+			}
 		} else if (currentMap && !this._lastMapName) {
 			this._lastMapName = currentMap;
 		}
@@ -1228,6 +1241,12 @@ class BotAutoHunt {
 			this._updateButtonLabel();
 			this._showError('角色已死亡，挂机已停止');
 			return;
+		}
+
+		// 1.5. 返回挂机地图 — 不在挂机图上时，寻找传送门回去
+		if (this._huntMapName && currentMap !== this._huntMapName) {
+			this._returnToHuntMap();
+			return; // 返回途中不执行战斗逻辑
 		}
 
 		// 2. 跟随队友模式 (D2 #11)
@@ -1535,6 +1554,82 @@ class BotAutoHunt {
 			}
 		} catch (_) {}
 		return '';
+	}
+
+	/**
+	 * 返回挂机地图 — 寻找最近的传送门并穿过
+	 * 传送门在客户端是 Entity.TYPE_WARP (-1) 类型实体，job=45
+	 * 策略：找最近的未尝试传送门 → 走过去（穿过坐标点而非到达坐标点）
+	 */
+	_returnToHuntMap() {
+		// 角色正在行走中，等待到达
+		if (Session.Entity.action === Session.Entity.ACTION.WALK) {
+			return;
+		}
+
+		// 收集当前地图所有传送门
+		const portals = [];
+		EntityManager.forEach(entity => {
+			if (
+				entity.objecttype === Entity.TYPE_WARP &&
+				entity.remove_tick === 0 &&
+				!this._returnTriedPortals.has(entity.GID)
+			) {
+				portals.push(entity);
+			}
+		});
+
+		if (portals.length === 0) {
+			// 所有传送门都试过了，重置重试
+			if (this._returnTriedPortals.size > 0) {
+				console.log('[BotAutoHunt] all portals tried, resetting');
+				this._returnTriedPortals = new Set();
+				this._returnTargetPortal = null;
+			}
+			return;
+		}
+
+		// 找最近的传送门
+		let nearest = null;
+		let minDist = Infinity;
+		const cx = Session.Entity.position[0];
+		const cy = Session.Entity.position[1];
+		for (const p of portals) {
+			const dx = p.position[0] - cx;
+			const dy = p.position[1] - cy;
+			const distSq = dx * dx + dy * dy;
+			if (distSq < minDist) {
+				minDist = distSq;
+				nearest = p;
+			}
+		}
+
+		if (!nearest) return;
+
+		// 已经很近了（2格内）→ 直接标记尝试，让下一轮检测
+		if (minDist < 4) {
+			console.log('[BotAutoHunt] reached portal, crossing...', nearest.GID);
+			this._returnTriedPortals.add(nearest.GID);
+			// 穿过传送门：走到传送门坐标的另一侧（继续沿当前方向走过去）
+			const pkt = new PACKET.CZ.REQUEST_MOVE2();
+			// 走到传送门位置（角色踩上去就会触发服务端传送）
+			pkt.dest[0] = nearest.position[0];
+			pkt.dest[1] = nearest.position[1];
+			Network.sendPacket(pkt);
+			return;
+		}
+
+		// 500ms 冷却防止刷包
+		if (this._isOnCooldown('return_portal')) return;
+		this._markAction('return_portal', 500);
+
+		// 走向最近的传送门
+		console.log('[BotAutoHunt] walking to portal at', nearest.position[0], nearest.position[1], 'dist', Math.sqrt(minDist).toFixed(1));
+		this._returnTargetPortal = nearest;
+		const pkt = new PACKET.CZ.REQUEST_MOVE2();
+		pkt.dest[0] = nearest.position[0];
+		pkt.dest[1] = nearest.position[1];
+		Network.sendPacket(pkt);
 	}
 
 	/** 面板内错误消息 — 红色文字，3 秒后消失（D2 #9） */
