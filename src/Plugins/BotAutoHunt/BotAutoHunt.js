@@ -139,6 +139,50 @@ const BUFF_EFST_MAP = {
 	12029: 20 // 觉醒药水(集中) → EFST_ATTHASTE_POTION1
 };
 
+/**
+ * WR-03 fix: 治疗技能白名单（开发时硬编码，按需扩展）
+ * 判定优先级: HEAL_SKILL_IDS → BUFF_EFST_MAP → ATTACK
+ * 来源: rAthena db/pre-re/skill_db.yml (SkillType / TargetType)
+ */
+const HEAL_SKILL_IDS = new Set([
+	28, // AL_HEAL (Acolyte Heal)
+	74, // PR_SANCTUARY (Priest Sanctuary, 地面持续回复)
+	318, // AB_HIGHNESSHEAL (Arch Bishop Highness Heal)
+	2041 // AB_CHEAL (Arch Bishop Coluceo Heal)
+]);
+
+/**
+ * WR-04 fix: 消耗品恢复类型映射（开发时硬编码，按需扩展）
+ * 'hp'  = 仅恢复 HP
+ * 'sp'  = 仅恢复 SP
+ * 'both' = 同时恢复 HP+SP（HP 分支与 SP 分支都会使用）
+ * 来源: rAthena db/pre-re/item_db.yml (Script: { "heal" / "sp" })
+ */
+const POTION_RESTORE_TYPE = {
+	// HP 系列
+	501: 'hp', // Red Herb
+	503: 'hp', // Yellow Herb
+	504: 'hp', // White Herb
+	507: 'hp', // Red Potion
+	508: 'hp', // Yellow Potion
+	509: 'hp', // White Potion
+	569: 'both', // Yggdrasil Berry
+	607: 'both', // Yggdrasil Seed
+	7139: 'hp', // Strawberry
+	12011: 'hp', // Concentrated Red Potion (Potion_Pitcher)
+	12012: 'hp', // Concentrated Yellow Potion
+	12013: 'hp', // Concentrated White Potion
+	// SP 系列
+	502: 'sp', // Blue Herb
+	505: 'sp', // Blue Potion
+	506: 'sp', // Green Potion (解状态为主，少量 SP)
+	7140: 'sp', // Meat (SP 恢复)
+	12014: 'sp', // Concentrated Blue Potion
+	12020: 'sp', // Savory Snack (SP 恢复)
+	12165: 'sp', // SP Consumption Item
+	12017: 'sp' // Royal Jelly (SP)
+};
+
 // =====================================================================
 // BotAutoHunt 主类
 // =====================================================================
@@ -581,14 +625,31 @@ class BotAutoHunt {
 	_setSlotItem(slot, index, id, info) {
 		const list = this._getSlotList(slot);
 		let type;
+		let subtype = null;
 		if (slot === 'skill') {
-			type = BUFF_EFST_MAP[id] ? SKILL_TYPE_BUFF : SKILL_TYPE_ATTACK;
+			// WR-03 fix: 优先级 HEAL → BUFF → ATTACK
+			if (HEAL_SKILL_IDS.has(id)) {
+				type = SKILL_TYPE_HEAL;
+			} else if (BUFF_EFST_MAP[id]) {
+				type = SKILL_TYPE_BUFF;
+			} else {
+				type = SKILL_TYPE_ATTACK;
+			}
 		} else {
-			type = BUFF_EFST_MAP[id] ? AUX_TYPE_BUFF_ITEM : AUX_TYPE_POTION;
+			// WR-04 fix: 消耗品区分 HP/SP/buff
+			if (BUFF_EFST_MAP[id]) {
+				type = AUX_TYPE_BUFF_ITEM;
+			} else {
+				type = AUX_TYPE_POTION;
+				// 默认 'hp'，未知 ID 也视为 HP（保持与原行为兼容，但用户应在列表中
+				// 看到提示；如需 SP 恢复，需使用已知 ID 或扩展 POTION_RESTORE_TYPE）
+				subtype = POTION_RESTORE_TYPE[id] || 'hp';
+			}
 		}
 		list[index] = {
 			id: id,
 			type: type,
+			subtype: subtype,
 			level: info ? info.level || 1 : 1,
 			spcost: info ? info.spcost || 0 : 0
 		};
@@ -1406,9 +1467,13 @@ class BotAutoHunt {
 
 		// 2. HP 低于阈值 → 使用药水 + 治疗技能(对自己)
 		if (hpPct < this.hpThreshold) {
-			// 2a. 辅助列表中的药水（500ms 冷却防刷）
+			// 2a. 辅助列表中的 HP 恢复药水 (WR-04 fix: 过滤 subtype)
+			// 500ms 冷却防刷
 			for (const aux of this.auxList) {
 				if (!aux || aux.type !== AUX_TYPE_POTION) continue;
+				// subtype 缺失视作 'hp' (旧数据兼容)
+				const sub = aux.subtype || 'hp';
+				if (sub !== 'hp' && sub !== 'both') continue;
 				const key = 'item_' + aux.id;
 				if (this._isOnCooldown(key)) continue;
 				if (this._useItemById(aux.id)) {
@@ -1432,6 +1497,9 @@ class BotAutoHunt {
 		if (spPct < this.spThreshold) {
 			for (const aux of this.auxList) {
 				if (!aux || aux.type !== AUX_TYPE_POTION) continue;
+				// WR-04 fix: SP 分支只接受 'sp' 或 'both'；旧数据 (subtype 缺失) 不匹配
+				const sub = aux.subtype || 'hp';
+				if (sub !== 'sp' && sub !== 'both') continue;
 				const key = 'item_' + aux.id;
 				if (this._isOnCooldown(key)) continue;
 				if (this._useItemById(aux.id)) {
@@ -1774,6 +1842,23 @@ class BotAutoHunt {
 				this.auxList = s.aux ?? [];
 				this.followEnabled = s.follow ?? false;
 				this.followTarget = s.followTarget ?? '';
+
+				// WR-03/WR-04 fix: 一次性迁移旧保存数据
+				// 旧版本没有 HEAL 分类和 HP/SP subtype，需要重分类/补字段
+				let migrated = false;
+				for (const skill of this.skillList) {
+					if (skill && skill.type === SKILL_TYPE_ATTACK && HEAL_SKILL_IDS.has(skill.id)) {
+						skill.type = SKILL_TYPE_HEAL;
+						migrated = true;
+					}
+				}
+				for (const aux of this.auxList) {
+					if (aux && aux.type === AUX_TYPE_POTION && !aux.subtype) {
+						aux.subtype = POTION_RESTORE_TYPE[aux.id] || 'hp';
+						migrated = true;
+					}
+				}
+				if (migrated) this._saveSettings();
 				this.flyNoMobs = s.flyNoMobs ?? false;
 				this.flyLowHp = s.flyLowHp ?? false;
 				this.autoPotion = s.autoPotion ?? false;
