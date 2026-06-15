@@ -200,6 +200,11 @@ class BotAutoHunt {
 		this._dropdown = null; // 当前 dropdown DOM 元素
 		this._dropdownClickHandler = null; // dropdown 外部点击关闭处理器（引用以便清理）
 
+		// ---------- 动作冷却系统（防止条件未满足时不停刷技能/消耗品） ----------
+		// key 格式: 'item_<id>' | 'skill_<id>' | 'buff_<efst>'
+		// value: 冷却到期时间戳 (Date.now() + cooldownMs)
+		this._actionCooldowns = {};
+
 		// ---------- 加载设置（此时 GID 可能为 0，进游戏后按需重载） ----------
 		this._loadSettings();
 
@@ -265,6 +270,8 @@ class BotAutoHunt {
 				if (bot) {
 					if (state === 1) {
 						bot._buffMap[index] = true;
+						// buff 已注册 → 清除待注册冷却（允许下次过期后立即重铸）
+						delete bot._actionCooldowns['buff_' + index];
 					} else {
 						delete bot._buffMap[index];
 					}
@@ -570,7 +577,12 @@ class BotAutoHunt {
 		} else {
 			type = BUFF_EFST_MAP[id] ? AUX_TYPE_BUFF_ITEM : AUX_TYPE_POTION;
 		}
-		list[index] = { id: id, type: type, level: info ? info.level || 1 : 1 };
+		list[index] = {
+			id: id,
+			type: type,
+			level: info ? info.level || 1 : 1,
+			spcost: info ? info.spcost || 0 : 0
+		};
 		this._saveSettings();
 		this._refreshPanel();
 	}
@@ -756,14 +768,15 @@ class BotAutoHunt {
 							iconName = SkillInfo[s.SKID].Name;
 						}
 					}
-					return {
-						id: s.SKID,
-						name: name,
-						iconName: iconName,
-						color: '#5a8',
-						level: s.level,
-						type: s.type
-					};
+				return {
+					id: s.SKID,
+					name: name,
+					iconName: iconName,
+					color: '#5a8',
+					level: s.level,
+					type: s.type,
+					spcost: s.spcost || 0
+				};
 				});
 		} catch (_) {
 			return [];
@@ -1273,6 +1286,8 @@ class BotAutoHunt {
 		for (const skill of this.skillList) {
 			if (!skill || !skill.id) continue;
 			if (skill.type === SKILL_TYPE_ATTACK || skill.type === SKILL_TYPE_HEAL) {
+				// SP 不足 → 跳过此技能（防止技能失败后每 tick 重试刷屏）
+				if (skill.spcost && Session.Entity.life && Session.Entity.life.sp < skill.spcost) continue;
 				SkillTargetSelection.onUseSkillToId(skill.id, skill.level || 1, target.GID);
 				return; // 释放一个技能后等下一 tick
 			}
@@ -1321,34 +1336,48 @@ class BotAutoHunt {
 
 		// 1. 低血飞翅 (D2 #12): HP<10% → 优先苍蝇次选蝴蝶
 		if (this.flyLowHp && hpPct < 10) {
-			if (!this._useItemById(ITEM_FLY_WING)) {
-				this._useItemById(ITEM_BUTTERFLY_WING);
+			if (!this._isOnCooldown('item_flywing')) {
+				if (!this._useItemById(ITEM_FLY_WING)) {
+					this._useItemById(ITEM_BUTTERFLY_WING);
+				}
+				this._markAction('item_flywing', 2000);
 			}
 			return;
 		}
 
 		// 2. HP 低于阈值 → 使用药水 + 治疗技能(对自己)
 		if (hpPct < this.hpThreshold) {
-			// 2a. 辅助列表中的药水
+			// 2a. 辅助列表中的药水（500ms 冷却防刷）
 			for (const aux of this.auxList) {
-				if (aux && aux.type === AUX_TYPE_POTION) {
-					if (this._useItemById(aux.id)) break; // 使用一种后等下一 tick
-				}
-			}
-			// 2b. 治疗技能(对自己释放)
-			for (const skill of this.skillList) {
-				if (skill && skill.type === SKILL_TYPE_HEAL) {
-					SkillTargetSelection.onUseSkillToId(skill.id, skill.level || 1, Session.Entity.GID);
+				if (!aux || aux.type !== AUX_TYPE_POTION) continue;
+				const key = 'item_' + aux.id;
+				if (this._isOnCooldown(key)) continue;
+				if (this._useItemById(aux.id)) {
+					this._markAction(key, 500);
 					break;
 				}
+			}
+			// 2b. 治疗技能(对自己释放，1s 冷却)
+			for (const skill of this.skillList) {
+				if (!skill || skill.type !== SKILL_TYPE_HEAL) continue;
+				if (skill.spcost && sp < skill.spcost) continue;
+				const key = 'skill_' + skill.id;
+				if (this._isOnCooldown(key)) continue;
+				SkillTargetSelection.onUseSkillToId(skill.id, skill.level || 1, Session.Entity.GID);
+				this._markAction(key, 1000);
+				break;
 			}
 		}
 
 		// 3. SP 低于阈值 → 使用 SP 恢复消耗品
 		if (spPct < this.spThreshold) {
 			for (const aux of this.auxList) {
-				if (aux && aux.type === AUX_TYPE_POTION) {
-					if (this._useItemById(aux.id)) break;
+				if (!aux || aux.type !== AUX_TYPE_POTION) continue;
+				const key = 'item_' + aux.id;
+				if (this._isOnCooldown(key)) continue;
+				if (this._useItemById(aux.id)) {
+					this._markAction(key, 500);
+					break;
 				}
 			}
 		}
@@ -1382,9 +1411,15 @@ class BotAutoHunt {
 			const efst = BUFF_EFST_MAP[skill.id];
 			if (!efst) continue; // 该技能未配置 EFST 映射 → 跳过
 			if (this._buffMap[efst]) continue; // buff 仍存在 → 跳过
+			// SP 不足 → 跳过
+			if (skill.spcost && Session.Entity.life && Session.Entity.life.sp < skill.spcost) continue;
+			// 待注册冷却: 施法后 buff 注册有网络延迟，5s 内不重试
+			const key = 'buff_' + efst;
+			if (this._isOnCooldown(key)) continue;
 			// buff 已消失 → 释放技能（对自己）
 			SkillTargetSelection.onUseSkillToId(skill.id, skill.level || 1, Session.Entity.GID);
-			return; // 每次只释放一个 buff
+			this._markAction(key, 5000); // 5s 等待 buff 注册或重试
+			return;
 		}
 
 		// 2. 辅助列表中的 buff 消耗品
@@ -1393,8 +1428,10 @@ class BotAutoHunt {
 			const efst = BUFF_EFST_MAP[aux.id];
 			if (!efst) continue;
 			if (this._buffMap[efst]) continue;
-			// buff 已消失 → 使用物品
+			const key = 'buff_' + efst;
+			if (this._isOnCooldown(key)) continue;
 			this._useItemById(aux.id);
+			this._markAction(key, 5000);
 			return;
 		}
 	}
@@ -1402,6 +1439,17 @@ class BotAutoHunt {
 	// =================================================================
 	// 工具方法
 	// =================================================================
+
+	/**
+	 * 动作冷却系统 — 防止条件未满足时不停刷技能/消耗品
+	 */
+	_isOnCooldown(key) {
+		return (this._actionCooldowns[key] || 0) > Date.now();
+	}
+
+	_markAction(key, cooldownMs) {
+		this._actionCooldowns[key] = Date.now() + cooldownMs;
+	}
 
 	/**
 	 * 通过物品 ID 使用物品
