@@ -184,6 +184,12 @@ class BotAutoHunt {
 		this._lastMobSeenTick = 0; // 最后一次看到怪物的时间 (Date.now())
 		this._lastPatrolMoveTick = 0; // 最后一次巡逻移动的时间 (Date.now())
 
+		// ---------- 过图状态追踪 ----------
+		// 过图后 EntityManager 清空、Altitude 重载、PathFinding 暂时不可用
+		// 需要重置内部状态 + 给予宽限期等怪物刷新
+		this._lastMapName = ''; // 上次检测到的地图名
+		this._mapChangeTick = 0; // 最近一次过图的时间戳（Date.now()），0=无过图
+
 		// ---------- 三循环定时器（D-57） ----------
 		this.combatTick = null; // ~100ms 战斗循环
 		this.potionTick = null; // ~200ms 药水循环
@@ -1118,6 +1124,9 @@ class BotAutoHunt {
 		// 初始化巡逻计时器，避免启动瞬间误触飞翅（Date.now() 不依赖 rAF）
 		this._lastMobSeenTick = Date.now();
 		this._lastPatrolMoveTick = 0;
+		// 记录当前地图名，用于过图检测
+		this._lastMapName = this._getCurrentMapName() || '';
+		this._mapChangeTick = 0;
 		this.combatTick = setInterval(() => this._combatLoop(), 100);
 		this.potionTick = setInterval(() => this._potionLoop(), 200);
 		this.buffTick = setInterval(() => this._buffLoop(), 1000);
@@ -1186,8 +1195,34 @@ class BotAutoHunt {
 	_combatLoopInner() {
 		if (!this.active) return;
 
+		// 0. 过图检测 — 地图名变化时重置内部状态
+		// 过图后 EntityManager 清空、Altitude 重载、PathFinding 暂时不可用
+		// 需重置计时器和冷却，并给予 3 秒宽限期等怪物刷新
+		const currentMap = this._getCurrentMapName() || '';
+		if (currentMap && this._lastMapName && currentMap !== this._lastMapName) {
+			console.log('[BotAutoHunt] map change detected:', this._lastMapName, '->', currentMap);
+			this._lastMapName = currentMap;
+			this._mapChangeTick = Date.now();
+			this._lastMobSeenTick = Date.now();
+			this._lastPatrolMoveTick = 0;
+			this._actionCooldowns = {};
+			// 清除目标锁定（旧目标已不存在）
+			EntityManager.setFocusEntity(null);
+		} else if (currentMap && !this._lastMapName) {
+			this._lastMapName = currentMap;
+		}
+
+		// 过图宽限期：3 秒内不执行战斗逻辑（等地图/怪物加载完成）
+		if (this._mapChangeTick && Date.now() - this._mapChangeTick < 3000) {
+			return;
+		}
+
 		// 1. 死亡检测 (D-31) — 角色 dead 则停止挂机循环
-		if (!Session.Entity || Session.Entity.isDead()) {
+		// 注意：过图期间 Session.Entity 可能为 null 或状态异常，不应当作死亡
+		if (!Session.Entity) {
+			return; // 实体暂不可用，跳过本轮（不停止挂机）
+		}
+		if (Session.Entity.isDead()) {
 			this.active = false;
 			this.stopLoops();
 			this._updateButtonLabel();
