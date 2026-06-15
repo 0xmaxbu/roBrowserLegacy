@@ -1374,6 +1374,10 @@ class BotAutoHunt {
 	_potionLoopInner() {
 		if (!Session.Entity || Session.Entity.isDead()) return;
 
+		// 不在挂机地图上时，只保留基础 HP 药水（不用飞翅，不干扰返回逻辑）
+		const currentMap = this._getCurrentMapName();
+		const onHuntMap = !this._huntMapName || currentMap === this._huntMapName;
+
 		const life = Session.Entity.life;
 		if (!life) return;
 
@@ -1389,7 +1393,8 @@ class BotAutoHunt {
 		const spPct = (sp / spMax) * 100;
 
 		// 1. 低血飞翅 (D2 #12): HP<10% → 优先苍蝇次选蝴蝶
-		if (this.flyLowHp && hpPct < 10) {
+		// 仅在挂机地图上使用飞翅（错误地图上飞翅会干扰返回逻辑）
+		if (onHuntMap && this.flyLowHp && hpPct < 10) {
 			if (!this._isOnCooldown('item_flywing')) {
 				if (!this._useItemById(ITEM_FLY_WING)) {
 					this._useItemById(ITEM_BUTTERFLY_WING);
@@ -1662,13 +1667,10 @@ class BotAutoHunt {
 			}
 		}
 
-		// 4. 全部失败 → 随机走动
+		// 4. 全部失败 → 原地等待，不乱走（避免干扰）
 		if (targetX === null) {
-			console.log('[BotAutoHunt] no warp data available, random walk');
-			const cx = Session.Entity.position[0];
-			const cy = Session.Entity.position[1];
-			targetX = cx + ((Math.random() * 40) | 0) - 20;
-			targetY = cy + ((Math.random() * 40) | 0) - 20;
+			console.warn('[BotAutoHunt] no warp data available, standing by');
+			return;
 		}
 
 		// 发送移动指令 — 走到传送门坐标（踩上去触发服务端传送）
