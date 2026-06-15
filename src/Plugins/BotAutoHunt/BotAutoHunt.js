@@ -1562,13 +1562,13 @@ class BotAutoHunt {
 	}
 
 	/**
-	 * 返回挂机地图 — 使用 naviLinkTable 导航数据查找传送门坐标
+	 * 返回挂机地图 — BFS 最短路径搜索
 	 * naviLinkTable 格式: [srcMap, warpId, warpType, spriteId, name, ?, srcX, srcY, destMap, destX, destY]
 	 * 策略：
-	 *   1. 在 naviLinkTable 中查找 srcMap=当前图 destMap=挂机图 的传送门
-	 *   2. 如果找到 → 走到 srcX/srcY 坐标
-	 *   3. 如果没有直达 → 用 MapPathFinder 找多跳路径，走第一跳的传送门
-	 *   4. 如果都没有 → 随机走动碰运气
+	 *   1. 构建 map→[warp] 邻接表
+	 *   2. BFS 从 currentMap 到 huntMap，记录第一跳传送门坐标
+	 *   3. 找到路径 → 走到第一跳传送门
+	 *   4. 找不到 → 原地等待（不乱走）
 	 */
 	_returnToHuntMap() {
 		// 角色正在行走中，等待到达
@@ -1584,105 +1584,72 @@ class BotAutoHunt {
 		const huntMap = (this._huntMapName || '').replace(/\.gat$/i, '').toLowerCase();
 		if (!currentMap || !huntMap) return;
 
-		// 1. 查找 naviLinkTable 中的直达传送门
 		let targetX = null;
 		let targetY = null;
+
 		try {
 			const naviLinkTable = DB.getNaviLinkTable();
-			if (naviLinkTable && naviLinkTable.length) {
-				for (let i = 0; i < naviLinkTable.length; i++) {
-					const warp = naviLinkTable[i];
-					if (!warp || warp.length < 11) continue;
-					const srcMap = (warp[0] || '').replace(/\.gat$/i, '').toLowerCase();
-					const destMap = (warp[8] || '').replace(/\.gat$/i, '').toLowerCase();
-					if (srcMap === currentMap && destMap === huntMap) {
-						targetX = warp[6];
-						targetY = warp[7];
-						console.log('[BotAutoHunt] found direct warp to hunt map at', targetX, targetY);
-						break;
-					}
+			if (!naviLinkTable || !naviLinkTable.length) {
+				console.warn('[BotAutoHunt] naviLinkTable empty, cannot find path');
+				return;
+			}
+
+			// 1. 构建邻接表: { srcMap: [{ dest, x, y }, ...] }
+			const adj = {};
+			for (let i = 0; i < naviLinkTable.length; i++) {
+				const warp = naviLinkTable[i];
+				if (!warp || warp.length < 11) continue;
+				const src = (warp[0] || '').replace(/\.gat$/i, '').toLowerCase();
+				const dest = (warp[8] || '').replace(/\.gat$/i, '').toLowerCase();
+				if (!src || !dest) continue;
+				if (!adj[src]) adj[src] = [];
+				adj[src].push({ dest, x: warp[6], y: warp[7] });
+			}
+
+			// 2. BFS — 队列元素: { map, firstX, firstY }
+			//    firstX/firstY 记录从 currentMap 出发的第一跳传送门坐标
+			const visited = new Set([currentMap]);
+			const queue = [{ map: currentMap, firstX: null, firstY: null }];
+
+			while (queue.length > 0) {
+				const node = queue.shift();
+
+				if (node.map === huntMap && node.firstX !== null) {
+					targetX = node.firstX;
+					targetY = node.firstY;
+					break;
+				}
+
+				const neighbors = adj[node.map];
+				if (!neighbors) continue;
+
+				for (const n of neighbors) {
+					if (visited.has(n.dest)) continue;
+					visited.add(n.dest);
+					queue.push({
+						map: n.dest,
+						firstX: node.firstX !== null ? node.firstX : n.x,
+						firstY: node.firstY !== null ? node.firstY : n.y
+					});
 				}
 			}
 		} catch (e) {
-			console.error('[BotAutoHunt] naviLinkTable lookup error:', e);
+			console.error('[BotAutoHunt] BFS pathfinding error:', e);
 		}
 
-		// 2. 没有直达 → 查找从当前图出发的任意传送门（走一步算一步）
+		// 没找到路径 → 原地等待
 		if (targetX === null) {
-			try {
-				const naviLinkTable = DB.getNaviLinkTable();
-				if (naviLinkTable && naviLinkTable.length) {
-					// 优先选还没去过的目标图
-					let fallback = null;
-					for (let i = 0; i < naviLinkTable.length; i++) {
-						const warp = naviLinkTable[i];
-						if (!warp || warp.length < 11) continue;
-						const srcMap = (warp[0] || '').replace(/\.gat$/i, '').toLowerCase();
-						if (srcMap === currentMap) {
-							const destMap = (warp[8] || '').replace(/\.gat$/i, '').toLowerCase();
-							if (!this._returnTriedPortals.has(destMap)) {
-								targetX = warp[6];
-								targetY = warp[7];
-								console.log('[BotAutoHunt] trying warp to', destMap, 'at', targetX, targetY);
-								break;
-							}
-							if (!fallback) {
-								fallback = { x: warp[6], y: warp[7], dest: destMap };
-							}
-						}
-					}
-					// 所有目标图都试过了 → 重试第一个
-					if (targetX === null && fallback) {
-						targetX = fallback.x;
-						targetY = fallback.y;
-						console.log('[BotAutoHunt] retrying fallback warp to', fallback.dest);
-					}
-				}
-			} catch (e) {
-				console.error('[BotAutoHunt] naviLinkTable fallback error:', e);
-			}
-		}
-
-		// 3. naviLinkTable 没有数据 → 回退到 EntityManager 查找 TYPE_WARP 实体
-		if (targetX === null) {
-			let nearestPortal = null;
-			let minDist = Infinity;
-			const cx = Session.Entity.position[0];
-			const cy = Session.Entity.position[1];
-			EntityManager.forEach(entity => {
-				if (entity.objecttype === Entity.TYPE_WARP && entity.remove_tick === 0) {
-					const dx = entity.position[0] - cx;
-					const dy = entity.position[1] - cy;
-					const distSq = dx * dx + dy * dy;
-					if (distSq < minDist) {
-						minDist = distSq;
-						nearestPortal = entity;
-					}
-				}
-			});
-			if (nearestPortal) {
-				targetX = nearestPortal.position[0];
-				targetY = nearestPortal.position[1];
-				console.log('[BotAutoHunt] found warp entity at', targetX, targetY);
-			}
-		}
-
-		// 4. 全部失败 → 原地等待，不乱走（避免干扰）
-		if (targetX === null) {
-			console.warn('[BotAutoHunt] no warp data available, standing by');
+			console.warn('[BotAutoHunt] no path from', currentMap, 'to', huntMap, ', standing by');
 			return;
 		}
 
-		// 发送移动指令 — 走到传送门坐标（踩上去触发服务端传送）
+		console.log('[BotAutoHunt] walking to portal', targetX, targetY, 'toward', huntMap);
+
+		// 走到第一跳传送门
 		const pkt = new PACKET.CZ.REQUEST_MOVE2();
 		pkt.dest[0] = targetX;
 		pkt.dest[1] = targetY;
 		Network.sendPacket(pkt);
-
-		// 标记当前图已尝试（用于多跳回退时避免重复）
-		if (!this._returnTriedPortals.has(currentMap)) {
-			this._returnTriedPortals.add(currentMap);
-		}
 	}
 
 	/** 面板内错误消息 — 红色文字，3 秒后消失（D2 #9） */
