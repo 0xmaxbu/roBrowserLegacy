@@ -382,15 +382,15 @@ class BotAutoHunt {
 			'</div>' +
 			'<div style="padding:8px;">' +
 			// HP 阈值滑块（D2 用户决策 #1: 0-100）
-			'<div style="margin-bottom:6px;">' +
-			'<label>HP: <span class="hp-val">' + this.hpThreshold + '%</span></label>' +
+			'<div style="margin-bottom:6px;display:flex;align-items:center;gap:4px;">' +
+			'<label style="width:38px;flex-shrink:0;">HP: <span class="hp-val">' + this.hpThreshold + '%</span></label>' +
 			'<input type="range" min="0" max="100" value="' + this.hpThreshold + '" ' +
-			'class="bot-hp-slider" style="width:100px;vertical-align:middle;"></div>' +
+			'class="bot-hp-slider" style="flex:1;min-width:0;"></div>' +
 			// SP 阈值滑块
-			'<div style="margin-bottom:8px;">' +
-			'<label>SP: <span class="sp-val">' + this.spThreshold + '%</span></label>' +
+			'<div style="margin-bottom:8px;display:flex;align-items:center;gap:4px;">' +
+			'<label style="width:38px;flex-shrink:0;">SP: <span class="sp-val">' + this.spThreshold + '%</span></label>' +
 			'<input type="range" min="0" max="100" value="' + this.spThreshold + '" ' +
-			'class="bot-sp-slider" style="width:100px;vertical-align:middle;"></div>' +
+			'class="bot-sp-slider" style="flex:1;min-width:0;"></div>' +
 			// 技能列表 6 格
 			'<div style="font-size:11px;font-weight:bold;margin-bottom:2px;">技能列表</div>' +
 			'<div class="bot-skill-grid" style="display:flex;gap:6px;margin-bottom:14px;">' +
