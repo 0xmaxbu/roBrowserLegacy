@@ -1643,12 +1643,30 @@ class BotAutoHunt {
 			return;
 		}
 
-		console.log('[BotAutoHunt] walking to portal', targetX, targetY, 'toward', huntMap);
+		console.log('[BotAutoHunt] portal at', targetX, targetY, 'toward', huntMap);
 
-		// 走到第一跳传送门
+		// 目标点设在传送门**对面** — 强制路径穿过传送门坐标
+		// 只走到传送门坐标会停在旁边，不会触发传送
+		const cx = Session.Entity.position[0];
+		const cy = Session.Entity.position[1];
+		const dx = targetX - cx;
+		const dy = targetY - cy;
+		const dist = Math.sqrt(dx * dx + dy * dy);
+		let destX, destY;
+		if (dist < 1) {
+			// 已在传送门上 — 随便走一步触发
+			destX = targetX + 2;
+			destY = targetY;
+		} else {
+			// 延长到传送门对面 5 格
+			destX = targetX + Math.round((dx / dist) * 5);
+			destY = targetY + Math.round((dy / dist) * 5);
+		}
+		console.log('[BotAutoHunt] walking through portal to', destX, destY);
+
 		const pkt = new PACKET.CZ.REQUEST_MOVE2();
-		pkt.dest[0] = targetX;
-		pkt.dest[1] = targetY;
+		pkt.dest[0] = destX;
+		pkt.dest[1] = destY;
 		Network.sendPacket(pkt);
 	}
 
