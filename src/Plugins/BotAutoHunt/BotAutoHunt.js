@@ -34,6 +34,34 @@ import Entity from 'Renderer/Entity/Entity.js'; // TYPE_MOB / ACTION.DIE 常量
 import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_PATH 图标路径
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
+import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
+
+// =====================================================================
+// EFST 映射辅助函数（替代硬编码 BUFF_EFST_MAP / POTION_RESTORE_TYPE）
+// =====================================================================
+
+function _getEfstEntry(kind, id) {
+	return EFST_MAP[kind]?.[id] || null;
+}
+
+function _isBuff(kind, id) {
+	const entry = _getEfstEntry(kind, id);
+	return entry && entry.type === 'buff' && Array.isArray(entry.efst) && entry.efst.length > 0;
+}
+
+function _getPrimaryEfst(kind, id) {
+	const entry = _getEfstEntry(kind, id);
+	return entry?.efst?.[0] ?? null;
+}
+
+function _getPotionRestoreType(id) {
+	const entry = _getEfstEntry('items', id);
+	if (entry && ['hp', 'sp', 'both'].includes(entry.type)) {
+		return entry.type;
+	}
+	return null;
+}
+
 import SkillInfo from 'DB/Skills/SkillInfo.js'; // 技能名解析 (SkillName 字段)
 import SkillListUI from 'UI/Components/SkillList/SkillList.js'; // getUI().getList() 技能下拉数据源 (R4-问题6)
 
@@ -123,66 +151,10 @@ const AUX_TYPE_POTION = 'potion'; // HP/SP<阈值→使用
 const AUX_TYPE_BUFF_ITEM = 'buff_item'; // buff 消失→使用
 
 /**
- * skillId/itemId → EFST 映射表（从 rAthena YAML 静态提取，开发时硬编码）
- * 映射链: skill_db.yml(Status字段) → status.yml(Icon字段) → EFST枚举值
- * EFST 编号: rAthena EFST_BLESSING=10 == roBrowserLegacy StatusConst.BLESSING=10（同一编号）
- * TODO: 开发时按需补充完整映射
+ * WR-03 fix: 治疗技能白名单（按需扩展）
+ * 判定优先级: HEAL_SKILL_IDS → EFST_MAP buff → ATTACK
+ * 来源: rAthena db/re/skill_db.yml (SkillType / TargetType)
  */
-const BUFF_EFST_MAP = {
-	// 技能 buff — skillId: efstType
-	34: 10, // AL_BLESSING → EFST_BLESSING
-	29: 9, // AL_INCAGI → EFST_INCREASEAGI
-	66: 155, // PR_IMPOSITIO → EFST_IMPOSITIO
-
-	// 消耗品 buff — itemId: efstType
-	12028: 20, // 觉醒药水 → EFST_ATTHASTE_POTION1
-	12029: 20 // 觉醒药水(集中) → EFST_ATTHASTE_POTION1
-};
-
-/**
- * WR-03 fix: 治疗技能白名单（开发时硬编码，按需扩展）
- * 判定优先级: HEAL_SKILL_IDS → BUFF_EFST_MAP → ATTACK
- * 来源: rAthena db/pre-re/skill_db.yml (SkillType / TargetType)
- */
-const HEAL_SKILL_IDS = new Set([
-	28, // AL_HEAL (Acolyte Heal)
-	74, // PR_SANCTUARY (Priest Sanctuary, 地面持续回复)
-	318, // AB_HIGHNESSHEAL (Arch Bishop Highness Heal)
-	2041 // AB_CHEAL (Arch Bishop Coluceo Heal)
-]);
-
-/**
- * WR-04 fix: 消耗品恢复类型映射（开发时硬编码，按需扩展）
- * 'hp'  = 仅恢复 HP
- * 'sp'  = 仅恢复 SP
- * 'both' = 同时恢复 HP+SP（HP 分支与 SP 分支都会使用）
- * 来源: rAthena db/pre-re/item_db.yml (Script: { "heal" / "sp" })
- */
-const POTION_RESTORE_TYPE = {
-	// HP 系列
-	501: 'hp', // Red Herb
-	503: 'hp', // Yellow Herb
-	504: 'hp', // White Herb
-	507: 'hp', // Red Potion
-	508: 'hp', // Yellow Potion
-	509: 'hp', // White Potion
-	569: 'both', // Yggdrasil Berry
-	607: 'both', // Yggdrasil Seed
-	7139: 'hp', // Strawberry
-	12011: 'hp', // Concentrated Red Potion (Potion_Pitcher)
-	12012: 'hp', // Concentrated Yellow Potion
-	12013: 'hp', // Concentrated White Potion
-	// SP 系列
-	502: 'sp', // Blue Herb
-	505: 'sp', // Blue Potion
-	506: 'sp', // Green Potion (解状态为主，少量 SP)
-	7140: 'sp', // Meat (SP 恢复)
-	12014: 'sp', // Concentrated Blue Potion
-	12020: 'sp', // Savory Snack (SP 恢复)
-	12165: 'sp', // SP Consumption Item
-	12017: 'sp' // Royal Jelly (SP)
-};
-
 // =====================================================================
 // BotAutoHunt 主类
 // =====================================================================
@@ -630,20 +602,20 @@ class BotAutoHunt {
 			// WR-03 fix: 优先级 HEAL → BUFF → ATTACK
 			if (HEAL_SKILL_IDS.has(id)) {
 				type = SKILL_TYPE_HEAL;
-			} else if (BUFF_EFST_MAP[id]) {
+			} else if (_isBuff('skills', id) || _isBuff('items', id)) {
 				type = SKILL_TYPE_BUFF;
 			} else {
 				type = SKILL_TYPE_ATTACK;
 			}
 		} else {
 			// WR-04 fix: 消耗品区分 HP/SP/buff
-			if (BUFF_EFST_MAP[id]) {
+			if (_isBuff('skills', id) || _isBuff('items', id)) {
 				type = AUX_TYPE_BUFF_ITEM;
 			} else {
 				type = AUX_TYPE_POTION;
 				// 默认 'hp'，未知 ID 也视为 HP（保持与原行为兼容，但用户应在列表中
-				// 看到提示；如需 SP 恢复，需使用已知 ID 或扩展 POTION_RESTORE_TYPE）
-				subtype = POTION_RESTORE_TYPE[id] || 'hp';
+				// 看到提示；如需 SP 恢复，需使用已知 ID 或扩展 efst-map.json）
+				subtype = _getPotionRestoreType(id) || 'hp';
 			}
 		}
 		list[index] = {
@@ -867,7 +839,8 @@ class BotAutoHunt {
 						item &&
 						(item.type === ItemType.HEALING ||
 							item.type === ItemType.USABLE ||
-							item.type === ItemType.CASH)
+							item.type === ItemType.CASH ||
+							item.type === ItemType.DELAYCONSUME)
 				)
 				.map(item => {
 					let name = 'Item ' + item.ITID;
@@ -1535,7 +1508,7 @@ class BotAutoHunt {
 		// 1. 技能列表中的 buff 技能
 		for (const skill of this.skillList) {
 			if (!skill || skill.type !== SKILL_TYPE_BUFF) continue;
-			const efst = BUFF_EFST_MAP[skill.id];
+			const efst = _getPrimaryEfst('skills', skill.id);
 			if (!efst) continue; // 该技能未配置 EFST 映射 → 跳过
 			if (this._buffMap[efst]) continue; // buff 仍存在 → 跳过
 			// SP 不足 → 跳过
@@ -1552,7 +1525,7 @@ class BotAutoHunt {
 		// 2. 辅助列表中的 buff 消耗品
 		for (const aux of this.auxList) {
 			if (!aux || aux.type !== AUX_TYPE_BUFF_ITEM) continue;
-			const efst = BUFF_EFST_MAP[aux.id];
+			const efst = _getPrimaryEfst('items', aux.id);
 			if (!efst) continue;
 			if (this._buffMap[efst]) continue;
 			const key = 'buff_' + efst;
@@ -1854,7 +1827,7 @@ class BotAutoHunt {
 				}
 				for (const aux of this.auxList) {
 					if (aux && aux.type === AUX_TYPE_POTION && !aux.subtype) {
-						aux.subtype = POTION_RESTORE_TYPE[aux.id] || 'hp';
+						aux.subtype = _getPotionRestoreType(aux.id) || 'hp';
 						migrated = true;
 					}
 				}
