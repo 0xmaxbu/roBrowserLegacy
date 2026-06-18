@@ -5,12 +5,6 @@ import EntityManager from 'Renderer/EntityManager.js';
 import Altitude from 'Renderer/Map/Altitude.js';
 import Camera from 'Renderer/Camera.js';
 import Entity from 'Renderer/Entity/Entity.js';
-import glMatrix from 'Utils/gl-matrix.js';
-
-const { mat4, vec4 } = glMatrix;
-const _projMatrix = mat4.create();
-const _clipStart = vec4.create();
-const _clipEnd = vec4.create();
 
 function randBetween(minimum, maximum) {
 	return parseFloat(Math.min(minimum + Math.random() * (maximum - minimum), maximum).toFixed(3));
@@ -109,9 +103,6 @@ class ThreeDEffect {
 			this.blue = 1;
 		}
 		this.position = position;
-		this.rotateToScreenDirection = effect.rotateToScreenDirection ? true : false;
-		this._loggedDirection = false;
-		this._effectName = effect.file || (effect.fileList && effect.fileList[0]) || 'unknown';
 		if (effect.posxStart) {
 			this.posxStart = effect.posxStart;
 		} else {
@@ -652,59 +643,10 @@ class ThreeDEffect {
 			}
 		}
 
-		if (this.rotateToScreenDirection) {
-			// 把轨迹起点(start)和终点(end)的世界坐标投影到裁剪空间，
-			// 计算屏幕空间的运动方向，让精灵始终朝向运动方向（360度镜头都正确）
-			const startWorld = [
-				this.position[0] + this.posxStart,
-				this.position[1] + this.posyStart,
-				this.position[2] + this.poszStart,
-				1.0
-			];
-			const endWorld = [
-				this.position[0] + this.posxEnd,
-				this.position[1] + this.posyEnd,
-				this.position[2] + this.poszEnd,
-				1.0
-			];
-
-			mat4.multiply(_projMatrix, Camera.projection, Camera.modelView);
-			vec4.transformMat4(_clipStart, startWorld, _projMatrix);
-			vec4.transformMat4(_clipEnd, endWorld, _projMatrix);
-
-			const deltaScreenX = _clipEnd[0] / _clipEnd[3] - _clipStart[0] / _clipStart[3];
-			const deltaScreenY = _clipEnd[1] / _clipEnd[3] - _clipStart[1] / _clipStart[3];
-
-			// 屏幕空间运动方向角度（度）
-			const thetaMove = (Math.atan2(deltaScreenY, deltaScreenX) * 180) / Math.PI;
-			// offset 反推自正确样本: baseAngle(112.5) - baseThetaMove(-108) = 220.5 ≡ -139.5
-			this._dynamicAngle = thetaMove - 139.5;
-
-			if (!this._loggedDirection) {
-				this._loggedDirection = true;
-				console.log(
-					'[ThreeDEffect] rotateToScreenDirection',
-					{ name: this._effectName },
-					'deltaScreenXY',
-					[deltaScreenX.toFixed(3), deltaScreenY.toFixed(3)],
-					'thetaMove',
-					thetaMove.toFixed(1),
-					'dynamicAngle',
-					this._dynamicAngle.toFixed(1),
-					'baseAngle',
-					this.angle,
-					'cameraAngle',
-					[Camera.angle[0].toFixed(1), Camera.angle[1].toFixed(1)]
-				);
-			}
-		}
-
 		SpriteRenderer.size[0] = sizeX;
 		SpriteRenderer.size[1] = sizeY;
 
-		if (this.rotateToScreenDirection) {
-			SpriteRenderer.angle = this._dynamicAngle;
-		} else if (this.rotate) {
+		if (this.rotate) {
 			const angleStep = (this.toAngle - this.angle) / 100;
 			const startAngle = this.angle;
 			const angle = steps * angleStep + startAngle;
