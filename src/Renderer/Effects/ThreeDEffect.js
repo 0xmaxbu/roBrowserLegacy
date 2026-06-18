@@ -109,7 +109,7 @@ class ThreeDEffect {
 			this.blue = 1;
 		}
 		this.position = position;
-		this.logDirection = effect.logDirection ? true : false;
+		this.rotateToScreenDirection = effect.rotateToScreenDirection ? true : false;
 		this._loggedDirection = false;
 		this._effectName = effect.file || (effect.fileList && effect.fileList[0]) || 'unknown';
 		if (effect.posxStart) {
@@ -652,14 +652,13 @@ class ThreeDEffect {
 			}
 		}
 
-		if (this.logDirection && !this._loggedDirection) {
-			this._loggedDirection = true;
-
-			// 用当前插值位置(cur)和终点(end)的屏幕投影，判断实际视觉运动方向
-			const curWorld = [
-				SpriteRenderer.position[0],
-				SpriteRenderer.position[1],
-				SpriteRenderer.position[2],
+		if (this.rotateToScreenDirection) {
+			// 把轨迹起点(start)和终点(end)的世界坐标投影到裁剪空间，
+			// 计算屏幕空间的运动方向，让精灵始终朝向运动方向（360度镜头都正确）
+			const startWorld = [
+				this.position[0] + this.posxStart,
+				this.position[1] + this.posyStart,
+				this.position[2] + this.poszStart,
 				1.0
 			];
 			const endWorld = [
@@ -670,36 +669,42 @@ class ThreeDEffect {
 			];
 
 			mat4.multiply(_projMatrix, Camera.projection, Camera.modelView);
-			vec4.transformMat4(_clipStart, curWorld, _projMatrix);
+			vec4.transformMat4(_clipStart, startWorld, _projMatrix);
 			vec4.transformMat4(_clipEnd, endWorld, _projMatrix);
 
-			const curScreenX = _clipStart[0] / _clipStart[3];
-			const curScreenY = _clipStart[1] / _clipStart[3];
-			const endScreenX = _clipEnd[0] / _clipEnd[3];
-			const endScreenY = _clipEnd[1] / _clipEnd[3];
-			const deltaScreenX = endScreenX - curScreenX;
-			const deltaScreenY = endScreenY - curScreenY;
+			const deltaScreenX = _clipEnd[0] / _clipEnd[3] - _clipStart[0] / _clipStart[3];
+			const deltaScreenY = _clipEnd[1] / _clipEnd[3] - _clipStart[1] / _clipStart[3];
 
-			console.log(
-				'[ThreeDEffect] logDirection',
-				{ name: this._effectName, pos: this.position },
-				'curScreenXY',
-				[curScreenX.toFixed(3), curScreenY.toFixed(3)],
-				'endScreenXY',
-				[endScreenX.toFixed(3), endScreenY.toFixed(3)],
-				'deltaScreenXY',
-				[deltaScreenX.toFixed(3), deltaScreenY.toFixed(3)],
-				'cameraAngle',
-				[Camera.angle[0].toFixed(1), Camera.angle[1].toFixed(1)],
-				'willFlipX',
-				deltaScreenX > 0
-			);
+			// 屏幕空间运动方向角度（度）
+			const thetaMove = (Math.atan2(deltaScreenY, deltaScreenX) * 180) / Math.PI;
+			// offset 反推自正确样本: baseAngle(112.5) - baseThetaMove(-108) = 220.5 ≡ -139.5
+			this._dynamicAngle = thetaMove - 139.5;
+
+			if (!this._loggedDirection) {
+				this._loggedDirection = true;
+				console.log(
+					'[ThreeDEffect] rotateToScreenDirection',
+					{ name: this._effectName },
+					'deltaScreenXY',
+					[deltaScreenX.toFixed(3), deltaScreenY.toFixed(3)],
+					'thetaMove',
+					thetaMove.toFixed(1),
+					'dynamicAngle',
+					this._dynamicAngle.toFixed(1),
+					'baseAngle',
+					this.angle,
+					'cameraAngle',
+					[Camera.angle[0].toFixed(1), Camera.angle[1].toFixed(1)]
+				);
+			}
 		}
 
 		SpriteRenderer.size[0] = sizeX;
 		SpriteRenderer.size[1] = sizeY;
 
-		if (this.rotate) {
+		if (this.rotateToScreenDirection) {
+			SpriteRenderer.angle = this._dynamicAngle;
+		} else if (this.rotate) {
 			const angleStep = (this.toAngle - this.angle) / 100;
 			const startAngle = this.angle;
 			const angle = steps * angleStep + startAngle;
