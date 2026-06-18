@@ -35,6 +35,9 @@ import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_P
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
+import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
+import Altitude from 'Renderer/Map/Altitude.js'; // getCellType + TYPE.WALKABLE — 巡逻可行走验证
+import PathFinding from 'Utils/PathFinding.js'; // search() — 巡逻路径验证
 
 // =====================================================================
 // EFST 映射辅助函数（替代硬编码 BUFF_EFST_MAP / POTION_RESTORE_TYPE）
@@ -151,10 +154,11 @@ const AUX_TYPE_POTION = 'potion'; // HP/SP<阈值→使用
 const AUX_TYPE_BUFF_ITEM = 'buff_item'; // buff 消失→使用
 
 /**
- * WR-03 fix: 治疗技能白名单（按需扩展）
+ * 治疗技能集合 — 由构建脚本从 rAthena pc.cpp pc_skillheal_bonus() 自动提取。
  * 判定优先级: HEAL_SKILL_IDS → EFST_MAP buff → ATTACK
- * 来源: rAthena db/re/skill_db.yml (SkillType / TargetType)
+ * 来源: tools/client/generate-efst-map.mjs → data/efst-map.json.healSkills
  */
+const HEAL_SKILL_IDS = new Set(EFST_MAP.healSkills || []);
 // =====================================================================
 // BotAutoHunt 主类
 // =====================================================================
@@ -229,6 +233,10 @@ class BotAutoHunt {
 		// key 格式: 'item_<id>' | 'skill_<id>' | 'buff_<efst>'
 		// value: 冷却到期时间戳 (Date.now() + cooldownMs)
 		this._actionCooldowns = {};
+
+		// ---------- Buff 施法保护（Bug 3 fix: 防止巡逻移动打断长施法） ----------
+		// 值: Date.now() + 预估施法时间；战斗循环在此时间前不发送移动指令
+		this._castingUntil = 0;
 
 		// ---------- 加载设置（此时 GID 可能为 0，进游戏后按需重载） ----------
 		this._loadSettings();
@@ -481,19 +489,22 @@ class BotAutoHunt {
 		let html = '';
 		for (let i = 0; i < count; i++) {
 			html +=
-				'<div class="cell" data-slot="' + slot + '" data-index="' + i + '" ' +
-				'style="width:32px;height:32px;border:1px solid #ccc;border-radius:3px;' +
-				'background:linear-gradient(to bottom,#f5f5f5,#e8e8e8);cursor:pointer;' +
-				'position:relative;display:flex;align-items:center;justify-content:center;' +
-				'transition:border-color 0.15s;">' +
-				'<span class="plus" style="font-size:18px;color:#bbb;line-height:1;">+</span>' +
-				'<div class="icon" style="width:24px;height:24px;display:none;' +
-				'border-radius:2px;background-size:contain;background-repeat:no-repeat;' +
-				'background-position:center;"></div>' +
-				'<span class="cell-name" style="display:none;position:absolute;bottom:-14px;' +
-				'left:50%;transform:translateX(-50%);font-size:0.55rem;white-space:nowrap;' +
-				'background:rgba(0,0,0,0.7);color:white;padding:1px 3px;border-radius:1px;z-index:10;"></span>' +
-				'</div>';
+			'<div class="cell" data-slot="' + slot + '" data-index="' + i + '" ' +
+			'style="width:32px;height:32px;border:1px solid #ccc;border-radius:3px;' +
+			'background:linear-gradient(to bottom,#f5f5f5,#e8e8e8);cursor:pointer;' +
+			'position:relative;display:flex;align-items:center;justify-content:center;' +
+			'transition:border-color 0.15s;">' +
+			'<span class="plus" style="font-size:18px;color:#bbb;line-height:1;">+</span>' +
+			'<div class="icon" style="width:24px;height:24px;display:none;' +
+			'border-radius:2px;background-size:contain;background-repeat:no-repeat;' +
+			'background-position:center;"></div>' +
+			'<span class="cell-level" style="display:none;position:absolute;bottom:-13px;' +
+			'left:50%;transform:translateX(-50%);font-size:0.55rem;white-space:nowrap;' +
+			'color:#484848;padding:0 1px;z-index:5;"></span>' +
+			'<span class="cell-name" style="display:none;position:absolute;bottom:-26px;' +
+			'left:50%;transform:translateX(-50%);font-size:0.55rem;white-space:nowrap;' +
+			'background:rgba(0,0,0,0.7);color:white;padding:1px 3px;border-radius:1px;z-index:10;"></span>' +
+			'</div>';
 		}
 		return html;
 	}
@@ -594,7 +605,7 @@ class BotAutoHunt {
 		return slot === 'skill' ? this.skillList : this.auxList;
 	}
 
-	_setSlotItem(slot, index, id, info) {
+	_setSlotItem(slot, index, id, info, selectedLevel) {
 		const list = this._getSlotList(slot);
 		let type;
 		let subtype = null;
@@ -618,11 +629,16 @@ class BotAutoHunt {
 				subtype = _getPotionRestoreType(id) || 'hp';
 			}
 		}
+		const maxLevel = info ? info.level || 1 : 1;
+		const level = (typeof selectedLevel === 'number' && selectedLevel >= 1 && selectedLevel <= maxLevel)
+			? selectedLevel
+			: maxLevel;
 		list[index] = {
 			id: id,
 			type: type,
 			subtype: subtype,
-			level: info ? info.level || 1 : 1,
+			level: level,
+			maxLevel: maxLevel,
 			spcost: info ? info.spcost || 0 : 0
 		};
 		this._saveSettings();
@@ -714,16 +730,41 @@ class BotAutoHunt {
 		for (const item of items) {
 			if (selectedIds.has(item.id)) continue;
 			const name = item.name.length > 5 ? item.name.slice(0, 5) + '…' : item.name;
-			html +=
-				'<div class="dd-item" data-id="' + item.id + '" ' +
-				'style="display:flex;align-items:center;gap:4px;padding:3px 4px;border-radius:2px;' +
-				'background:transparent;cursor:pointer;">' +
-				'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
-				'style="min-width:22px;height:22px;border-radius:2px;' +
-				'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
-				'<span class="dd-name" style="font-size:10px;color:#484848;white-space:nowrap;' +
-				'overflow:hidden;text-overflow:ellipsis;">' + name + '</span>' +
-				'</div>';
+			if (slot === 'skill') {
+				const maxLevel = item.level || 1;
+				const curLevel = maxLevel;
+				html +=
+					'<div class="dd-item" data-id="' + item.id + '" data-level="' + curLevel + '" ' +
+					'style="display:flex;align-items:center;gap:4px;padding:3px 4px;border-radius:2px;' +
+					'background:transparent;cursor:pointer;">' +
+					'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
+					'style="min-width:22px;height:22px;border-radius:2px;' +
+					'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
+					'<div style="display:flex;flex-direction:column;flex:1;min-width:0;">' +
+					'<span class="dd-name" style="font-size:10px;color:#484848;white-space:nowrap;' +
+					'overflow:hidden;text-overflow:ellipsis;">' + name + '</span>' +
+					'<div class="dd-level" style="display:flex;align-items:center;justify-content:center;' +
+					'gap:3px;font-size:9px;color:#666;margin-top:1px;" ' +
+					'data-max="' + maxLevel + '" data-cur="' + curLevel + '" ' +
+					'onclick="event.stopPropagation();">' +
+					'<span class="dd-lvl-down" style="cursor:pointer;color:#48c;font-weight:bold;">&lt;</span>' +
+					'<span class="dd-lvl-val" style="min-width:24px;text-align:center;">' + curLevel + '/' + maxLevel + '</span>' +
+					'<span class="dd-lvl-up" style="cursor:pointer;color:#48c;font-weight:bold;">&gt;</span>' +
+					'</div>' +
+					'</div>' +
+					'</div>';
+			} else {
+				html +=
+					'<div class="dd-item" data-id="' + item.id + '" ' +
+					'style="display:flex;align-items:center;gap:4px;padding:3px 4px;border-radius:2px;' +
+					'background:transparent;cursor:pointer;">' +
+					'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
+					'style="min-width:22px;height:22px;border-radius:2px;' +
+					'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
+					'<span class="dd-name" style="font-size:10px;color:#484848;white-space:nowrap;' +
+					'overflow:hidden;text-overflow:ellipsis;">' + name + '</span>' +
+					'</div>';
+			}
 		}
 		html += '</div>';
 		dd.innerHTML = html;
@@ -756,7 +797,8 @@ class BotAutoHunt {
 				e.stopPropagation();
 				const id = +itemEl.dataset.id;
 				const info = items.find(it => it.id === id);
-				this._setSlotItem(slot, index, id, info);
+				const selectedLevel = slot === 'skill' ? +itemEl.dataset.level : null;
+				this._setSlotItem(slot, index, id, info, selectedLevel);
 				this._closeDropdown();
 			});
 			itemEl.addEventListener('mousedown', e => { e.stopPropagation(); });
@@ -766,6 +808,35 @@ class BotAutoHunt {
 			itemEl.addEventListener('mouseleave', () => {
 				itemEl.style.background = 'transparent';
 			});
+
+			// 技能等级调整（仅技能面板）
+			if (slot === 'skill') {
+				const levelEl = itemEl.querySelector('.dd-level');
+				if (!levelEl) return;
+				const updateLevel = delta => {
+					const max = +levelEl.dataset.max || 1;
+					let cur = +levelEl.dataset.cur || max;
+					cur = Math.max(1, Math.min(max, cur + delta));
+					levelEl.dataset.cur = cur;
+					itemEl.dataset.level = cur;
+					const valEl = levelEl.querySelector('.dd-lvl-val');
+					if (valEl) valEl.textContent = cur + '/' + max;
+				};
+				const downEl = levelEl.querySelector('.dd-lvl-down');
+				const upEl = levelEl.querySelector('.dd-lvl-up');
+				if (downEl) {
+					downEl.addEventListener('click', e => {
+						e.stopPropagation();
+						updateLevel(-1);
+					});
+				}
+				if (upEl) {
+					upEl.addEventListener('click', e => {
+						e.stopPropagation();
+						updateLevel(1);
+					});
+				}
+			}
 		});
 
 		// 清除按钮
@@ -903,18 +974,27 @@ class BotAutoHunt {
 				cell.style.borderColor = '#6a8';
 				cell.style.background = 'linear-gradient(to bottom,#f0faf0,#e0f0e0)';
 				if (plus) plus.style.display = 'none';
+				const info = available.find(x => x.id === item.id);
 				if (icon) {
 					icon.style.display = 'block';
-					const info = available.find(x => x.id === item.id);
 					if (info && info.iconName) {
 						this._loadIcon(icon, info.iconName);
 					}
 				}
 				if (nameEl) nameEl.style.display = 'none';
 
+				// 技能格子显示当前等级 / 最高等级
+				if (slot === 'skill') {
+					const levelEl = cell.querySelector('.cell-level');
+					if (levelEl) {
+						const max = (info && info.level) || item.maxLevel || item.level || 1;
+						levelEl.textContent = item.level + '/' + max;
+						levelEl.style.display = '';
+					}
+				}
+
 				// D2 #17: 消耗品 count <= 0 → 灰化
 				if (slot === 'aux') {
-					const info = available.find(x => x.id === item.id);
 					if (info && info.count <= 0) {
 						cell.classList.add('grayed');
 						cell.style.opacity = '0.45';
@@ -932,6 +1012,8 @@ class BotAutoHunt {
 				if (plus) plus.style.display = '';
 				if (icon) icon.style.display = 'none';
 				if (nameEl) nameEl.style.display = 'none';
+				const levelEl = cell.querySelector('.cell-level');
+				if (levelEl) levelEl.style.display = 'none';
 			}
 		});
 	}
@@ -1053,7 +1135,7 @@ class BotAutoHunt {
 		if (!this.sendCommand(1)) return;
 		this.active = false;
 		this.stopLoops();
-		this._sendChat('@autoloot off');
+		this._sendChat('@autoloot 0');
 	}
 
 	startOffline() {
@@ -1168,6 +1250,11 @@ class BotAutoHunt {
 		// 记录当前地图名，用于过图检测
 		this._lastMapName = this._getCurrentMapName() || '';
 		this._mapChangeTick = 0;
+		// 调试日志：显示挂机启动时的技能/消耗品列表
+		console.log('[BotAutoHunt] startLoops — skillList:',
+			this.skillList.map(s => s ? { id: s.id, type: s.type, spcost: s.spcost } : null));
+		console.log('[BotAutoHunt] startLoops — auxList:',
+			this.auxList.map(a => a ? { id: a.id, type: a.type, subtype: a.subtype } : null));
 		this.combatTick = setInterval(() => this._combatLoop(), 100);
 		this.potionTick = setInterval(() => this._potionLoop(), 200);
 		this.buffTick = setInterval(() => this._buffLoop(), 1000);
@@ -1343,15 +1430,15 @@ class BotAutoHunt {
 				if (Session.Entity.action === Session.Entity.ACTION.WALK) {
 					return; // 正在走，继续等待
 				}
-				if (Date.now() - this._lastPatrolMoveTick > 500) {
+				// Bug 3 fix: buff 施法期间不移动，避免打断长施法（如能量外套 5s）
+				if (Date.now() < this._castingUntil) return;
+				if (Date.now() - this._lastPatrolMoveTick > 1500) {
 					this._lastPatrolMoveTick = Date.now();
-					const cx = Session.Entity.position[0];
-					const cy = Session.Entity.position[1];
-					const dx = ((Math.random() * 20) | 0) - 10;
-					const dy = ((Math.random() * 20) | 0) - 10;
+					const target = this._findPatrolTarget();
+					if (!target) return; // 无可行走目标，原地等待
 					const pkt = new PACKET.CZ.REQUEST_MOVE2();
-					pkt.dest[0] = cx + dx;
-					pkt.dest[1] = cy + dy;
+					pkt.dest[0] = target[0];
+					pkt.dest[1] = target[1];
 					Network.sendPacket(pkt);
 				}
 				return;
@@ -1505,20 +1592,32 @@ class BotAutoHunt {
 		if (!this.active) return;
 		if (!Session.Entity || Session.Entity.isDead()) return;
 
+		// Bug 3 fix: 角色正在施法中 → 跳过本轮，避免重复施法打断自己
+		if (Session.Entity.cast && Session.Entity.cast.display) return;
+
 		// 1. 技能列表中的 buff 技能
 		for (const skill of this.skillList) {
 			if (!skill || skill.type !== SKILL_TYPE_BUFF) continue;
 			const efst = _getPrimaryEfst('skills', skill.id);
-			if (!efst) continue; // 该技能未配置 EFST 映射 → 跳过
+			if (!efst) {
+				console.log('[BotAutoHunt][buff] skill', skill.id, 'has no EFST mapping, skipping');
+				continue;
+			}
 			if (this._buffMap[efst]) continue; // buff 仍存在 → 跳过
 			// SP 不足 → 跳过
-			if (skill.spcost && Session.Entity.life && Session.Entity.life.sp < skill.spcost) continue;
-			// 待注册冷却: 施法后 buff 注册有网络延迟，5s 内不重试
+			const currentSp = Session.Entity.life ? Session.Entity.life.sp : 0;
+			if (skill.spcost && currentSp < skill.spcost) {
+				console.log('[BotAutoHunt][buff] skill', skill.id, 'SP insufficient:', currentSp, '/', skill.spcost);
+				continue;
+			}
+			// 待注册冷却: 施法后 buff 注册有网络延迟，8s 内不重试
 			const key = 'buff_' + efst;
 			if (this._isOnCooldown(key)) continue;
 			// buff 已消失 → 释放技能（对自己）
+			console.log('[BotAutoHunt][buff] casting skill', skill.id, 'efst=', efst, 'sp=', currentSp);
 			SkillTargetSelection.onUseSkillToId(skill.id, skill.level || 1, Session.Entity.GID);
-			this._markAction(key, 5000); // 5s 等待 buff 注册或重试
+			this._markAction(key, 8000); // 8s: 5s 施法 + 3s 网络/注册缓冲
+			this._castingUntil = Date.now() + 8000; // 抑制巡逻移动
 			return;
 		}
 
@@ -1595,11 +1694,59 @@ class BotAutoHunt {
 	/** #12 fix: 获取当前地图名（小写，不含扩展名） */
 	_getCurrentMapName() {
 		try {
-			if (Session && Session.Entity && Session.Entity.mapname) {
-				return Session.Entity.mapname.replace(/\.gat$/i, '').toLowerCase();
+			return (MapRenderer.currentMap || '').replace(/\.gat$/i, '').toLowerCase();
+		} catch (_) {
+			return '';
+		}
+	}
+
+	/**
+	 * Bug 1 fix: 使用 PathFinding 验证巡逻目标可行走
+	 * 策略1: searchLong 射线 — 沿随机方向走，悬崖/墙壁自动停在最远可达格
+	 * 策略2: search A* 兜底 — range=8 接受目标附近可达点
+	 * @returns {number[]|null} [x, y] 可行走目标坐标，或 null
+	 */
+	_findPatrolTarget() {
+		const cx = Session.Entity.position[0] | 0;
+		const cy = Session.Entity.position[1] | 0;
+		const out = [];
+
+		// 策略1: 射线检测 — 沿随机方向直线行走，遇到悬崖/墙壁自动停止
+		for (let attempt = 0; attempt < 8; attempt++) {
+			const angle = Math.random() * Math.PI * 2;
+			const dist = 15 + Math.floor(Math.random() * 10); // 15-24
+			const tx = cx + Math.round(Math.cos(angle) * dist);
+			const ty = cy + Math.round(Math.sin(angle) * dist);
+
+			try {
+				const result = PathFinding.searchLong(cx, cy, tx, ty, 0, out);
+				// 无论 success 与否，out 数组都存储了沿射线的可达格
+				// pathLength = 射线走过的步数（不含起点）
+				if (result.pathLength >= 3) {
+					const lastIdx = result.pathLength * 2;
+					const rx = out[lastIdx];
+					const ry = out[lastIdx + 1];
+					if (rx !== undefined && ry !== undefined) {
+						return [rx, ry];
+					}
+				}
+			} catch (_) {}
+		}
+
+		// 策略2: A* 兜底
+		for (let attempt = 0; attempt < 4; attempt++) {
+			const angle = Math.random() * Math.PI * 2;
+			const dist = 8 + Math.floor(Math.random() * 11);
+			const tx = cx + Math.round(Math.cos(angle) * dist);
+			const ty = cy + Math.round(Math.sin(angle) * dist);
+
+			const pathLen = PathFinding.search(cx, cy, tx, ty, 8, out);
+			if (pathLen > 3) {
+				const lastIdx = (pathLen - 1) * 2;
+				return [out[lastIdx], out[lastIdx + 1]];
 			}
-		} catch (_) {}
-		return '';
+		}
+		return null;
 	}
 
 	/**
@@ -1629,17 +1776,21 @@ class BotAutoHunt {
 		let targetY = null;
 
 		try {
-			const naviLinkTable = DB.getNaviLinkTable();
-			if (!naviLinkTable || !naviLinkTable.length) {
+			const naviRaw = DB.getNaviLinkTable();
+			// Bug 2 fix: DBManager 用 Object.assign({}, array) 存储，导致 .length 丢失
+			const entries = Array.isArray(naviRaw)
+				? naviRaw
+				: Object.values(naviRaw || {});
+			if (!entries.length) {
 				console.warn('[BotAutoHunt] naviLinkTable empty, cannot find path');
 				return;
 			}
 
 			// 1. 构建邻接表: { srcMap: [{ dest, x, y }, ...] }
 			const adj = {};
-			for (let i = 0; i < naviLinkTable.length; i++) {
-				const warp = naviLinkTable[i];
-				if (!warp || warp.length < 11) continue;
+			for (let i = 0; i < entries.length; i++) {
+				const warp = entries[i];
+				if (!warp || !Array.isArray(warp) || warp.length < 11) continue;
 				const src = (warp[0] || '').replace(/\.gat$/i, '').toLowerCase();
 				const dest = (warp[8] || '').replace(/\.gat$/i, '').toLowerCase();
 				if (!src || !dest) continue;
@@ -1686,8 +1837,7 @@ class BotAutoHunt {
 
 		console.log('[BotAutoHunt] portal at', targetX, targetY, 'toward', huntMap);
 
-		// 目标点设在传送门**对面** — 强制路径穿过传送门坐标
-		// 只走到传送门坐标会停在旁边，不会触发传送
+		// 目标点设在传送门对面 — 强制路径穿过传送门坐标触发传送
 		const cx = Session.Entity.position[0];
 		const cy = Session.Entity.position[1];
 		const dx = targetX - cx;
@@ -1695,13 +1845,32 @@ class BotAutoHunt {
 		const dist = Math.sqrt(dx * dx + dy * dy);
 		let destX, destY;
 		if (dist < 1) {
-			// 已在传送门上 — 随便走一步触发
-			destX = targetX + 2;
-			destY = targetY;
+			// 已在传送门上 — 向可行走方向走一步触发
+			for (const [ox, oy] of [[2, 0], [-2, 0], [0, 2], [0, -2]]) {
+				const nx = targetX + ox;
+				const ny = targetY + oy;
+				if (Altitude.getCellType(nx, ny) & Altitude.TYPE.WALKABLE) {
+					destX = nx;
+					destY = ny;
+					break;
+				}
+			}
+			if (destX === undefined) {
+				destX = targetX;
+				destY = targetY;
+			}
 		} else {
 			// 延长到传送门对面 5 格
-			destX = targetX + Math.round((dx / dist) * 5);
-			destY = targetY + Math.round((dy / dist) * 5);
+			const extX = targetX + Math.round((dx / dist) * 5);
+			const extY = targetY + Math.round((dy / dist) * 5);
+			if (Altitude.getCellType(extX, extY) & Altitude.TYPE.WALKABLE) {
+				destX = extX;
+				destY = extY;
+			} else {
+				// 延长点不可走 → 直接走到传送门坐标（可能停在旁边，下次重试）
+				destX = targetX;
+				destY = targetY;
+			}
 		}
 		console.log('[BotAutoHunt] walking through portal to', destX, destY);
 
@@ -1824,10 +1993,20 @@ class BotAutoHunt {
 						skill.type = SKILL_TYPE_HEAL;
 						migrated = true;
 					}
+					// Bug 3 fix: ATTACK → BUFF 迁移（旧版保存时 EFST 分类尚未生效）
+					if (skill && skill.type === SKILL_TYPE_ATTACK && _isBuff('skills', skill.id)) {
+						skill.type = SKILL_TYPE_BUFF;
+						migrated = true;
+					}
 				}
 				for (const aux of this.auxList) {
 					if (aux && aux.type === AUX_TYPE_POTION && !aux.subtype) {
 						aux.subtype = _getPotionRestoreType(aux.id) || 'hp';
+						migrated = true;
+					}
+					// Bug 3 fix: POTION → BUFF_ITEM 迁移
+					if (aux && aux.type === AUX_TYPE_POTION && _isBuff('items', aux.id)) {
+						aux.type = AUX_TYPE_BUFF_ITEM;
 						migrated = true;
 					}
 				}
