@@ -655,10 +655,11 @@ class ThreeDEffect {
 		if (this.logDirection && !this._loggedDirection) {
 			this._loggedDirection = true;
 
-			const startWorld = [
-				this.position[0] + this.posxStart,
-				this.position[1] + this.posyStart,
-				this.position[2] + this.poszStart,
+			// 用当前插值位置(cur)和终点(end)的屏幕投影，判断实际视觉运动方向
+			const curWorld = [
+				SpriteRenderer.position[0],
+				SpriteRenderer.position[1],
+				SpriteRenderer.position[2],
 				1.0
 			];
 			const endWorld = [
@@ -669,21 +670,21 @@ class ThreeDEffect {
 			];
 
 			mat4.multiply(_projMatrix, Camera.projection, Camera.modelView);
-			vec4.transformMat4(_clipStart, startWorld, _projMatrix);
+			vec4.transformMat4(_clipStart, curWorld, _projMatrix);
 			vec4.transformMat4(_clipEnd, endWorld, _projMatrix);
 
-			const startScreenX = _clipStart[0] / _clipStart[3];
-			const startScreenY = _clipStart[1] / _clipStart[3];
+			const curScreenX = _clipStart[0] / _clipStart[3];
+			const curScreenY = _clipStart[1] / _clipStart[3];
 			const endScreenX = _clipEnd[0] / _clipEnd[3];
 			const endScreenY = _clipEnd[1] / _clipEnd[3];
-			const deltaScreenX = endScreenX - startScreenX;
-			const deltaScreenY = endScreenY - startScreenY;
+			const deltaScreenX = endScreenX - curScreenX;
+			const deltaScreenY = endScreenY - curScreenY;
 
 			console.log(
 				'[ThreeDEffect] logDirection',
 				{ name: this._effectName, pos: this.position },
-				'startScreenXY',
-				[startScreenX.toFixed(3), startScreenY.toFixed(3)],
+				'curScreenXY',
+				[curScreenX.toFixed(3), curScreenY.toFixed(3)],
 				'endScreenXY',
 				[endScreenX.toFixed(3), endScreenY.toFixed(3)],
 				'deltaScreenXY',
