@@ -32,6 +32,7 @@ function RenderCanvas3D(isBlendModeOne) {
 	// cache values to avoid flooding the GPU and reducing perf.
 
 	const uniform = _program.uniform;
+	const attribute = _program.attribute;
 	const gl = _gl;
 	const use_pal = this.image.palette !== null;
 
@@ -96,6 +97,12 @@ function RenderCanvas3D(isBlendModeOne) {
 		_lastGroupId = _groupId;
 		gl.bindTexture(gl.TEXTURE_2D, (_texture = this.image.texture));
 	}
+
+	// Bind the appropriate vertex buffer (normal or horizontally mirrored)
+	gl.bindBuffer(gl.ARRAY_BUFFER, this.flipX ? _bufferFlipX : _buffer);
+	gl.vertexAttribPointer(attribute.aPosition, 2, gl.FLOAT, false, 4 * 4, 0);
+	gl.vertexAttribPointer(attribute.aTextureCoord, 2, gl.FLOAT, false, 4 * 4, 2 * 4);
+
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
@@ -121,7 +128,7 @@ const RenderCanvas2D = (function RenderCanvas2DClosure() {
 		let x, y;
 		let r, g, b, a, inRow, outRow;
 
-		scale_x = 1.0;
+		scale_x = this.flipX ? -1.0 : 1.0;
 		scale_y = 1.0;
 		const _x = _pos[0] + this.offset[0];
 		const _y = _pos[1] + this.offset[1] - 0.5 * 35; // middle of cell
@@ -132,7 +139,7 @@ const RenderCanvas2D = (function RenderCanvas2DClosure() {
 
 		_size.set(this.size);
 
-		// Mirror feature
+		// Mirror feature (also support legacy negative size)
 		if (_size[0] < 0) {
 			scale_x *= -1;
 			_size[0] *= -1;
@@ -264,6 +271,11 @@ let _program = null;
  * @type {WebGLBuffer}
  */
 let _buffer = null;
+
+/**
+ * @type {WebGLBuffer}
+ */
+let _bufferFlipX = null;
 
 /**
  * @type {CanvasRenderingContext2D} canvas context
@@ -419,6 +431,11 @@ class SpriteRenderer {
 	static disableDepthCorrection = false;
 
 	/**
+	 * @type {boolean} horizontally mirror the sprite (flip texture U coordinates)
+	 */
+	static flipX = false;
+
+	/**
 	 * @type {number} width unity
 	 */
 	static xSize = 5;
@@ -441,6 +458,18 @@ class SpriteRenderer {
 				gl.ARRAY_BUFFER,
 				new Float32Array([
 					-0.5, +0.5, 0.0, 0.0, +0.5, +0.5, 1.0, 0.0, -0.5, -0.5, 0.0, 1.0, +0.5, -0.5, 1.0, 1.0
+				]),
+				gl.STATIC_DRAW
+			);
+		}
+
+		if (!_bufferFlipX) {
+			_bufferFlipX = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, _bufferFlipX);
+			gl.bufferData(
+				gl.ARRAY_BUFFER,
+				new Float32Array([
+					-0.5, +0.5, 1.0, 0.0, +0.5, +0.5, 0.0, 0.0, -0.5, -0.5, 1.0, 1.0, +0.5, -0.5, 0.0, 1.0
 				]),
 				gl.STATIC_DRAW
 			);

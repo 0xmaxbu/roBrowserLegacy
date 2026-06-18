@@ -87,6 +87,7 @@ class ThreeDEffect {
 
 		// When true, horizontally mirror the sprite when the effect moves from left to right on screen.
 		this.flipXByMovementDirection = effect.flipXByMovementDirection ? true : false;
+		this._flipX = false;
 
 		this.alphaMax = !isNaN(effect.alphaMax) ? Math.max(Math.min(effect.alphaMax, 1), 0) : 1;
 		this.alphaMax = Math.max(
@@ -653,6 +654,7 @@ class ThreeDEffect {
 			}
 		}
 
+		this._flipX = false;
 		if (this.flipXByMovementDirection) {
 			mat4.multiply(_projMatrix, Camera.projection, Camera.modelView);
 
@@ -671,9 +673,7 @@ class ThreeDEffect {
 			const startScreenX = _startPos[0] / _startPos[3];
 			const endScreenX = _endPos[0] / _endPos[3];
 
-			if (startScreenX < endScreenX) {
-				sizeX = -sizeX;
-			}
+			this._flipX = startScreenX < endScreenX;
 		}
 
 		SpriteRenderer.size[0] = sizeX;
@@ -687,6 +687,8 @@ class ThreeDEffect {
 		} else {
 			SpriteRenderer.angle = this.rotateWithCamera ? this.angle + Camera.angle[1] : this.angle;
 		}
+
+		SpriteRenderer.flipX = this._flipX;
 
 		if (this.actRessource && this.spriteRessource) {
 			let entity = this.ownerEntity;
@@ -785,6 +787,7 @@ class ThreeDEffect {
 			});
 		}
 
+		SpriteRenderer.flipX = false;
 		this.needCleanUp = this.endTick < tick;
 	}
 
