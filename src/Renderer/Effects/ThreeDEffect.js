@@ -5,6 +5,13 @@ import EntityManager from 'Renderer/EntityManager.js';
 import Altitude from 'Renderer/Map/Altitude.js';
 import Camera from 'Renderer/Camera.js';
 import Entity from 'Renderer/Entity/Entity.js';
+import glMatrix from 'Utils/gl-matrix.js';
+
+const mat4 = glMatrix.mat4;
+const vec4 = glMatrix.vec4;
+const _projMatrix = mat4.create();
+const _startPos = vec4.create();
+const _endPos = vec4.create();
 
 function randBetween(minimum, maximum) {
 	return parseFloat(Math.min(minimum + Math.random() * (maximum - minimum), maximum).toFixed(3));
@@ -77,6 +84,9 @@ class ThreeDEffect {
 
 		// When true, draw as an overlay: no depth test and no ray-plane correction.
 		this.overlay = effect.overlay ? true : false;
+
+		// When true, horizontally mirror the sprite when the effect moves from left to right on screen.
+		this.flipXByMovementDirection = effect.flipXByMovementDirection ? true : false;
 
 		this.alphaMax = !isNaN(effect.alphaMax) ? Math.max(Math.min(effect.alphaMax, 1), 0) : 1;
 		this.alphaMax = Math.max(
@@ -640,6 +650,29 @@ class ThreeDEffect {
 				sizeY = ctj;
 			} else {
 				sizeY = this.sizeStartY;
+			}
+		}
+
+		if (this.flipXByMovementDirection) {
+			mat4.multiply(_projMatrix, Camera.projection, Camera.modelView);
+
+			_startPos[0] = this.position[0] + this.posxStart;
+			_startPos[1] = this.position[1] + this.posyStart;
+			_startPos[2] = this.position[2] + this.poszStart;
+			_startPos[3] = 1.0;
+			vec4.transformMat4(_startPos, _startPos, _projMatrix);
+
+			_endPos[0] = this.position[0] + this.posxEnd;
+			_endPos[1] = this.position[1] + this.posyEnd;
+			_endPos[2] = this.position[2] + this.poszEnd;
+			_endPos[3] = 1.0;
+			vec4.transformMat4(_endPos, _endPos, _projMatrix);
+
+			const startScreenX = _startPos[0] / _startPos[3];
+			const endScreenX = _endPos[0] / _endPos[3];
+
+			if (startScreenX < endScreenX) {
+				sizeX = -sizeX;
 			}
 		}
 
