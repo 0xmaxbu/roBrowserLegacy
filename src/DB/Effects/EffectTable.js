@@ -6971,7 +6971,7 @@ export default {
 			wav: 'effect/ef_icearrow%d',
 			rand: [1, 3],
 			attachedEntity: true,
-			flipXByMovementDirection: true
+			logDirection: true
 		},
 		{
 			type: 'CYLINDER',
@@ -7022,7 +7022,7 @@ export default {
 			wav: 'effect/ef_firearrow%d',
 			rand: [1, 3],
 			attachedEntity: true,
-			flipXByMovementDirection: true
+			logDirection: true
 		}
 	],
 

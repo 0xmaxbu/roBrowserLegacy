@@ -7,11 +7,10 @@ import Camera from 'Renderer/Camera.js';
 import Entity from 'Renderer/Entity/Entity.js';
 import glMatrix from 'Utils/gl-matrix.js';
 
-const mat4 = glMatrix.mat4;
-const vec4 = glMatrix.vec4;
+const { mat4, vec4 } = glMatrix;
 const _projMatrix = mat4.create();
-const _startPos = vec4.create();
-const _endPos = vec4.create();
+const _clipStart = vec4.create();
+const _clipEnd = vec4.create();
 
 function randBetween(minimum, maximum) {
 	return parseFloat(Math.min(minimum + Math.random() * (maximum - minimum), maximum).toFixed(3));
@@ -85,10 +84,6 @@ class ThreeDEffect {
 		// When true, draw as an overlay: no depth test and no ray-plane correction.
 		this.overlay = effect.overlay ? true : false;
 
-		// When true, horizontally mirror the sprite when the effect moves from left to right on screen.
-		this.flipXByMovementDirection = effect.flipXByMovementDirection ? true : false;
-		this._flipX = false;
-
 		this.alphaMax = !isNaN(effect.alphaMax) ? Math.max(Math.min(effect.alphaMax, 1), 0) : 1;
 		this.alphaMax = Math.max(
 			Math.min(
@@ -114,6 +109,9 @@ class ThreeDEffect {
 			this.blue = 1;
 		}
 		this.position = position;
+		this.logDirection = effect.logDirection ? true : false;
+		this._loggedDirection = false;
+		this._effectName = effect.file || (effect.fileList && effect.fileList[0]) || 'unknown';
 		if (effect.posxStart) {
 			this.posxStart = effect.posxStart;
 		} else {
@@ -654,26 +652,47 @@ class ThreeDEffect {
 			}
 		}
 
-		this._flipX = false;
-		if (this.flipXByMovementDirection) {
+		if (this.logDirection && !this._loggedDirection) {
+			this._loggedDirection = true;
+
+			const startWorld = [
+				this.position[0] + this.posxStart,
+				this.position[1] + this.posyStart,
+				this.position[2] + this.poszStart,
+				1.0
+			];
+			const endWorld = [
+				this.position[0] + this.posxEnd,
+				this.position[1] + this.posyEnd,
+				this.position[2] + this.poszEnd,
+				1.0
+			];
+
 			mat4.multiply(_projMatrix, Camera.projection, Camera.modelView);
+			vec4.transformMat4(_clipStart, startWorld, _projMatrix);
+			vec4.transformMat4(_clipEnd, endWorld, _projMatrix);
 
-			_startPos[0] = this.position[0] + this.posxStart;
-			_startPos[1] = this.position[1] + this.posyStart;
-			_startPos[2] = this.position[2] + this.poszStart;
-			_startPos[3] = 1.0;
-			vec4.transformMat4(_startPos, _startPos, _projMatrix);
+			const startScreenX = _clipStart[0] / _clipStart[3];
+			const startScreenY = _clipStart[1] / _clipStart[3];
+			const endScreenX = _clipEnd[0] / _clipEnd[3];
+			const endScreenY = _clipEnd[1] / _clipEnd[3];
+			const deltaScreenX = endScreenX - startScreenX;
+			const deltaScreenY = endScreenY - startScreenY;
 
-			_endPos[0] = this.position[0] + this.posxEnd;
-			_endPos[1] = this.position[1] + this.posyEnd;
-			_endPos[2] = this.position[2] + this.poszEnd;
-			_endPos[3] = 1.0;
-			vec4.transformMat4(_endPos, _endPos, _projMatrix);
-
-			const startScreenX = _startPos[0] / _startPos[3];
-			const endScreenX = _endPos[0] / _endPos[3];
-
-			this._flipX = startScreenX < endScreenX;
+			console.log(
+				'[ThreeDEffect] logDirection',
+				{ name: this._effectName, pos: this.position },
+				'startScreenXY',
+				[startScreenX.toFixed(3), startScreenY.toFixed(3)],
+				'endScreenXY',
+				[endScreenX.toFixed(3), endScreenY.toFixed(3)],
+				'deltaScreenXY',
+				[deltaScreenX.toFixed(3), deltaScreenY.toFixed(3)],
+				'cameraAngle',
+				[Camera.angle[0].toFixed(1), Camera.angle[1].toFixed(1)],
+				'willFlipX',
+				deltaScreenX > 0
+			);
 		}
 
 		SpriteRenderer.size[0] = sizeX;
@@ -687,8 +706,6 @@ class ThreeDEffect {
 		} else {
 			SpriteRenderer.angle = this.rotateWithCamera ? this.angle + Camera.angle[1] : this.angle;
 		}
-
-		SpriteRenderer.flipX = this._flipX;
 
 		if (this.actRessource && this.spriteRessource) {
 			let entity = this.ownerEntity;
@@ -787,7 +804,6 @@ class ThreeDEffect {
 			});
 		}
 
-		SpriteRenderer.flipX = false;
 		this.needCleanUp = this.endTick < tick;
 	}
 
