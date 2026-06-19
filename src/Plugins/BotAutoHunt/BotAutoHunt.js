@@ -1623,9 +1623,6 @@ class BotAutoHunt {
 		if (!this.active) return;
 		if (!Session.Entity || Session.Entity.isDead()) return;
 
-		// Bug 3 fix: 角色正在施法中 → 跳过本轮，避免重复施法打断自己
-		if (Session.Entity.cast && Session.Entity.cast.display) return;
-
 		// 1. 技能列表中的 buff 技能
 		for (const skill of this.skillList) {
 			if (!skill || skill.type !== SKILL_TYPE_BUFF) continue;
