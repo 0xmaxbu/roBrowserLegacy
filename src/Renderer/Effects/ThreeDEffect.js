@@ -672,7 +672,7 @@ class ThreeDEffect {
 			_vec4.transformMat4(_clipStart, _clipStart, _projMatrix);
 			_vec4.transformMat4(_clipEnd, _clipEnd, _projMatrix);
 			const thetaScreen = Math.atan2(_clipEnd[1] - _clipStart[1], _clipEnd[0] - _clipStart[0]);
-			SpriteRenderer.angle = this.angle - (thetaScreen - BASE_SCREEN_THETA) * (180 / Math.PI) + 180;
+			SpriteRenderer.angle = this.angle - (thetaScreen - BASE_SCREEN_THETA) * (180 / Math.PI);
 			if (!this._dirLogged && _dirLogCount < 10) {
 				this._dirLogged = true;
 				_dirLogCount++;
