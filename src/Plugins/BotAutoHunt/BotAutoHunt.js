@@ -718,56 +718,54 @@ class BotAutoHunt {
 		const title = slot === 'skill' ? '技能' : '消耗品';
 		let html =
 			'<div style="display:flex;justify-content:space-between;align-items:center;' +
-			'margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #eee;">' +
-			'<span style="font-size:12px;font-weight:bold;color:#484848;">' + title + '</span>' +
+			'margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid #eee;">' +
+			'<span style="font-size:11px;font-weight:bold;color:#484848;">' + title + '</span>' +
 			(isFilled
-				? '<button class="dd-clear" style="font-size:11px;padding:3px 10px;' +
+				? '<button class="dd-clear" style="font-size:10px;padding:2px 8px;' +
 				  'border:1px solid #ccc;border-radius:3px;background:#f5f5f5;cursor:pointer;color:#c44;">清除</button>'
 				: '') +
 			'</div>' +
-			'<div style="display:grid;grid-template-columns:repeat(' + (slot === 'skill' ? 2 : 4) + ',1fr);gap:4px;' +
-			'max-height:400px;overflow-y:auto;">';
+			'<div style="display:grid;grid-template-columns:repeat(' + (slot === 'skill' ? 3 : 4) + ',1fr);gap:3px;' +
+			'max-height:340px;overflow-y:auto;">';
 
 		for (const item of items) {
 			if (selectedIds.has(item.id)) continue;
-			const name = item.name.length > 6 ? item.name.slice(0, 6) + '…' : item.name;
+			const name = item.name;
 			if (slot === 'skill') {
 				const maxLevel = item.level || 1;
 				const curLevel = maxLevel;
 				html +=
 					'<div class="dd-item" data-id="' + item.id + '" data-level="' + curLevel + '" ' +
-					'style="display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:3px;' +
+					'style="display:flex;align-items:center;gap:3px;padding:3px 4px;border-radius:2px;' +
 					'background:transparent;cursor:pointer;">' +
 					'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
-					'style="min-width:28px;height:28px;border-radius:2px;' +
+					'style="min-width:22px;height:22px;border-radius:2px;' +
 					'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
-					'<div style="display:flex;flex-direction:column;flex:1;min-width:0;gap:2px;">' +
-					'<span class="dd-name" style="font-size:12px;color:#484848;white-space:nowrap;' +
+					'<div style="display:flex;flex-direction:column;flex:1;min-width:0;gap:1px;">' +
+					'<span class="dd-name" style="font-size:10px;color:#484848;white-space:nowrap;' +
 					'overflow:hidden;text-overflow:ellipsis;">' + name + '</span>' +
-					'<div class="dd-level" style="display:flex;align-items:center;justify-content:flex-start;' +
-					'gap:2px;font-size:13px;color:#333;margin-top:2px;" ' +
+					'<div class="dd-level" style="display:flex;align-items:center;gap:1px;' +
+					'font-size:11px;color:#333;" ' +
 					'data-max="' + maxLevel + '" data-cur="' + curLevel + '" ' +
 					'onclick="event.stopPropagation();">' +
 					'<span class="dd-lvl-down" style="cursor:pointer;color:#48c;font-weight:bold;' +
-					'min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;' +
-					'border:1px solid #ccd;border-radius:3px;background:#f0f4f8;font-size:14px;">&lt;</span>' +
-					'<span class="dd-lvl-val" style="min-width:36px;text-align:center;font-size:13px;' +
-					'font-weight:bold;color:#333;">' + curLevel + '/' + maxLevel + '</span>' +
+					'padding:0 3px;user-select:none;">&lt;</span>' +
+					'<span class="dd-lvl-val" style="min-width:26px;text-align:center;font-size:11px;' +
+					'color:#333;">' + curLevel + '/' + maxLevel + '</span>' +
 					'<span class="dd-lvl-up" style="cursor:pointer;color:#48c;font-weight:bold;' +
-					'min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;' +
-					'border:1px solid #ccd;border-radius:3px;background:#f0f4f8;font-size:14px;">&gt;</span>' +
+					'padding:0 3px;user-select:none;">&gt;</span>' +
 					'</div>' +
 					'</div>' +
 					'</div>';
 			} else {
 				html +=
 					'<div class="dd-item" data-id="' + item.id + '" ' +
-					'style="display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:3px;' +
+					'style="display:flex;align-items:center;gap:3px;padding:3px 4px;border-radius:2px;' +
 					'background:transparent;cursor:pointer;">' +
 					'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
-					'style="min-width:28px;height:28px;border-radius:2px;' +
+					'style="min-width:22px;height:22px;border-radius:2px;' +
 					'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
-					'<span class="dd-name" style="font-size:12px;color:#484848;white-space:nowrap;' +
+					'<span class="dd-name" style="font-size:10px;color:#484848;white-space:nowrap;' +
 					'overflow:hidden;text-overflow:ellipsis;">' + name + '</span>' +
 					'</div>';
 			}
