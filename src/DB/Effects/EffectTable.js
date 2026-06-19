@@ -6970,8 +6970,7 @@ export default {
 			zIndex: 1,
 			wav: 'effect/ef_icearrow%d',
 			rand: [1, 3],
-			attachedEntity: true,
-			rotateToScreenDirection: true
+			attachedEntity: true
 		},
 		{
 			type: 'CYLINDER',
@@ -7021,8 +7020,7 @@ export default {
 			zIndex: 1,
 			wav: 'effect/ef_firearrow%d',
 			rand: [1, 3],
-			attachedEntity: true,
-			rotateToScreenDirection: true
+			attachedEntity: true
 		}
 	],
 
