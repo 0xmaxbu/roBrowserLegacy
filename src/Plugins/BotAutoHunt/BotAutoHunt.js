@@ -1623,24 +1623,23 @@ class BotAutoHunt {
 		if (!this.active) return;
 		if (!Session.Entity || Session.Entity.isDead()) return;
 
-		// 1. 技能列表中的 buff 技能
+		// 诊断：将 buff 循环状态显示到面板消息区
+		let _dbg = '';
 		for (const skill of this.skillList) {
-			if (!skill || skill.type !== SKILL_TYPE_BUFF) continue;
+			if (!skill) continue;
+			if (skill.type !== SKILL_TYPE_BUFF) {
+				_dbg += skill.id + ':' + skill.type + ' ';
+				continue;
+			}
 			const efst = _getPrimaryEfst('skills', skill.id);
-			if (!efst) {
-				console.log('[BotAutoHunt][buff] skill', skill.id, 'has no EFST mapping, skipping');
-				continue;
-			}
-			if (this._buffMap[efst]) continue; // buff 仍存在 → 跳过
-			// SP 不足 → 跳过
+			if (!efst) { _dbg += skill.id + ':noefst '; continue; }
+			if (this._buffMap[efst]) { _dbg += skill.id + ':ON '; continue; }
 			const currentSp = Session.Entity.life ? Session.Entity.life.sp : 0;
-			if (skill.spcost && currentSp < skill.spcost) {
-				console.log('[BotAutoHunt][buff] skill', skill.id, 'SP insufficient:', currentSp, '/', skill.spcost);
-				continue;
-			}
-			// 待注册冷却: 施法后 buff 注册有网络延迟，8s 内不重试
+			if (skill.spcost && currentSp < skill.spcost) { _dbg += skill.id + ':nosp '; continue; }
 			const key = 'buff_' + efst;
-			if (this._isOnCooldown(key)) continue;
+			if (this._isOnCooldown(key)) { _dbg += skill.id + ':cd '; continue; }
+			_dbg += skill.id + ':MISS ';
+			if (_dbg) this._showMsg('[B]' + _dbg, '#c44', 3000);
 			// buff 已消失 → 释放技能（对自己）
 			console.log('[BotAutoHunt][buff] casting skill', skill.id, 'efst=', efst, 'sp=', currentSp);
 			// 直接发包绕过 onUseSkill 的 amotion 检查（Skill.js:630 在战斗中几乎总是 return）
@@ -1653,6 +1652,7 @@ class BotAutoHunt {
 			this._castingUntil = Date.now() + 8000; // 抑制巡逻移动
 			return;
 		}
+		if (_dbg) this._showMsg('[B]' + _dbg, '#666', 3000);
 
 		// 2. 辅助列表中的 buff 消耗品
 		for (const aux of this.auxList) {
