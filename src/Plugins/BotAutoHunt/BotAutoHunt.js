@@ -1646,7 +1646,12 @@ class BotAutoHunt {
 			if (this._isOnCooldown(key)) continue;
 			// buff 已消失 → 释放技能（对自己）
 			console.log('[BotAutoHunt][buff] casting skill', skill.id, 'efst=', efst, 'sp=', currentSp);
-			SkillTargetSelection.onUseSkillToId(skill.id, skill.level || 1, Session.Entity.GID);
+			// 直接发包绕过 onUseSkill 的 amotion 检查（Skill.js:630 在战斗中几乎总是 return）
+			const buffPkt = new PACKET.CZ.USE_SKILL2();
+			buffPkt.SKID = skill.id;
+			buffPkt.selectedLevel = skill.level || 1;
+			buffPkt.targetID = Session.Entity.GID;
+			Network.sendPacket(buffPkt);
 			this._markAction(key, 8000); // 8s: 5s 施法 + 3s 网络/注册缓冲
 			this._castingUntil = Date.now() + 8000; // 抑制巡逻移动
 			return;
