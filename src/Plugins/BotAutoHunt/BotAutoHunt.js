@@ -498,10 +498,11 @@ class BotAutoHunt {
 			'<div class="icon" style="width:24px;height:24px;display:none;' +
 			'border-radius:2px;background-size:contain;background-repeat:no-repeat;' +
 			'background-position:center;"></div>' +
-			'<span class="cell-level" style="display:none;position:absolute;bottom:-13px;' +
-			'left:50%;transform:translateX(-50%);font-size:0.55rem;white-space:nowrap;' +
-			'color:#484848;padding:0 1px;z-index:5;"></span>' +
-			'<span class="cell-name" style="display:none;position:absolute;bottom:-26px;' +
+			'<span class="cell-level" style="display:none;position:absolute;bottom:-15px;' +
+			'left:50%;transform:translateX(-50%);font-size:11px;font-weight:bold;white-space:nowrap;' +
+			'color:#3a6;padding:0 2px;z-index:5;">' +
+			'</span>' +
+			'<span class="cell-name" style="display:none;position:absolute;bottom:-30px;' +
 			'left:50%;transform:translateX(-50%);font-size:0.55rem;white-space:nowrap;' +
 			'background:rgba(0,0,0,0.7);color:white;padding:1px 3px;border-radius:1px;z-index:10;"></span>' +
 			'</div>';
@@ -718,50 +719,55 @@ class BotAutoHunt {
 		let html =
 			'<div style="display:flex;justify-content:space-between;align-items:center;' +
 			'margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #eee;">' +
-			'<span style="font-size:11px;font-weight:bold;color:#484848;">' + title + '</span>' +
+			'<span style="font-size:12px;font-weight:bold;color:#484848;">' + title + '</span>' +
 			(isFilled
-				? '<button class="dd-clear" style="font-size:10px;padding:2px 8px;' +
+				? '<button class="dd-clear" style="font-size:11px;padding:3px 10px;' +
 				  'border:1px solid #ccc;border-radius:3px;background:#f5f5f5;cursor:pointer;color:#c44;">清除</button>'
 				: '') +
 			'</div>' +
-			'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;' +
-			'max-height:320px;overflow-y:auto;">';
+			'<div style="display:grid;grid-template-columns:repeat(' + (slot === 'skill' ? 2 : 4) + ',1fr);gap:4px;' +
+			'max-height:400px;overflow-y:auto;">';
 
 		for (const item of items) {
 			if (selectedIds.has(item.id)) continue;
-			const name = item.name.length > 5 ? item.name.slice(0, 5) + '…' : item.name;
+			const name = item.name.length > 6 ? item.name.slice(0, 6) + '…' : item.name;
 			if (slot === 'skill') {
 				const maxLevel = item.level || 1;
 				const curLevel = maxLevel;
 				html +=
 					'<div class="dd-item" data-id="' + item.id + '" data-level="' + curLevel + '" ' +
-					'style="display:flex;align-items:center;gap:4px;padding:3px 4px;border-radius:2px;' +
+					'style="display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:3px;' +
 					'background:transparent;cursor:pointer;">' +
 					'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
-					'style="min-width:22px;height:22px;border-radius:2px;' +
+					'style="min-width:28px;height:28px;border-radius:2px;' +
 					'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
-					'<div style="display:flex;flex-direction:column;flex:1;min-width:0;">' +
-					'<span class="dd-name" style="font-size:10px;color:#484848;white-space:nowrap;' +
+					'<div style="display:flex;flex-direction:column;flex:1;min-width:0;gap:2px;">' +
+					'<span class="dd-name" style="font-size:12px;color:#484848;white-space:nowrap;' +
 					'overflow:hidden;text-overflow:ellipsis;">' + name + '</span>' +
-					'<div class="dd-level" style="display:flex;align-items:center;justify-content:center;' +
-					'gap:3px;font-size:9px;color:#666;margin-top:1px;" ' +
+					'<div class="dd-level" style="display:flex;align-items:center;justify-content:flex-start;' +
+					'gap:2px;font-size:13px;color:#333;margin-top:2px;" ' +
 					'data-max="' + maxLevel + '" data-cur="' + curLevel + '" ' +
 					'onclick="event.stopPropagation();">' +
-					'<span class="dd-lvl-down" style="cursor:pointer;color:#48c;font-weight:bold;">&lt;</span>' +
-					'<span class="dd-lvl-val" style="min-width:24px;text-align:center;">' + curLevel + '/' + maxLevel + '</span>' +
-					'<span class="dd-lvl-up" style="cursor:pointer;color:#48c;font-weight:bold;">&gt;</span>' +
+					'<span class="dd-lvl-down" style="cursor:pointer;color:#48c;font-weight:bold;' +
+					'min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;' +
+					'border:1px solid #ccd;border-radius:3px;background:#f0f4f8;font-size:14px;">&lt;</span>' +
+					'<span class="dd-lvl-val" style="min-width:36px;text-align:center;font-size:13px;' +
+					'font-weight:bold;color:#333;">' + curLevel + '/' + maxLevel + '</span>' +
+					'<span class="dd-lvl-up" style="cursor:pointer;color:#48c;font-weight:bold;' +
+					'min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;' +
+					'border:1px solid #ccd;border-radius:3px;background:#f0f4f8;font-size:14px;">&gt;</span>' +
 					'</div>' +
 					'</div>' +
 					'</div>';
 			} else {
 				html +=
 					'<div class="dd-item" data-id="' + item.id + '" ' +
-					'style="display:flex;align-items:center;gap:4px;padding:3px 4px;border-radius:2px;' +
+					'style="display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:3px;' +
 					'background:transparent;cursor:pointer;">' +
 					'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
-					'style="min-width:22px;height:22px;border-radius:2px;' +
+					'style="min-width:28px;height:28px;border-radius:2px;' +
 					'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
-					'<span class="dd-name" style="font-size:10px;color:#484848;white-space:nowrap;' +
+					'<span class="dd-name" style="font-size:12px;color:#484848;white-space:nowrap;' +
 					'overflow:hidden;text-overflow:ellipsis;">' + name + '</span>' +
 					'</div>';
 			}
