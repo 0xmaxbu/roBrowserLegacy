@@ -676,6 +676,8 @@ class BotAutoHunt {
 	 */
 	_openDropdown(slot, index, anchorCell) {
 		this._closeDropdown();
+		this._dropdownSlot = slot;
+		this._dropdownIndex = index;
 
 		const items = slot === 'skill' ? this._getAvailableSkills() : this._getAvailableConsumables();
 		if (items.length === 0) {
@@ -686,8 +688,10 @@ class BotAutoHunt {
 		const selectedIds = this._getSelectedIds(slot, index);
 		const list = this._getSlotList(slot);
 		const isFilled = !!(list[index] && list[index].id);
+		const currentId = isFilled ? list[index].id : null;
+		const currentLevel = isFilled ? (list[index].level || 1) : null;
 
-		const dd = this._buildDropdownDOM(slot, items, selectedIds, isFilled);
+		const dd = this._buildDropdownDOM(slot, items, selectedIds, isFilled, currentId, currentLevel);
 		this._positionDropdown(dd, anchorCell);
 		this._bindDropdownEvents(dd, slot, index, items);
 		document.body.appendChild(dd);
@@ -702,7 +706,7 @@ class BotAutoHunt {
 		document.addEventListener('mousedown', this._dropdownClickHandler, true);
 	}
 
-	_buildDropdownDOM(slot, items, selectedIds, isFilled) {
+	_buildDropdownDOM(slot, items, selectedIds, isFilled, currentId, currentLevel) {
 		const dd = document.createElement('div');
 		Object.assign(dd.style, {
 			position: 'fixed',
@@ -729,15 +733,24 @@ class BotAutoHunt {
 			'max-height:340px;overflow-y:auto;">';
 
 		for (const item of items) {
-			if (selectedIds.has(item.id)) continue;
 			const name = item.name;
+			const isCurrent = item.id === currentId;
+			const isOtherSelected = selectedIds.has(item.id) && !isCurrent;
+			const itemStyle = isCurrent
+				? 'display:flex;align-items:center;gap:3px;padding:3px 4px;border-radius:2px;' +
+				  'background:#e8f5e9;border:1px solid #4caf50;cursor:pointer;'
+				: isOtherSelected
+					? 'display:flex;align-items:center;gap:3px;padding:3px 4px;border-radius:2px;' +
+					  'background:#f5f5f5;opacity:0.45;cursor:not-allowed;'
+					: 'display:flex;align-items:center;gap:3px;padding:3px 4px;border-radius:2px;' +
+					  'background:transparent;cursor:pointer;';
 			if (slot === 'skill') {
 				const maxLevel = item.level || 1;
-				const curLevel = maxLevel;
+				const curLevel = isCurrent ? (currentLevel || maxLevel) : maxLevel;
 				html +=
-					'<div class="dd-item" data-id="' + item.id + '" data-level="' + curLevel + '" ' +
-					'style="display:flex;align-items:center;gap:3px;padding:3px 4px;border-radius:2px;' +
-					'background:transparent;cursor:pointer;">' +
+					'<div class="dd-item' + (isCurrent ? ' dd-current' : '') + (isOtherSelected ? ' dd-disabled' : '') + '" ' +
+					'data-id="' + item.id + '" data-level="' + curLevel + '" ' +
+					'style="' + itemStyle + '">' +
 					'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
 					'style="min-width:22px;height:22px;border-radius:2px;' +
 					'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
@@ -759,9 +772,9 @@ class BotAutoHunt {
 					'</div>';
 			} else {
 				html +=
-					'<div class="dd-item" data-id="' + item.id + '" ' +
-					'style="display:flex;align-items:center;gap:3px;padding:3px 4px;border-radius:2px;' +
-					'background:transparent;cursor:pointer;">' +
+					'<div class="dd-item' + (isCurrent ? ' dd-current' : '') + (isOtherSelected ? ' dd-disabled' : '') + '" ' +
+					'data-id="' + item.id + '" ' +
+					'style="' + itemStyle + '">' +
 					'<div class="dd-icon" data-icon="' + (item.iconName || '') + '" ' +
 					'style="min-width:22px;height:22px;border-radius:2px;' +
 					'background-size:contain;background-repeat:no-repeat;background-position:center;"></div>' +
@@ -797,8 +810,13 @@ class BotAutoHunt {
 
 		// 选择项
 		dd.querySelectorAll('.dd-item').forEach(itemEl => {
+			const isDisabled = itemEl.classList.contains('dd-disabled');
+			const isCurrent = itemEl.classList.contains('dd-current');
+
 			itemEl.addEventListener('click', e => {
 				e.stopPropagation();
+				if (isDisabled) return;
+				if (isCurrent) return;
 				const id = +itemEl.dataset.id;
 				const info = items.find(it => it.id === id);
 				const selectedLevel = slot === 'skill' ? +itemEl.dataset.level : null;
@@ -806,15 +824,18 @@ class BotAutoHunt {
 				this._closeDropdown();
 			});
 			itemEl.addEventListener('mousedown', e => { e.stopPropagation(); });
-			itemEl.addEventListener('mouseenter', () => {
-				itemEl.style.background = '#eef2f8';
-			});
-			itemEl.addEventListener('mouseleave', () => {
-				itemEl.style.background = 'transparent';
-			});
+
+			if (!isDisabled) {
+				itemEl.addEventListener('mouseenter', () => {
+					itemEl.style.background = isCurrent ? '#d4edd8' : '#eef2f8';
+				});
+				itemEl.addEventListener('mouseleave', () => {
+					itemEl.style.background = isCurrent ? '#e8f5e9' : 'transparent';
+				});
+			}
 
 			// 技能等级调整（仅技能面板）
-			if (slot === 'skill') {
+			if (slot === 'skill' && !isDisabled) {
 				const levelEl = itemEl.querySelector('.dd-level');
 				if (!levelEl) return;
 				const updateLevel = delta => {
@@ -825,20 +846,26 @@ class BotAutoHunt {
 					itemEl.dataset.level = cur;
 					const valEl = levelEl.querySelector('.dd-lvl-val');
 					if (valEl) valEl.textContent = cur + '/' + max;
+					if (isCurrent) {
+						const list = this._getSlotList(slot);
+						if (list[index]) {
+							list[index].level = cur;
+							this._saveSettings();
+							this._refreshPanel();
+						}
+					}
 				};
 				const downEl = levelEl.querySelector('.dd-lvl-down');
 				const upEl = levelEl.querySelector('.dd-lvl-up');
 				if (downEl) {
-					downEl.addEventListener('click', e => {
-						e.stopPropagation();
-						updateLevel(-1);
-					});
+					downEl.addEventListener('click', e => { e.stopPropagation(); updateLevel(-1); });
+					downEl.addEventListener('mouseenter', () => { downEl.style.color = '#26a69a'; });
+					downEl.addEventListener('mouseleave', () => { downEl.style.color = '#48c'; });
 				}
 				if (upEl) {
-					upEl.addEventListener('click', e => {
-						e.stopPropagation();
-						updateLevel(1);
-					});
+					upEl.addEventListener('click', e => { e.stopPropagation(); updateLevel(1); });
+					upEl.addEventListener('mouseenter', () => { upEl.style.color = '#26a69a'; });
+					upEl.addEventListener('mouseleave', () => { upEl.style.color = '#48c'; });
 				}
 			}
 		});
