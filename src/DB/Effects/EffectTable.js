@@ -6955,9 +6955,9 @@ export default {
 			//coldbolt falling objects
 			type: '3D',
 			alphaMax: 1,
-			angle: 112.5,
-			duration: 500,
-			file: 'effect/icearrow.tga',
+		angle: 292.5,
+		duration: 500,
+		file: 'effect/icearrow.tga',
 			posxEnd: 0,
 			posxStartRandMiddle: 5,
 			posxStartRand: 1,
@@ -6994,9 +6994,9 @@ export default {
 			type: '3D',
 			alphaMax: 1,
 			blendMode: 2,
-			angle: 112.5,
-			duration: 500,
-			fileList: [
+		angle: 292.5,
+		duration: 500,
+		fileList: [
 				'effect/\xba\xd2\xc8\xad\xbb\xec1.tga',
 				'effect/\xba\xd2\xc8\xad\xbb\xec2.tga',
 				'effect/\xba\xd2\xc8\xad\xbb\xec3.tga',
