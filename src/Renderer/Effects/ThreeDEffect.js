@@ -683,9 +683,9 @@ class ThreeDEffect {
 				_clipEnd[1] * _ew - _clipStart[1] * _sw,
 				_clipEnd[0] * _ew - _clipStart[0] * _sw
 			);
-			// 贴图 angle 正值 = 屏幕顺时针旋转，与屏幕方向(thetaScreen)反向，
-			// 故用减号（之前实现误用加号导致 360° 异常旋转）
-			SpriteRenderer.angle = this.angle - (_thetaScreen - BASE_SCREEN_THETA) * (180 / Math.PI);
+			// 贴图 angle 正值 = 屏幕顺时针旋转，与屏幕方向(thetaScreen)反向，故用减号；
+			// 素材自然朝向与运动方向相差 180°，加 180° 修正
+			SpriteRenderer.angle = this.angle - (_thetaScreen - BASE_SCREEN_THETA) * (180 / Math.PI) + 180;
 			if (!this._dirLogged && _dirLogCount < 10) {
 				this._dirLogged = true;
 				_dirLogCount++;
