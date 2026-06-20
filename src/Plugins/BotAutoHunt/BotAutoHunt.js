@@ -1763,6 +1763,7 @@ class BotAutoHunt {
 					const rx = out[lastIdx];
 					const ry = out[lastIdx + 1];
 					if (rx !== undefined && ry !== undefined) {
+						if (this._isNearPortal(rx, ry)) continue; // 避开传送门附近
 						return [rx, ry];
 					}
 				}
@@ -1779,10 +1780,33 @@ class BotAutoHunt {
 			const pathLen = PathFinding.search(cx, cy, tx, ty, 8, out);
 			if (pathLen > 3) {
 				const lastIdx = (pathLen - 1) * 2;
-				return [out[lastIdx], out[lastIdx + 1]];
+				const rx = out[lastIdx];
+				const ry = out[lastIdx + 1];
+				if (rx !== undefined && ry !== undefined) {
+					if (this._isNearPortal(rx, ry)) continue; // 避开传送门附近
+					return [rx, ry];
+				}
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * 检查坐标是否在当前地图的传送门附近
+	 * 防止巡逻时走回传送门导致意外过图
+	 */
+	_isNearPortal(x, y, radius) {
+		if (radius === undefined) radius = 7;
+		const map = this._getCurrentMapName();
+		const portals = MAP_CONNECTIONS[map];
+		if (!portals) return false;
+		const r2 = radius * radius;
+		for (const p of portals) {
+			const dx = p.x - x;
+			const dy = p.y - y;
+			if (dx * dx + dy * dy < r2) return true;
+		}
+		return false;
 	}
 
 	/**
