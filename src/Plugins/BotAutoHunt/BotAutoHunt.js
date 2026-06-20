@@ -1361,7 +1361,7 @@ class BotAutoHunt {
 		// 需重置计时器和冷却，并给予 3 秒宽限期等怪物刷新
 		const currentMap = this._getCurrentMapName() || '';
 		if (currentMap && this._lastMapName && currentMap !== this._lastMapName) {
-			console.log('[BotAutoHunt] map change detected:', this._lastMapName, '->', currentMap);
+			console.log('[BotAutoHunt] map change:', this._lastMapName, '->', currentMap);
 			this._lastMapName = currentMap;
 			this._mapChangeTick = Date.now();
 			this._lastMobSeenTick = Date.now();
@@ -1400,8 +1400,6 @@ class BotAutoHunt {
 
 		// 1.5. 返回挂机地图 — 不在挂机图上时，寻找传送门回去
 		if (this._huntMapName && currentMap !== this._huntMapName) {
-			console.log('[B][RETURN] not on hunt map, calling _returnToHuntMap. ' +
-				'current=' + currentMap + ' hunt=' + this._huntMapName);
 			this._returnToHuntMap();
 			return; // 返回途中不执行战斗逻辑
 		}
@@ -1415,7 +1413,16 @@ class BotAutoHunt {
 			if (moved) {
 				this._needMoveAwayFromPortal = false;
 			}
-			return; // 远离期间不执行其他逻辑
+			return;
+		}
+
+		// 1.7. 巡逻前安全检查：角色当前坐标在传送门附近时强制远离
+		if (this._isNearPortal(Session.Entity.position[0] | 0, Session.Entity.position[1] | 0, 5)) {
+			if (Session.Entity.action !== Session.Entity.ACTION.WALK && !this._isOnCooldown('portal_avoid')) {
+				this._markAction('portal_avoid', 1000);
+				this._moveAwayFromPortal();
+			}
+			return;
 		}
 
 		// 2. 跟随队友模式 (D2 #11)
@@ -1835,7 +1842,6 @@ class BotAutoHunt {
 		const portals = MAP_CONNECTIONS[map];
 		if (!portals || !portals.length) return true;
 
-		// 找到最近的传送门
 		let nearest = null;
 		let nearestD2 = Infinity;
 		for (const p of portals) {
@@ -1848,35 +1854,21 @@ class BotAutoHunt {
 			}
 		}
 		if (!nearest) return true;
+		if (nearestD2 > 15 * 15) return true;
 
-		// 已足够远（>15格），不需要移动
-		if (nearestD2 > 15 * 15) {
-			console.log('[B][PORTAL_AVOID] already far enough, d=' + Math.sqrt(nearestD2));
-			return true;
-		}
-
-		// 计算远离方向：从传送门指向角色的方向
 		const dx = cx - nearest.x;
 		const dy = cy - nearest.y;
 		const dist = Math.sqrt(dx * dx + dy * dy);
+		let tx, ty;
 		if (dist < 0.5) {
-			// 角色几乎在传送门正中，随机方向走
 			const angle = Math.random() * Math.PI * 2;
-			const tx = Math.round(cx + Math.cos(angle) * 20);
-			const ty = Math.round(cy + Math.sin(angle) * 20);
-			this._sendMoveTo(tx, ty);
-			return true;
+			tx = Math.round(cx + Math.cos(angle) * 20);
+			ty = Math.round(cy + Math.sin(angle) * 20);
+		} else {
+			tx = Math.round(cx + (dx / dist) * 20);
+			ty = Math.round(cy + (dy / dist) * 20);
 		}
-
-		// 沿远离方向延伸 20 格
-		const targetDist = 20;
-		const tx = Math.round(cx + (dx / dist) * targetDist);
-		const ty = Math.round(cy + (dy / dist) * targetDist);
-
-		console.log('[B][PORTAL_AVOID] portal at', nearest.x, nearest.y,
-			'char at', cx, cy, 'moving to', tx, ty);
-		this._sendMoveTo(tx, ty);
-		return true;
+		return this._sendMoveTo(tx, ty);
 	}
 
 	/**
@@ -1896,8 +1888,10 @@ class BotAutoHunt {
 				pkt.dest[0] = destX;
 				pkt.dest[1] = destY;
 				Network.sendPacket(pkt);
+				return true;
 			}
 		} catch (_) {}
+		return false;
 	}
 
 	/**
@@ -1913,13 +1907,7 @@ class BotAutoHunt {
 		const currentMap = this._getCurrentMapName();
 		const huntMap = (this._huntMapName || '').replace(/\.gat$/i, '').toLowerCase();
 
-		// 诊断日志
-		console.log('[B][RETURN] currentMap=' + currentMap + ' huntMap=' + huntMap +
-			' entityAction=' + (Session.Entity ? Session.Entity.action : 'null') +
-			' walkCool=' + this._isOnCooldown('return_portal'));
-
 		if (!currentMap || !huntMap) {
-			console.warn('[B][RETURN] ABORT: currentMap or huntMap empty');
 			return;
 		}
 
@@ -1939,7 +1927,7 @@ class BotAutoHunt {
 			const adj = MAP_CONNECTIONS;
 			const mapKeys = Object.keys(adj);
 			if (!mapKeys.length) {
-				console.warn('[B][RETURN] map-connections empty!');
+				console.warn('[BotAutoHunt] map-connections empty, cannot return');
 				this._showError('地图连接数据为空，无法寻路返回');
 				return;
 			}
@@ -1974,7 +1962,7 @@ class BotAutoHunt {
 
 			// 没找到路径 → 原地等待
 			if (targetX === null) {
-				console.warn('[B][RETURN] BFS no path from ' + currentMap + ' to ' + huntMap +
+				console.warn('[BotAutoHunt] BFS no path from ' + currentMap + ' to ' + huntMap);
 					', warps from currentMap=' + (adj[currentMap] ? adj[currentMap].length : 'NONE'));
 				this._showError('找不到传送门路径: ' + currentMap + ' → ' + huntMap);
 				return;
@@ -1983,8 +1971,6 @@ class BotAutoHunt {
 			console.error('[BotAutoHunt] BFS pathfinding error:', e);
 			return;
 		}
-
-		console.log('[BotAutoHunt] portal at', targetX, targetY, 'toward', huntMap);
 
 		// 目标点设在传送门对面 — 强制路径穿过传送门坐标触发传送
 		const cx = Session.Entity.position[0];
