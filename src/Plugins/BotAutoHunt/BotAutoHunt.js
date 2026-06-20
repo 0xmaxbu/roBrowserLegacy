@@ -35,6 +35,7 @@ import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_P
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
+import MAP_CONNECTIONS from './data/map-connections.json'; // 由 tools/client/generate-map-connections.mjs 生成
 import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
 import Altitude from 'Renderer/Map/Altitude.js'; // getCellType + TYPE.WALKABLE — 巡逻可行走验证
 import PathFinding from 'Utils/PathFinding.js'; // search() — 巡逻路径验证
@@ -1819,33 +1820,16 @@ class BotAutoHunt {
 		let targetX = null;
 		let targetY = null;
 
-		try {
-			const naviRaw = DB.getNaviLinkTable();
-			// Bug 2 fix: DBManager 用 Object.assign({}, array) 存储，导致 .length 丢失
-			const entries = Array.isArray(naviRaw)
-				? naviRaw
-				: Object.values(naviRaw || {});
-			if (!entries.length) {
-				console.warn('[B][RETURN] naviLinkTable empty! entries=' + entries.length +
-					' rawType=' + typeof naviRaw + ' rawIsNull=' + (naviRaw === null));
-				this._showError('naviLinkTable 为空，无法寻路返回');
+ 		try {
+			const adj = MAP_CONNECTIONS;
+			const mapKeys = Object.keys(adj);
+			if (!mapKeys.length) {
+				console.warn('[B][RETURN] map-connections empty!');
+				this._showError('地图连接数据为空，无法寻路返回');
 				return;
 			}
-			console.log('[B][RETURN] naviLinkTable entries=' + entries.length);
 
-			// 1. 构建邻接表: { srcMap: [{ dest, x, y }, ...] }
-			const adj = {};
-			for (let i = 0; i < entries.length; i++) {
-				const warp = entries[i];
-				if (!warp || !Array.isArray(warp) || warp.length < 11) continue;
-				const src = (warp[0] || '').replace(/\.gat$/i, '').toLowerCase();
-				const dest = (warp[8] || '').replace(/\.gat$/i, '').toLowerCase();
-				if (!src || !dest) continue;
-				if (!adj[src]) adj[src] = [];
-				adj[src].push({ dest, x: warp[6], y: warp[7] });
-			}
-
-			// 2. BFS — 队列元素: { map, firstX, firstY }
+			// BFS — 队列元素: { map, firstX, firstY }
 			//    firstX/firstY 记录从 currentMap 出发的第一跳传送门坐标
 			const visited = new Set([currentMap]);
 			const queue = [{ map: currentMap, firstX: null, firstY: null }];
@@ -1863,24 +1847,25 @@ class BotAutoHunt {
 				if (!neighbors) continue;
 
 				for (const n of neighbors) {
-					if (visited.has(n.dest)) continue;
-					visited.add(n.dest);
+					if (visited.has(n.to)) continue;
+					visited.add(n.to);
 					queue.push({
-						map: n.dest,
+						map: n.to,
 						firstX: node.firstX !== null ? node.firstX : n.x,
 						firstY: node.firstY !== null ? node.firstY : n.y
 					});
 				}
 			}
+
+			// 没找到路径 → 原地等待
+			if (targetX === null) {
+				console.warn('[B][RETURN] BFS no path from ' + currentMap + ' to ' + huntMap +
+					', warps from currentMap=' + (adj[currentMap] ? adj[currentMap].length : 'NONE'));
+				this._showError('找不到传送门路径: ' + currentMap + ' → ' + huntMap);
+				return;
+			}
 		} catch (e) {
 			console.error('[BotAutoHunt] BFS pathfinding error:', e);
-		}
-
-		// 没找到路径 → 原地等待
-		if (targetX === null) {
-			console.warn('[B][RETURN] BFS no path from ' + currentMap + ' to ' + huntMap +
-				', adj keys for currentMap=' + (adj[currentMap] ? adj[currentMap].length : 'NONE'));
-			this._showError('找不到传送门路径: ' + currentMap + ' → ' + huntMap);
 			return;
 		}
 
