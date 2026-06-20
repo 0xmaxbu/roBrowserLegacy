@@ -1283,11 +1283,6 @@ class BotAutoHunt {
 		// 记录当前地图名，用于过图检测
 		this._lastMapName = this._getCurrentMapName() || '';
 		this._mapChangeTick = 0;
-		// 调试日志：显示挂机启动时的技能/消耗品列表
-		console.log('[BotAutoHunt] startLoops — skillList:',
-			this.skillList.map(s => s ? { id: s.id, type: s.type, spcost: s.spcost } : null));
-		console.log('[BotAutoHunt] startLoops — auxList:',
-			this.auxList.map(a => a ? { id: a.id, type: a.type, subtype: a.subtype } : null));
 		this.combatTick = setInterval(() => this._combatLoop(), 100);
 		this.potionTick = setInterval(() => this._potionLoop(), 200);
 		this.buffTick = setInterval(() => this._buffLoop(), 1000);
@@ -1647,25 +1642,17 @@ class BotAutoHunt {
 		if (!this.active) return;
 		if (!Session.Entity || Session.Entity.isDead()) return;
 
-		// 诊断：将 buff 循环状态显示到面板消息区
-		let _dbg = '';
 		for (const skill of this.skillList) {
 			if (!skill) continue;
-			if (skill.type !== SKILL_TYPE_BUFF) {
-				_dbg += skill.id + ':' + skill.type + ' ';
-				continue;
-			}
+			if (skill.type !== SKILL_TYPE_BUFF) continue;
 			const efst = _getPrimaryEfst('skills', skill.id);
-			if (!efst) { _dbg += skill.id + ':noefst '; continue; }
-			if (this._buffMap[efst]) { _dbg += skill.id + ':ON '; continue; }
+			if (!efst) continue;
+			if (this._buffMap[efst]) continue;
 			const currentSp = Session.Entity.life ? Session.Entity.life.sp : 0;
-			if (skill.spcost && currentSp < skill.spcost) { _dbg += skill.id + ':nosp '; continue; }
+			if (skill.spcost && currentSp < skill.spcost) continue;
 			const key = 'buff_' + efst;
-			if (this._isOnCooldown(key)) { _dbg += skill.id + ':cd '; continue; }
-			_dbg += skill.id + ':MISS ';
-			if (_dbg) this._showMsg('[B]' + _dbg, '#c44', 3000);
+			if (this._isOnCooldown(key)) continue;
 			// buff 已消失 → 释放技能（对自己）
-			console.log('[BotAutoHunt][buff] casting skill', skill.id, 'efst=', efst, 'sp=', currentSp);
 			// 直接发包绕过 onUseSkill 的 amotion 检查（Skill.js:630 在战斗中几乎总是 return）
 			const buffPkt = new PACKET.CZ.USE_SKILL2();
 			buffPkt.SKID = skill.id;
@@ -1676,7 +1663,6 @@ class BotAutoHunt {
 			this._castingUntil = Date.now() + 8000; // 抑制巡逻移动
 			return;
 		}
-		if (_dbg) this._showMsg('[B]' + _dbg, '#666', 3000);
 
 		// 2. 辅助列表中的 buff 消耗品
 		for (const aux of this.auxList) {
@@ -2007,7 +1993,6 @@ class BotAutoHunt {
 				destY = targetY;
 			}
 		}
-		console.log('[BotAutoHunt] walking through portal to', destX, destY);
 
 		const pkt = new PACKET.CZ.REQUEST_MOVE2();
 		pkt.dest[0] = destX;
