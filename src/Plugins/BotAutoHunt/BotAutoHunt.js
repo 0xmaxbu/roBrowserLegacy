@@ -1962,7 +1962,7 @@ class BotAutoHunt {
 
 			// 没找到路径 → 原地等待
 			if (targetX === null) {
-				console.warn('[BotAutoHunt] BFS no path from ' + currentMap + ' to ' + huntMap);
+				console.warn('[BotAutoHunt] BFS no path from ' + currentMap + ' to ' + huntMap +
 					', warps from currentMap=' + (adj[currentMap] ? adj[currentMap].length : 'NONE'));
 				this._showError('找不到传送门路径: ' + currentMap + ' → ' + huntMap);
 				return;
