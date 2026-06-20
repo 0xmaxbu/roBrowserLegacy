@@ -204,6 +204,7 @@ class BotAutoHunt {
 		// ---------- 巡逻状态 (#3 fix) — 使用 Date.now() 而非 Renderer.tick（后台 tab 时 rAF 冻结） ----------
 		this._lastMobSeenTick = 0; // 最后一次看到怪物的时间 (Date.now())
 		this._lastPatrolMoveTick = 0; // 最后一次巡逻移动的时间 (Date.now())
+		this._needMoveAwayFromPortal = false; // 过图后需远离传送门
 
 		// ---------- 过图状态追踪 ----------
 		// 过图后 EntityManager 清空、Altitude 重载、PathFinding 暂时不可用
@@ -1373,6 +1374,7 @@ class BotAutoHunt {
 				console.log('[BotAutoHunt] returned to hunt map, resuming');
 				this._returnTriedPortals = new Set();
 				this._returnTargetPortal = null;
+				this._needMoveAwayFromPortal = true; // 过图后远离传送门
 			}
 		} else if (currentMap && !this._lastMapName) {
 			this._lastMapName = currentMap;
@@ -1402,6 +1404,18 @@ class BotAutoHunt {
 				'current=' + currentMap + ' hunt=' + this._huntMapName);
 			this._returnToHuntMap();
 			return; // 返回途中不执行战斗逻辑
+		}
+
+		// 1.6. 过图返回后主动远离传送门 — 角色紧挨传送门会反复误触过图
+		if (this._needMoveAwayFromPortal) {
+			if (Session.Entity.action === Session.Entity.ACTION.WALK) return;
+			if (this._isOnCooldown('portal_avoid')) return;
+			this._markAction('portal_avoid', 1000);
+			const moved = this._moveAwayFromPortal();
+			if (moved) {
+				this._needMoveAwayFromPortal = false;
+			}
+			return; // 远离期间不执行其他逻辑
 		}
 
 		// 2. 跟随队友模式 (D2 #11)
@@ -1807,6 +1821,83 @@ class BotAutoHunt {
 			if (dx * dx + dy * dy < r2) return true;
 		}
 		return false;
+	}
+
+	/**
+	 * 过图后主动远离最近的传送门
+	 * 计算从最近传送门指向角色的方向，沿该方向走 20 格
+	 * @returns {boolean} true=已发送移动指令, false=不需要移动或寻路失败
+	 */
+	_moveAwayFromPortal() {
+		const cx = Session.Entity.position[0] | 0;
+		const cy = Session.Entity.position[1] | 0;
+		const map = this._getCurrentMapName();
+		const portals = MAP_CONNECTIONS[map];
+		if (!portals || !portals.length) return true;
+
+		// 找到最近的传送门
+		let nearest = null;
+		let nearestD2 = Infinity;
+		for (const p of portals) {
+			const dx = p.x - cx;
+			const dy = p.y - cy;
+			const d2 = dx * dx + dy * dy;
+			if (d2 < nearestD2) {
+				nearestD2 = d2;
+				nearest = p;
+			}
+		}
+		if (!nearest) return true;
+
+		// 已足够远（>15格），不需要移动
+		if (nearestD2 > 15 * 15) {
+			console.log('[B][PORTAL_AVOID] already far enough, d=' + Math.sqrt(nearestD2));
+			return true;
+		}
+
+		// 计算远离方向：从传送门指向角色的方向
+		const dx = cx - nearest.x;
+		const dy = cy - nearest.y;
+		const dist = Math.sqrt(dx * dx + dy * dy);
+		if (dist < 0.5) {
+			// 角色几乎在传送门正中，随机方向走
+			const angle = Math.random() * Math.PI * 2;
+			const tx = Math.round(cx + Math.cos(angle) * 20);
+			const ty = Math.round(cy + Math.sin(angle) * 20);
+			this._sendMoveTo(tx, ty);
+			return true;
+		}
+
+		// 沿远离方向延伸 20 格
+		const targetDist = 20;
+		const tx = Math.round(cx + (dx / dist) * targetDist);
+		const ty = Math.round(cy + (dy / dist) * targetDist);
+
+		console.log('[B][PORTAL_AVOID] portal at', nearest.x, nearest.y,
+			'char at', cx, cy, 'moving to', tx, ty);
+		this._sendMoveTo(tx, ty);
+		return true;
+	}
+
+	/**
+	 * 发送移动封包到目标坐标（使用 PathFinding 寻路）
+	 */
+	_sendMoveTo(tx, ty) {
+		const cx = Session.Entity.position[0] | 0;
+		const cy = Session.Entity.position[1] | 0;
+		const out = [];
+		try {
+			const pathLen = PathFinding.search(cx, cy, tx, ty, 8, out);
+			if (pathLen > 2) {
+				const lastIdx = (pathLen - 1) * 2;
+				const destX = out[lastIdx];
+				const destY = out[lastIdx + 1];
+				const pkt = new PACKET.CZ.REQUEST_MOVE2();
+				pkt.dest[0] = destX;
+				pkt.dest[1] = destY;
+				Network.sendPacket(pkt);
+			}
+		} catch (_) {}
 	}
 
 	/**
