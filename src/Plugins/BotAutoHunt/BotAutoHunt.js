@@ -1397,6 +1397,8 @@ class BotAutoHunt {
 
 		// 1.5. 返回挂机地图 — 不在挂机图上时，寻找传送门回去
 		if (this._huntMapName && currentMap !== this._huntMapName) {
+			console.log('[B][RETURN] not on hunt map, calling _returnToHuntMap. ' +
+				'current=' + currentMap + ' hunt=' + this._huntMapName);
 			this._returnToHuntMap();
 			return; // 返回途中不执行战斗逻辑
 		}
@@ -1792,18 +1794,27 @@ class BotAutoHunt {
 	 *   4. 找不到 → 原地等待（不乱走）
 	 */
 	_returnToHuntMap() {
+		const currentMap = this._getCurrentMapName();
+		const huntMap = (this._huntMapName || '').replace(/\.gat$/i, '').toLowerCase();
+
+		// 诊断日志
+		console.log('[B][RETURN] currentMap=' + currentMap + ' huntMap=' + huntMap +
+			' entityAction=' + (Session.Entity ? Session.Entity.action : 'null') +
+			' walkCool=' + this._isOnCooldown('return_portal'));
+
+		if (!currentMap || !huntMap) {
+			console.warn('[B][RETURN] ABORT: currentMap or huntMap empty');
+			return;
+		}
+
 		// 角色正在行走中，等待到达
-		if (Session.Entity.action === Session.Entity.ACTION.WALK) {
+		if (Session.Entity && Session.Entity.action === Session.Entity.ACTION.WALK) {
 			return;
 		}
 
 		// 500ms 冷却防止刷包
 		if (this._isOnCooldown('return_portal')) return;
 		this._markAction('return_portal', 500);
-
-		const currentMap = this._getCurrentMapName();
-		const huntMap = (this._huntMapName || '').replace(/\.gat$/i, '').toLowerCase();
-		if (!currentMap || !huntMap) return;
 
 		let targetX = null;
 		let targetY = null;
@@ -1815,9 +1826,12 @@ class BotAutoHunt {
 				? naviRaw
 				: Object.values(naviRaw || {});
 			if (!entries.length) {
-				console.warn('[BotAutoHunt] naviLinkTable empty, cannot find path');
+				console.warn('[B][RETURN] naviLinkTable empty! entries=' + entries.length +
+					' rawType=' + typeof naviRaw + ' rawIsNull=' + (naviRaw === null));
+				this._showError('naviLinkTable 为空，无法寻路返回');
 				return;
 			}
+			console.log('[B][RETURN] naviLinkTable entries=' + entries.length);
 
 			// 1. 构建邻接表: { srcMap: [{ dest, x, y }, ...] }
 			const adj = {};
@@ -1864,7 +1878,9 @@ class BotAutoHunt {
 
 		// 没找到路径 → 原地等待
 		if (targetX === null) {
-			console.warn('[BotAutoHunt] no path from', currentMap, 'to', huntMap, ', standing by');
+			console.warn('[B][RETURN] BFS no path from ' + currentMap + ' to ' + huntMap +
+				', adj keys for currentMap=' + (adj[currentMap] ? adj[currentMap].length : 'NONE'));
+			this._showError('找不到传送门路径: ' + currentMap + ' → ' + huntMap);
 			return;
 		}
 
