@@ -33,6 +33,7 @@ import UIManager from 'UI/UIManager.js';
 import GUIComponent from 'UI/GUIComponent.js';
 import TargetManager from 'UI/TargetManager.js';
 import UILayoutStore from 'UI/UILayoutStore.js';
+import Session from 'Engine/SessionStorage.js';
 // Lazy import to avoid cycle: PartyFriendsV1 pulls in many UI deps. Using a
 // function-scope import via a module-level promise would over-engineer this;
 // the import below is safe because TargetPanel loads after the UI manager has
@@ -46,6 +47,9 @@ import cssText from './TargetPanel.css?raw';
 // ─── Component creation (BLOCK-3 object-on-instance pattern) ───────────────
 
 const TargetPanel = new GUIComponent('TargetPanel', cssText);
+
+/** D-19 distance gray-out threshold (>15 cells = squared 225). Matches PartyPanel.js:36. */
+const DISTANCE_THRESHOLD_SQ = 15 * 15;
 
 TargetPanel.render = () => htmlText;
 
@@ -197,8 +201,24 @@ TargetPanel._updateBars = function _updateBars() {
 	const tpRoot = root.querySelector('.tp-root');
 	if (tpRoot) tpRoot.classList.toggle('tp-dead', !!isDead);
 
-	// D-19 distance gray-out (`.tp-far`) — left for future refinement once a
-	// distance threshold is decided; .tp-far class already styled in CSS.
+	// D-19 distance gray-out: >15 cells from player → mark as "far".
+	if (tpRoot) tpRoot.classList.toggle('tp-far', this._isFar(t));
+};
+
+// ─── D-19 distance gray-out ───────────────────────────────────────────
+
+/**
+ * D-19: Returns true when the target is farther than 15 cells from the
+ * player. Defensive: returns false (no gray-out) when position data is
+ * missing for either entity. Mirrors PartyPanel._isFar (PartyPanel.js:232).
+ */
+TargetPanel._isFar = function _isFar(entity) {
+	if (!entity || !entity.position) return false;
+	const self = Session.Entity;
+	if (!self || !self.position) return false;
+	const dx = entity.position[0] - self.position[0];
+	const dy = entity.position[1] - self.position[1];
+	return dx * dx + dy * dy > DISTANCE_THRESHOLD_SQ;
 };
 
 // ─── Lv rendering (D-27 matrix) ─────────────────────────────────────────────
