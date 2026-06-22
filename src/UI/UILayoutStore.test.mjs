@@ -133,3 +133,10 @@ test('restore is resilient to corrupted JSON in localStorage', async () => {
     // returns null instead of throwing
     assert.equal(S.restore('A'), null);
 });
+
+test('default _enabled is false (D-23: layout locked by default)', async () => {
+    const ls = makeLocalStorage();
+    const S = await freshModule(ls);
+    // D-23: default = locked = _enabled=false (draggable only when explicitly enabled)
+    assert.equal(S.isEnabled(), false);
+});

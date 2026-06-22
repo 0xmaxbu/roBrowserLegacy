@@ -18,7 +18,7 @@
 const STORAGE_KEY = 'ui_layout_positions';
 
 class UILayoutStore {
-    static _enabled = true;
+    static _enabled = false;
 
     /**
      * Enable/disable persistence. When disabled, `save()` is a no-op.
