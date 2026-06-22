@@ -21,6 +21,7 @@
 
 import DB from 'DB/DBManager.js';
 import Client from 'Core/Client.js';
+import StatusTable from 'DB/Status/StatusInfo.js';
 import EntityManager from 'Renderer/EntityManager.js';
 import Session from 'Engine/SessionStorage.js';
 import UIManager from 'UI/UIManager.js';
@@ -166,6 +167,40 @@ PartyPanel._pollRoster = function _pollRoster() {
 
 		if (fullStyle) {
 			this._loadJobIcon(row, m.job || m.class_ || m.Job || 0);
+		}
+
+		// D-19 buff icons per member.
+		// CRITICAL: Use instance-level Map (NOT row DOM), because _pollRoster
+		// rebuilds all rows each cycle (container.innerHTML = ''). Row-level
+		// state (_lastEfstVer on row) would be lost every poll, causing all
+		// buff icons to reload via Client.loadFile every frame — O(members ×
+		// buffs × fps) redundant async calls.
+		if (!this._efstVerCache) this._efstVerCache = new Map();
+		const efstVer = (entity && entity._efstVersion) || 0;
+		if (efstVer !== this._efstVerCache.get(m.AID)) {
+			this._efstVerCache.set(m.AID, efstVer);
+			let buffsEl = row.querySelector('.pp-buffs');
+			if (!buffsEl) {
+				buffsEl = document.createElement('div');
+				buffsEl.className = 'pp-buffs';
+				row.appendChild(buffsEl);
+			}
+			buffsEl.innerHTML = '';
+			if (entity && entity._efstList && entity._efstList.size > 0) {
+				for (const [index, data] of entity._efstList) {
+					const info = StatusTable[index];
+					if (!info || !info.icon) continue;
+					const img = document.createElement('img');
+					img.className = 'pp-buff-icon';
+					if (info.descript && info.descript[0]) {
+						img.title = info.descript[0][0];
+					}
+					buffsEl.appendChild(img);
+					Client.loadFile('data/texture/effect/' + info.icon, url => {
+						if (img.isConnected) img.src = url;
+					});
+				}
+			}
 		}
 
 		container.appendChild(row);

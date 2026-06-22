@@ -112,3 +112,23 @@
 .pp-root.pp-compact .pp-icon {
 	display: none;
 }
+
+/* D-19 buff/debuff icons per member */
+.pp-buffs {
+	display: flex;
+	flex-wrap: nowrap;
+	gap: 1px;
+	padding: 0 2px;
+	min-height: 0;
+	max-width: 120px;
+	overflow: hidden;
+}
+.pp-buffs:empty {
+	display: none;
+}
+.pp-buff-icon {
+	width: 14px;
+	height: 14px;
+	image-rendering: pixelated;
+	object-fit: contain;
+}
