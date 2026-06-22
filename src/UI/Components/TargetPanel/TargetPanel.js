@@ -117,7 +117,7 @@ TargetPanel._onTargetChange = function _onTargetChange(entity) {
 	this._host.style.display = 'block';
 	this._currentTarget = entity;
 
-	const root = this._shadow;
+	const root = this._shadow || this._host;
 	const nameEl = root.querySelector('.tp-name');
 	if (nameEl) {
 		// Fall back to GID if no display name is set yet.
@@ -146,7 +146,7 @@ TargetPanel._updateBars = function _updateBars() {
 	const t = this._currentTarget;
 	if (!t) return;
 
-	const root = this._shadow;
+	const root = this._shadow || this._host;
 
 	// D-27 + LOW-4: prefer entity.life (live instance); fall back to life cache.
 	// Either source returns hp=-1 when no data is available → percentage-only bar.
@@ -204,7 +204,7 @@ TargetPanel._updateBars = function _updateBars() {
 // ─── Lv rendering (D-27 matrix) ─────────────────────────────────────────────
 
 TargetPanel._renderLevel = function _renderLevel(entity) {
-	const lvlEl = this._shadow.querySelector('.tp-lvl');
+	const lvlEl = (this._shadow || this._host).querySelector('.tp-lvl');
 
 	let lvl = null;
 	switch (entity.objecttype) {
