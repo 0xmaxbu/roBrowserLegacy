@@ -36,6 +36,24 @@ import cssText from './PartyPanel.css?raw';
 const DISTANCE_THRESHOLD_SQ = 15 * 15;
 
 /**
+ * WR-01: Escape HTML special characters in untrusted strings before
+ * concatenating into innerHTML. Defense-in-depth against DOM XSS via
+ * tampered characterName packets (servers validate names, but a custom
+ * server with relaxed validation could inject markup into the shadow DOM).
+ * @param {string} s
+ * @returns {string}
+ */
+function escapeHtml(s) {
+	return String(s).replace(/[&<>"']/g, c => ({
+		'&': '&amp;',
+		'<': '&lt;',
+		'>': '&gt;',
+		'"': '&quot;',
+		"'": '&#39;'
+	}[c]));
+}
+
+/**
  * Create component (BLOCK-3 alignment: object-on-instance pattern + UIManager.addComponent export).
  */
 const PartyPanel = new GUIComponent('PartyPanel', cssText);
@@ -167,7 +185,7 @@ PartyPanel._renderMember = function _renderMember(m, life, full) {
 		life.hp_max > 0 ? Math.max(0, Math.min(100, (life.hp / life.hp_max) * 100)) : 0;
 	const hpText = life.hp >= 0 ? life.hp + ' / ' + life.hp_max : '???';
 	const iconHtml = full ? '<img class="pp-icon" alt="">' : '';
-	const name = m.characterName || m.Name || '???';
+	const name = escapeHtml(m.characterName || m.Name || '???');
 	const lvl = m.baseLevel || m.level || m.Level || '?';
 	return (
 		iconHtml +
