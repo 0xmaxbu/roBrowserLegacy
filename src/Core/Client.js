@@ -18,6 +18,7 @@ import PACKETVER from 'Network/PacketVerManager.js';
 import Texture from 'Utils/Texture.js';
 import WebGL from 'Utils/WebGL.js';
 import GraphicsSettings from 'Preferences/Graphics.js';
+import UIThemeManager from 'UI/UIThemeManager.js';
 
 class Client {
 	/**
@@ -30,6 +31,10 @@ class Client {
 		let i, count;
 		const packetver = Configs.get('packetver');
 		const remoteClient = Configs.get('remoteClient');
+
+		// Phase 12-01: configure UI theme asset path resolver (D-24).
+		// Empty / undefined uiTheme disables theming — getThemePath returns paths unchanged.
+		UIThemeManager.setTheme(Configs.get('uiTheme', '') || '');
 
 		function OnDate(date) {
 			// Avoid errors
@@ -147,6 +152,38 @@ class Client {
 		index = 0;
 
 		Client.loadFile(filenames[index], onload);
+	}
+
+	/**
+	 * Get and load a file from Game Data files, resolving its path via
+	 * UIThemeManager first (Phase 12-01, D-24).
+	 *
+	 * If the active theme rewrites the path, the themed asset is tried first;
+	 * on load error (404 / missing local overlay), it falls back to the
+	 * original GRF path so a missing themed BMP never breaks rendering
+	 * (threat T-12-01-01 mitigation).
+	 *
+	 * @param {string} filename original GRF path (e.g. 'data/texture/foo.bmp')
+	 * @param {function} onload
+	 * @param {function} onerror
+	 * @param {Array} args - optional
+	 */
+	static loadThemedFile(filename, onload, onerror, args = {}) {
+		const themedFilename = UIThemeManager.getThemePath(filename);
+		if (!themedFilename || themedFilename === filename) {
+			return Client.loadFile(filename, onload, onerror, args);
+		}
+		let fallbackCalled = false;
+		return Client.loadFile(
+			themedFilename,
+			(url) => { if (onload) onload(url); },
+			() => {
+				if (fallbackCalled) return;
+				fallbackCalled = true;
+				Client.loadFile(filename, onload, onerror, args);
+			},
+			args
+		);
 	}
 
 	/**
