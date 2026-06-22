@@ -21,12 +21,32 @@ import cssText from './GraphicsOption.css?raw';
 
 import MemoryManager from 'Core/MemoryManager.js';
 import ChatBox from 'UI/Components/ChatBox/ChatBox.js';
-import BasicInfo from 'UI/Components/BasicInfo/BasicInfo.js';
-import ButtonBar from 'UI/Components/ButtonBar/ButtonBar.js';
-import PartyPanel from 'UI/Components/PartyPanel/PartyPanel.js';
-import TargetPanel from 'UI/Components/TargetPanel/TargetPanel.js';
-import TargetKeyboard from 'Controls/TargetKeyboard.js';
 import UILayoutStore from 'UI/UILayoutStore.js';
+
+// Phase 12 components are loaded lazily to avoid a circular dependency:
+// Entity.js → EntityControl.js → … → Escape.js → GraphicsOption.js
+// → PartyPanel.js → TargetManager.js → Entity.js
+// Static imports would cause Entity to be undefined at module-init time.
+let _phase12 = null;
+async function getPhase12() {
+	if (!_phase12) {
+		const [BasicInfo, ButtonBar, PartyPanel, TargetPanel, TargetKeyboard] = await Promise.all([
+			import('UI/Components/BasicInfo/BasicInfo.js'),
+			import('UI/Components/ButtonBar/ButtonBar.js'),
+			import('UI/Components/PartyPanel/PartyPanel.js'),
+			import('UI/Components/TargetPanel/TargetPanel.js'),
+			import('Controls/TargetKeyboard.js')
+		]);
+		_phase12 = {
+			BasicInfo: BasicInfo.default,
+			ButtonBar: ButtonBar.default,
+			PartyPanel: PartyPanel.default,
+			TargetPanel: TargetPanel.default,
+			TargetKeyboard: TargetKeyboard.default
+		};
+	}
+	return _phase12;
+}
 
 /**
  * Create Component
@@ -395,10 +415,11 @@ function onTabSwitch(event) {
  * D-22: Toggle new UI (BasicInfoV6 + Phase 12 panels) at runtime.
  * Uses BasicInfo.toggleNewUI() hot-swap — no page reload.
  */
-function onToggleUseNewUI() {
+async function onToggleUseNewUI() {
 	GraphicsSettings.useNewUI = !!this.checked;
 	GraphicsSettings.save();
 
+	const { BasicInfo, ButtonBar, PartyPanel, TargetPanel, TargetKeyboard } = await getPhase12();
 	BasicInfo.toggleNewUI(GraphicsSettings.useNewUI);
 
 	if (GraphicsSettings.useNewUI) {
@@ -417,7 +438,7 @@ function onToggleUseNewUI() {
 /**
  * D-23: Toggle layout lock. When locked, panels are not draggable.
  */
-function onToggleLockLayout() {
+async function onToggleLockLayout() {
 	GraphicsSettings.lockLayout = !!this.checked;
 	GraphicsSettings.save();
 
@@ -426,6 +447,7 @@ function onToggleLockLayout() {
 
 	// Re-append visible Phase 12 panels so onAppend re-evaluates isEnabled()
 	if (GraphicsSettings.useNewUI) {
+		const { ButtonBar, PartyPanel, TargetPanel } = await getPhase12();
 		[ButtonBar, PartyPanel, TargetPanel].forEach(p => {
 			if (p._host && p._host.parentNode) {
 				p.remove();
@@ -439,10 +461,11 @@ function onToggleLockLayout() {
  * D-23: Restore default layout — clears all saved positions and
  * re-appends panels so they snap back to CSS defaults.
  */
-function onRestoreLayout() {
+async function onRestoreLayout() {
 	UILayoutStore.clear();
 	// Re-append visible Phase 12 panels to reset positions
 	if (GraphicsSettings.useNewUI) {
+		const { BasicInfo, ButtonBar, PartyPanel, TargetPanel } = await getPhase12();
 		[ButtonBar, PartyPanel, TargetPanel].forEach(p => {
 			if (p._host && p._host.parentNode) {
 				p.remove();
