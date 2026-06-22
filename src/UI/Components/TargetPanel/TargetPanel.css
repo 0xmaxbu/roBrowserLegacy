@@ -1,0 +1,82 @@
+/**
+ * TargetPanel.css — D-06.2 layout, D-20 colors.
+ *
+ * Position: right of BasicInfo (BasicInfo is 220px wide at top-left, so this
+ * panel anchors at left:230px). Hidden by default (`display:none`); JS toggles
+ * `display:block` when a target is set.
+ *
+ * MED-1: `.tp-spbar` stays in the DOM; JS sets `display:none`/`display:block`
+ *        based on `life.sp > -1` (TYPE_PC/HOM/MERC have SP data; MOB/PET/ELEM do not).
+ * LOW-4: HP text shows exact numbers whenever `life.hp >= 0` (already-injured
+ *        spawn monsters included — rAthena clif.cpp:1167/1314/1422).
+ */
+
+:host {
+	position: absolute;
+	top: 0;
+	left: 230px;
+	z-index: 50;
+	display: none; /* JS sets display:block when a target is selected */
+}
+
+.tp-root {
+	width: 180px;
+	background: rgba(245, 240, 225, 0.92); /* D-20 奶白半透明 */
+	color: #3d3326; /* D-20 深褐黑 */
+	padding: 6px;
+	font-family: sans-serif;
+	box-sizing: border-box;
+}
+
+.tp-name {
+	font-weight: bold;
+	font-size: 0.8rem;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.tp-lvl {
+	font-size: 0.7rem;
+	font-weight: bold;
+	margin-top: 2px;
+}
+
+.tp-hpbar,
+.tp-spbar {
+	position: relative;
+	height: 14px;
+	background: rgba(60, 50, 40, 0.3); /* D-20 深色半透明槽 */
+	border-radius: 2px;
+	overflow: hidden;
+	margin-top: 3px;
+}
+
+.tp-hpfill {
+	height: 100%;
+	background: linear-gradient(#e84040, #c52020); /* D-20 HP 红 */
+}
+
+.tp-spfill {
+	height: 100%;
+	background: linear-gradient(#2e7de0, #1863de); /* D-20 SP 蓝 */
+}
+
+.tp-hptext,
+.tp-sptext {
+	position: absolute;
+	inset: 0;
+	text-align: center;
+	font-size: 0.65rem;
+	color: #fff; /* D-20 白字 */
+	text-shadow: 1px 1px #3d3326; /* D-20 深描边 */
+	line-height: 14px;
+}
+
+/* D-19 death / distance indicators */
+.tp-root.tp-dead {
+	opacity: 0.5;
+}
+.tp-root.tp-far {
+	opacity: 0.5;
+}

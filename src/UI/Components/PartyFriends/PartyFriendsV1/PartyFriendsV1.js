@@ -1600,6 +1600,19 @@ PartyFriendsV1.saveDetachedMembers = function () {
 };
 
 /**
+ * Get the current party roster (read-only view).
+ * Returns a shallow copy so external callers cannot mutate the internal _party array.
+ *
+ * REVIEWS.md BLOCK-4: Added for Phase 12-05 PartyPanel. Without this, PartyPanel would have
+ * to read DOM member windows or hook packets (D-17 correction forbids hookPacket).
+ *
+ * @return {Array} shallow copy of _party ([{AID, characterName, job, baseLevel, ...}, ...])
+ */
+PartyFriendsV1.getPartyMembers = function getPartyMembers() {
+	return _party.slice();
+};
+
+/**
  * Export
  */
 export default UIManager.addComponent(PartyFriendsV1);
