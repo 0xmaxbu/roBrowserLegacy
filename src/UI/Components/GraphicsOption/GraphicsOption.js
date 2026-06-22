@@ -21,6 +21,12 @@ import cssText from './GraphicsOption.css?raw';
 
 import MemoryManager from 'Core/MemoryManager.js';
 import ChatBox from 'UI/Components/ChatBox/ChatBox.js';
+import BasicInfo from 'UI/Components/BasicInfo/BasicInfo.js';
+import ButtonBar from 'UI/Components/ButtonBar/ButtonBar.js';
+import PartyPanel from 'UI/Components/PartyPanel/PartyPanel.js';
+import TargetPanel from 'UI/Components/TargetPanel/TargetPanel.js';
+import TargetKeyboard from 'Controls/TargetKeyboard.js';
+import UILayoutStore from 'UI/UILayoutStore.js';
 
 /**
  * Create Component
@@ -111,6 +117,14 @@ GraphicsOption.init = function init() {
 	bindChange('.performanceMode', onTogglePerformanceMode);
 	bindChange('.view-area', onUpdateAreaView);
 
+	bindChange('.new-ui', onToggleUseNewUI);
+	bindChange('.lock-layout', onToggleLockLayout);
+
+	const restoreBtn = root.querySelector('.restore-layout');
+	if (restoreBtn) {
+		restoreBtn.addEventListener('click', onRestoreLayout);
+	}
+
 	this.draggable('.titlebar');
 };
 
@@ -151,6 +165,8 @@ GraphicsOption.onAppend = function onAppend() {
 	// Performance Mode
 	root.querySelector('.performanceMode').checked = GraphicsSettings.performanceMode;
 	root.querySelector('.view-area').value = GraphicsSettings.viewArea;
+	root.querySelector('.new-ui').checked = GraphicsSettings.useNewUI;
+	root.querySelector('.lock-layout').checked = GraphicsSettings.lockLayout;
 };
 
 /**
@@ -373,6 +389,74 @@ function onTabSwitch(event) {
 	});
 	const targetTab = root.querySelector('#' + tabName);
 	if (targetTab) targetTab.classList.add('selected');
+}
+
+/**
+ * D-22: Toggle new UI (BasicInfoV6 + Phase 12 panels) at runtime.
+ * Uses BasicInfo.toggleNewUI() hot-swap — no page reload.
+ */
+function onToggleUseNewUI() {
+	GraphicsSettings.useNewUI = !!this.checked;
+	GraphicsSettings.save();
+
+	BasicInfo.toggleNewUI(GraphicsSettings.useNewUI);
+
+	if (GraphicsSettings.useNewUI) {
+		ButtonBar.append();
+		PartyPanel.append();
+		TargetPanel.append();
+		TargetKeyboard.init();
+	} else {
+		ButtonBar.remove();
+		PartyPanel.remove();
+		TargetPanel.remove();
+		TargetKeyboard.cleanup();
+	}
+}
+
+/**
+ * D-23: Toggle layout lock. When locked, panels are not draggable.
+ */
+function onToggleLockLayout() {
+	GraphicsSettings.lockLayout = !!this.checked;
+	GraphicsSettings.save();
+
+	// lockLayout=true → enabled=false (not draggable)
+	UILayoutStore.setEnabled(!GraphicsSettings.lockLayout);
+
+	// Re-append visible Phase 12 panels so onAppend re-evaluates isEnabled()
+	if (GraphicsSettings.useNewUI) {
+		[ButtonBar, PartyPanel, TargetPanel].forEach(p => {
+			if (p._host && p._host.parentNode) {
+				p.remove();
+				p.append();
+			}
+		});
+	}
+}
+
+/**
+ * D-23: Restore default layout — clears all saved positions and
+ * re-appends panels so they snap back to CSS defaults.
+ */
+function onRestoreLayout() {
+	UILayoutStore.clear();
+	// Re-append visible Phase 12 panels to reset positions
+	if (GraphicsSettings.useNewUI) {
+		[ButtonBar, PartyPanel, TargetPanel].forEach(p => {
+			if (p._host && p._host.parentNode) {
+				p.remove();
+				p.append();
+			}
+		});
+		// BasicInfo: re-toggle to reset position
+		BasicInfo.toggleNewUI(true);
+	}
+	ChatBox.addText(
+		'[系统] 布局已恢复为默认设置。',
+		ChatBox.TYPE.INFO,
+		ChatBox.FILTER.PUBLIC_LOG
+	);
 }
 
 function onResetToDefaults() {

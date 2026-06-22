@@ -38,6 +38,18 @@ const defaultGraphicsSettings = {
 	viewArea: 14,
 
 	/**
+	 * Phase 12 D-22: Use new UI (BasicInfoV6 + panels + ButtonBar).
+	 * Persisted so the user's choice survives page reloads.
+	 */
+	useNewUI: true,
+
+	/**
+	 * Phase 12 D-23: Lock UI layout (disables panel dragging).
+	 * Default = true (locked). Set false to enable drag-to-move.
+	 */
+	lockLayout: true,
+
+	/**
 	 * Damage Skin
 	 */
 	damageSkin: 0,
