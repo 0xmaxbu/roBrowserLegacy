@@ -42,6 +42,7 @@
 import WebGL from 'Utils/WebGL.js';
 import EffectManager from 'Renderer/EffectManager.js';
 import TargetManager from 'UI/TargetManager.js';
+import Configs from 'Core/Configs.js';
 import _vertexShader from './TargetIndicator.vs?raw';
 import _fragmentShader from './TargetIndicator.fs?raw';
 
@@ -270,4 +271,12 @@ export default { install, Effect: TargetIndicator };
 // and safe if multiple modules import this file. Wires the controller so
 // Wave-2 consumers (or the map-entry bootstrap) only need to import this
 // module for the arrow to start tracking the target.
-install();
+//
+// WR-02: MapEngine.js imports this module at top level (line 97), NOT guarded
+// by useNewUI. Without this gate the TargetManager monkey-patch and target
+// arrow are always active — even in V4 mode where there is no TargetKeyboard
+// to clear targets via Esc and no TargetPanel for info display. Gate behind
+// the feature flag so V4 mode is unaffected.
+if (Configs.get('useNewUI', true)) {
+	install();
+}
