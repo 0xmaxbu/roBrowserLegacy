@@ -95,6 +95,8 @@ import PartyPanel from 'UI/Components/PartyPanel/PartyPanel.js';
 import TargetPanel from 'UI/Components/TargetPanel/TargetPanel.js';
 import TargetKeyboard from 'Controls/TargetKeyboard.js';
 import TargetIndicator from 'Renderer/Effects/TargetIndicator.js';
+import GraphicsSettings from 'Preferences/Graphics.js';
+import UILayoutStore from 'UI/UILayoutStore.js';
 
 import MainEngine from './MapEngine/Main.js';
 import MapStateEngine from './MapEngine/MapState.js';
@@ -745,7 +747,11 @@ function onMapChange(pkt) {
 			CheckAttendance.append();
 		}
 
-		if (Configs.get('useNewUI')) {
+		// D-23: apply persisted layout lock before panels append
+		UILayoutStore.setEnabled(!GraphicsSettings.lockLayout);
+
+		// D-22: startup decision from persisted preference (not Configs)
+		if (GraphicsSettings.useNewUI) {
 			ButtonBar.append();
 			PartyPanel.append();
 			TargetPanel.append();
