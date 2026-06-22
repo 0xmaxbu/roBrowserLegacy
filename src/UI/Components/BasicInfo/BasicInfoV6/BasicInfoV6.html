@@ -1,0 +1,21 @@
+<div class="bi-root">
+	<div class="bi-job-icon-wrap"><img class="bi-job-icon" alt=""></div>
+	<div class="bi-info">
+		<div class="bi-name">---</div>
+		<div class="bi-hp">
+			<div class="bi-hp-bar"><div class="bi-hp-fill"></div></div>
+			<div class="bi-hp-text">---</div>
+		</div>
+		<div class="bi-sp">
+			<div class="bi-sp-bar"><div class="bi-sp-fill"></div></div>
+			<div class="bi-sp-text">---</div>
+		</div>
+		<div class="bi-level">Lv.?</div>
+	</div>
+	<!-- MED-2: InventoryV1.js:248/268/449 looks for '#item .btn_overlay' to
+	     highlight the bag button on inventory events. V6 has no bag button
+	     (the ButtonBar in plan 12-04 owns it), but the selector MUST resolve
+	     to a node so jQuery .show()/.hide()/.toggleClass() chains on the
+	     result don't silently no-op. Hidden element — purely a compat hook. -->
+	<div id="item" style="display:none"><div class="btn_overlay"></div></div>
+</div>
