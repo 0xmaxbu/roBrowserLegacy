@@ -2317,6 +2317,22 @@ function onEntityStatusChange(pkt) {
 
 	processBlockStatus(entity, pkt);
 
+	// D-19 Phase 12-10: per-entity buff/debuff cache for panel display.
+	// NO hookPacket — this runs inside the existing onEntityStatusChange
+	// handler, respecting D-17.
+	if (entity) {
+		if (!entity._efstList) entity._efstList = new Map();
+		if (pkt.state) {
+			entity._efstList.set(pkt.index, {
+				remainMS: pkt.RemainMS || 0,
+				startTime: performance.now()
+			});
+		} else {
+			entity._efstList.delete(pkt.index);
+		}
+		entity._efstVersion = (entity._efstVersion || 0) + 1;
+	}
+
 	// Modify icon
 	if (entity === Session.Entity) {
 		StatusIcons.update(pkt.index, pkt.state, pkt.RemainMS);
