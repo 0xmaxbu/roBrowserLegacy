@@ -90,6 +90,11 @@ import PlayerViewEquip from 'UI/Components/PlayerViewEquip/PlayerViewEquip.js';
 import JoystickUI from 'UI/Components/JoystickUI/JoystickUI.js';
 import CashShopIcon from 'UI/Components/CashShopIcon/CashShopIcon.js';
 import Achievement from 'UI/Components/Achievement/Achievement.js';
+import ButtonBar from 'UI/Components/ButtonBar/ButtonBar.js';
+import PartyPanel from 'UI/Components/PartyPanel/PartyPanel.js';
+import TargetPanel from 'UI/Components/TargetPanel/TargetPanel.js';
+import TargetKeyboard from 'Controls/TargetKeyboard.js';
+import TargetIndicator from 'Renderer/Effects/TargetIndicator.js';
 
 import MainEngine from './MapEngine/Main.js';
 import MapStateEngine from './MapEngine/MapState.js';
@@ -733,6 +738,13 @@ function onMapChange(pkt) {
 			CheckAttendance.append();
 		}
 
+		if (Configs.get('useNewUI')) {
+			ButtonBar.append();
+			PartyPanel.append();
+			TargetPanel.append();
+			TargetKeyboard.init();
+		}
+
 		// Reload plugins
 		PluginManager.init();
 
@@ -857,6 +869,10 @@ function onRestartAnswer(pkt) {
 		ShortCut.clean();
 		Quest.getUI().clean();
 		PartyFriends.getUI().clean();
+		ButtonBar.remove();
+		PartyPanel.remove();
+		TargetPanel.remove();
+		TargetKeyboard.cleanup();
 		CashShop.clean();
 		Session.Achievement = null;
 		Mouse.intersect = false;
@@ -882,6 +898,10 @@ function onDisconnectAnswer(pkt) {
 			ShortCut.clean();
 			Quest.getUI().clean();
 			PartyFriends.getUI().clean();
+			ButtonBar.remove();
+			PartyPanel.remove();
+			TargetPanel.remove();
+			TargetKeyboard.cleanup();
 			Renderer.stop();
 			onExitSuccess();
 			break;
