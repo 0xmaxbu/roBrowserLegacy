@@ -16,8 +16,8 @@
  *
  * D-27 Lv matrix:
  *   - TYPE_PET / TYPE_HOM / TYPE_MERC → entity.clevel ✓
- *   - TYPE_PC / TYPE_DISGUISED → party roster baseLevel (deferred to plan 12-05
- *     PartyFriendsV1.getPartyMembers; until then hide Lv for PC targets).
+ *   - TYPE_PC / TYPE_DISGUISED → party roster baseLevel via
+ *     PartyFriendsV1.getPartyMembers() (12-05 BLOCK-4). Non-party PC: hide.
  *   - TYPE_MOB / TYPE_NPC_ABR / TYPE_NPC_BIONIC → no data source → hide.
  *
  * D-19: dead target grayed out via `.tp-dead` class.
@@ -33,6 +33,13 @@ import UIManager from 'UI/UIManager.js';
 import GUIComponent from 'UI/GUIComponent.js';
 import TargetManager from 'UI/TargetManager.js';
 import UILayoutStore from 'UI/UILayoutStore.js';
+// Lazy import to avoid cycle: PartyFriendsV1 pulls in many UI deps. Using a
+// function-scope import via a module-level promise would over-engineer this;
+// the import below is safe because TargetPanel loads after the UI manager has
+// initialised all components (UIManager.addComponent is called at the bottom
+// of this file, but PartyFriendsV1 is itself registered via addComponent and
+// resolves through the same manager).
+import PartyFriendsV1 from 'UI/Components/PartyFriends/PartyFriendsV1/PartyFriendsV1.js';
 import htmlText from './TargetPanel.html?raw';
 import cssText from './TargetPanel.css?raw';
 
@@ -208,12 +215,23 @@ TargetPanel._renderLevel = function _renderLevel(entity) {
 			lvl = entity.clevel;
 			break;
 		case Entity.TYPE_PC:
-		case Entity.TYPE_DISGUISED:
-			// Party member baseLevel — requires PartyFriendsV1.getPartyMembers()
-			// (plan 12-05 BLOCK-4 adds it). Until then, hide Lv for PC targets.
-			// TODO(12-05): refine with party-roster check.
-			lvl = null;
+		case Entity.TYPE_DISGUISED: {
+			// D-27: party member baseLevel from PartyFriendsV1 roster
+			// (BLOCK-4 in 12-05 exposed getPartyMembers). Non-party PC: hide Lv.
+			const partyAID = entity.AID;
+			let partyLvl = null;
+			if (partyAID != null && PartyFriendsV1 && PartyFriendsV1.getPartyMembers) {
+				const roster = PartyFriendsV1.getPartyMembers();
+				for (let i = 0; i < roster.length; i++) {
+					if (roster[i].AID === partyAID) {
+						partyLvl = roster[i].baseLevel || null;
+						break;
+					}
+				}
+			}
+			lvl = partyLvl;
 			break;
+		}
 		case Entity.TYPE_MOB:
 		case Entity.TYPE_NPC_ABR:
 		case Entity.TYPE_NPC_BIONIC:
