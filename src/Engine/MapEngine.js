@@ -233,9 +233,16 @@ class MapEngine {
 
 		// Select UI version when needed
 		if (MapEngine.needsUIVerUpdate || !_isInitialised) {
-			if (PACKETVER.value < 20200520) {
-				BasicInfo.selectUIVersion();
+		if (PACKETVER.value < 20200520) {
+			BasicInfo.selectUIVersion();
+			// CR-02: respect useNewUI=false — force V4 fallback so the panel
+			// matches the suppressed companion panels (ButtonBar/PartyPanel/
+			// TargetPanel/TargetKeyboard are gated at line 741). Without this,
+			// useNewUI:false shows V6 BasicInfo alone without its companions.
+			if (Configs.get('useNewUI', true) === false) {
+				BasicInfo.selectSpecificUIVersion(20180124);
 			}
+		}
 			MiniMap.selectUIVersion();
 			SkillList.selectUIVersion();
 			Quest.selectUIVersion();
