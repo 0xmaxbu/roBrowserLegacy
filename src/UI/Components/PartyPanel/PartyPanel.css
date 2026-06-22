@@ -1,0 +1,114 @@
+/* Phase 12-05 PartyPanel — D-20 colours, positioned below BasicInfo (top-left, offset down).
+ * D-06.3: ≤6 members single-column full style (with 32×32 job icon);
+ *        >6 members double-column compact style (no icon).
+ * D-19: dead (pp-dead) / far (pp-far) gray-out via opacity.
+ */
+
+:host {
+	position: absolute;
+	top: 145px;
+	left: 0;
+	z-index: 50;
+}
+
+.pp-root {
+	width: 220px;
+	background: rgba(245, 240, 225, 0.92);
+	color: #3d3326;
+	padding: 4px;
+	font-family: sans-serif;
+	box-sizing: border-box;
+}
+
+.pp-header {
+	font-weight: bold;
+	font-size: 0.75rem;
+	margin-bottom: 3px;
+}
+
+.pp-members {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+/* ≤6 members: single-column full style */
+.pp-member {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	padding: 2px;
+	box-sizing: border-box;
+}
+
+.pp-member .pp-icon {
+	width: 32px;
+	height: 32px;
+	image-rendering: pixelated;
+	flex-shrink: 0;
+	object-fit: contain;
+}
+
+.pp-member .pp-info {
+	flex: 1;
+	min-width: 0;
+}
+
+.pp-member .pp-name {
+	font-size: 0.7rem;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.pp-member .pp-lvl {
+	font-size: 0.6rem;
+	font-weight: bold;
+}
+
+.pp-member .pp-hpbar {
+	position: relative;
+	height: 10px;
+	background: rgba(60, 50, 40, 0.3);
+	border-radius: 2px;
+	overflow: hidden;
+	margin-top: 1px;
+}
+
+.pp-member .pp-hpfill {
+	height: 100%;
+	background: linear-gradient(#e84040, #c52020);
+}
+
+.pp-member .pp-hptext {
+	position: absolute;
+	inset: 0;
+	text-align: center;
+	font-size: 0.55rem;
+	color: #fff;
+	text-shadow: 1px 1px #3d3326;
+	line-height: 10px;
+}
+
+.pp-member.pp-dead {
+	opacity: 0.5;
+}
+
+.pp-member.pp-far {
+	opacity: 0.5;
+}
+
+/* >6 members: double-column compact style (no icon, tighter) */
+.pp-root.pp-compact .pp-members {
+	flex-direction: row;
+	flex-wrap: wrap;
+}
+
+.pp-root.pp-compact .pp-member {
+	width: 48%;
+}
+
+.pp-root.pp-compact .pp-icon {
+	display: none;
+}
