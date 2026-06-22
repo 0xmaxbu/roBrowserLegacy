@@ -138,9 +138,19 @@ BasicInfoV6.onAppend = function onAppend() {
 	const root = _getRoot();
 
 	if (UILayoutStore.isEnabled()) {
-		// D-23: drag handle is the visible root so the hidden #item compat
-		// node isn't used as a grab target.
-		this.draggable('.bi-root');
+		// WR-04: guard draggable() so it only binds once. GUIComponent.draggable
+		// creates a new onStart closure each call and calls addEventListener
+		// without deduplication (GUIComponent.js:723-724). The shadow DOM
+		// persists across remove/append (prepare is guarded by __loaded), so
+		// the handle element and its listeners survive hot-swap. Calling
+		// draggable() again on each append would accumulate N+1 competing
+		// drag handler sets. This flag is NOT reset in onRemove — the
+		// listeners stay bound to the persistent element and remain valid
+		// when the host is re-attached.
+		if (!this._dragBound) {
+			this.draggable('.bi-root');
+			this._dragBound = true;
+		}
 		this.onDragEnd = () => {
 			UILayoutStore.save('BasicInfoV6', {
 				left: this._host.offsetLeft,
@@ -171,11 +181,13 @@ BasicInfoV6.onAppend = function onAppend() {
 
 /**
  * D-28: onRemove runs EVERY remove. Currently no dynamic listeners to tear
- * down (draggable registers its own mouse/touch listeners on the host,
- * which stay bound across hot-swap; they are anonymous and idempotent).
+ * down. WR-04: _dragBound is intentionally NOT reset here — the shadow DOM
+ * persists (guarded by __loaded in prepare), so the drag listeners on the
+ * handle element survive the remove/append cycle. Resetting would cause the
+ * next onAppend to call draggable() again, re-adding duplicate handlers.
  */
 BasicInfoV6.onRemove = function onRemove() {
-	/* no-op — see onAppend comment */
+	/* no-op — see WR-04 comment above */
 };
 
 // BLOCK-3: export via UIManager.addComponent (identical shape to
