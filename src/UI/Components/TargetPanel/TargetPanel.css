@@ -80,3 +80,21 @@
 .tp-root.tp-far {
 	opacity: 0.5;
 }
+
+/* D-19 buff/debuff icons */
+.tp-buffs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px;
+	padding: 2px 4px;
+	min-height: 0;
+}
+.tp-buffs:empty {
+	display: none;
+}
+.tp-buff-icon {
+	width: 16px;
+	height: 16px;
+	image-rendering: pixelated;
+	object-fit: contain;
+}

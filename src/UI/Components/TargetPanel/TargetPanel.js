@@ -34,6 +34,8 @@ import GUIComponent from 'UI/GUIComponent.js';
 import TargetManager from 'UI/TargetManager.js';
 import UILayoutStore from 'UI/UILayoutStore.js';
 import Session from 'Engine/SessionStorage.js';
+import StatusTable from 'DB/Status/StatusInfo.js';
+import Client from 'Core/Client.js';
 // Lazy import to avoid cycle: PartyFriendsV1 pulls in many UI deps. Using a
 // function-scope import via a module-level promise would over-engineer this;
 // the import below is safe because TargetPanel loads after the UI manager has
@@ -203,6 +205,13 @@ TargetPanel._updateBars = function _updateBars() {
 
 	// D-19 distance gray-out: >15 cells from player → mark as "far".
 	if (tpRoot) tpRoot.classList.toggle('tp-far', this._isFar(t));
+
+	// D-19 buff icons: re-render only when efst version changes (dirty-check)
+	const efstVer = t._efstVersion || 0;
+	if (efstVer !== this._lastEfstVer) {
+		this._lastEfstVer = efstVer;
+		this._renderBuffs(t);
+	}
 };
 
 // ─── D-19 distance gray-out ───────────────────────────────────────────
@@ -219,6 +228,33 @@ TargetPanel._isFar = function _isFar(entity) {
 	const dx = entity.position[0] - self.position[0];
 	const dy = entity.position[1] - self.position[1];
 	return dx * dx + dy * dy > DISTANCE_THRESHOLD_SQ;
+};
+
+// ─── D-19 buff/debuff icons ───────────────────────────────────────────
+
+/**
+ * D-19: Render buff/debuff icons from entity._efstList.
+ * Called when entity._efstVersion changes (dirty-check).
+ * Icons load async via Client.loadFile (fire-and-forget).
+ */
+TargetPanel._renderBuffs = function _renderBuffs(entity) {
+	const buffsEl = (this._shadow || this._host).querySelector('.tp-buffs');
+	if (!buffsEl) return;
+	buffsEl.innerHTML = '';
+	if (!entity._efstList || entity._efstList.size === 0) return;
+	for (const [index, data] of entity._efstList) {
+		const info = StatusTable[index];
+		if (!info || !info.icon) continue;
+		const img = document.createElement('img');
+		img.className = 'tp-buff-icon';
+		if (info.descript && info.descript[0]) {
+			img.title = info.descript[0][0];
+		}
+		buffsEl.appendChild(img);
+		Client.loadFile('data/texture/effect/' + info.icon, url => {
+			if (img.isConnected) img.src = url;
+		});
+	}
 };
 
 // ─── Lv rendering (D-27 matrix) ─────────────────────────────────────────────
