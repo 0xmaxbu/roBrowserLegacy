@@ -1,0 +1,13 @@
+<div class="bb-root">
+  <div class="bb-common">
+    <!-- 5 common buttons: BMP icon + Chinese label. MED-4: action ids = BasicInfoV4 case names -->
+    <button class="bb-btn" data-action="item"><img class="bb-icon" alt=""><span class="bb-label">物品</span></button>
+    <button class="bb-btn" data-action="skill"><img class="bb-icon" alt=""><span class="bb-label">技能</span></button>
+    <button class="bb-btn" data-action="info"><img class="bb-icon" alt=""><span class="bb-label">状态</span></button>
+    <button class="bb-btn" data-action="equip"><img class="bb-icon" alt=""><span class="bb-label">装备</span></button>
+    <button class="bb-btn bb-bot" data-action="bot"><span class="bb-label">挂机</span></button>
+    <button class="bb-btn bb-toggle" data-action="toggle"><img class="bb-icon" alt=""><span class="bb-label">菜单</span></button>
+  </div>
+  <!-- BLOCK-2: self-contained popup (NOT ContextMenu). Hidden by default; positioned + shown by JS. -->
+  <div class="bb-popup" style="display:none"></div>
+</div>

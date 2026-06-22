@@ -1,0 +1,17 @@
+:host { position: absolute; bottom: 8px; right: 8px; z-index: 50; }
+.bb-root { display: flex; }
+.bb-common { display: flex; gap: 4px; background: rgba(245,240,225,0.92); padding: 4px; border-radius: 4px; }
+.bb-btn { display: flex; flex-direction: column; align-items: center; width: 44px; background: transparent; border: none; cursor: pointer; padding: 2px; }
+.bb-icon { width: 28px; height: 28px; image-rendering: pixelated; }
+.bb-label { font-size: 0.6rem; color: #3d3326; margin-top: 1px; }
+.bb-btn:hover { background: rgba(60,50,40,0.15); }
+.bb-bot .bb-label { font-size: 0.7rem; line-height: 28px; color: #3d3326; } /* CSS text button, no BMP */
+/* BLOCK-2: popup is a child of .bb-root, positioned by JS via style.top/left */
+.bb-popup { position: fixed; background: rgba(245,240,225,0.95); border-radius: 4px; padding: 4px;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; max-width: 200px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 60; }
+.bb-popup-item { display: flex; flex-direction: column; align-items: center; width: 60px;
+                 background: transparent; border: none; cursor: pointer; padding: 3px; }
+.bb-popup-item:hover { background: rgba(60,50,40,0.15); }
+.bb-popup-item .bb-icon { width: 24px; height: 24px; }
+.bb-popup-item .bb-label { font-size: 0.55rem; }
