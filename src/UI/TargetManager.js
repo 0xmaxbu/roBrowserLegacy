@@ -52,6 +52,10 @@ class TargetManager {
 	 * Install the focus monkey-patch and start the health-check loop.
 	 * Idempotent — safe to call from multiple consumers' onAppend.
 	 *
+	 * D-16: Clicking ground (or BotAutoHunt) sends setFocusEntity(null),
+	 * but we must NOT clear the target — only hostile death / map change /
+	 * manual ESC (clearTarget) clears it. So we block external null calls.
+	 *
 	 * Note: EntityManager.js:355 calls the LOCAL setFocusEntity(null) during
 	 * render() entity-removal, bypassing this patch. The RAF health-check
 	 * covers that case (D-16 death/removal clearing).
@@ -64,6 +68,9 @@ class TargetManager {
 		// BotAutoHunt (all go through the exported object).
 		this._origSetFocus = EntityManager.setFocusEntity;
 		EntityManager.setFocusEntity = (entity) => {
+			// D-16: block ground-click null-clear when we have a target.
+			// clearTarget() (ESC) bypasses this patch via _origSetFocus.
+			if (!entity && this._target) return;
 			this._origSetFocus(entity);
 			this._setTargetInternal(entity);
 		};
@@ -147,6 +154,7 @@ class TargetManager {
 			if (!this._rematchDeadline) this._rematchDeadline = Date.now() + 2000;
 			if (Date.now() > this._rematchDeadline) {
 				this._setTargetInternal(null); // "换图后目标不在 → 清除"
+				if (this._origSetFocus) this._origSetFocus(null);
 				this._rematchDeadline = 0;
 			}
 			return;
@@ -160,6 +168,7 @@ class TargetManager {
 			const isHostile = t.canAttackEntity ? t.canAttackEntity() : false;
 			if (isHostile) {
 				this._setTargetInternal(null); // hostile death → clear
+				if (this._origSetFocus) this._origSetFocus(null);
 			}
 			// friendly death → keep (only Esc clears), per D-16
 		}
