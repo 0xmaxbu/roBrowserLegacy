@@ -94,7 +94,6 @@ import ButtonBar from 'UI/Components/ButtonBar/ButtonBar.js';
 import PartyPanel from 'UI/Components/PartyPanel/PartyPanel.js';
 import TargetPanel from 'UI/Components/TargetPanel/TargetPanel.js';
 import TargetKeyboard from 'Controls/TargetKeyboard.js';
-import TargetIndicator from 'Renderer/Effects/TargetIndicator.js';
 import GraphicsSettings from 'Preferences/Graphics.js';
 import UILayoutStore from 'UI/UILayoutStore.js';
 
