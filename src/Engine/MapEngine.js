@@ -240,7 +240,7 @@ class MapEngine {
 			// matches the suppressed companion panels (ButtonBar/PartyPanel/
 			// TargetPanel/TargetKeyboard are gated at line 741). Without this,
 			// useNewUI:false shows V6 BasicInfo alone without its companions.
-			if (Configs.get('useNewUI', true) === false) {
+			if (GraphicsSettings.useNewUI === false) {
 				BasicInfo.selectSpecificUIVersion(20180124);
 			}
 		}

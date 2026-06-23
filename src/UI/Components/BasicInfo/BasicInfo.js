@@ -79,6 +79,32 @@ BasicInfoController.toggleNewUI = function (useNew) {
 				newUI.update('blvl', Session.Character.level);
 				newUI.update('job', Session.Character.job);
 			}
+			// Transfer exp/weight/jlvl/zeny from old UI so V4 shows real
+			// values after a V6→V4 hot-swap (V6 stores these as instance
+			// props; V4 needs them pushed via update()).
+			if (oldUI) {
+				newUI.base_exp = oldUI.base_exp || 0;
+				newUI.base_exp_next = oldUI.base_exp_next || 1;
+				newUI.job_exp = oldUI.job_exp || 0;
+				newUI.job_exp_next = oldUI.job_exp_next || -1;
+				newUI.weight_max = oldUI.weight_max || 1;
+
+				if (newUI.base_exp_next > 0) {
+					newUI.update('bexp', newUI.base_exp, newUI.base_exp_next);
+				}
+				if (newUI.job_exp_next > 0) {
+					newUI.update('jexp', newUI.job_exp, newUI.job_exp_next);
+				}
+				if (oldUI._jlvl != null) {
+					newUI.update('jlvl', oldUI._jlvl);
+				}
+				if (Session.zeny != null) {
+					newUI.update('zeny', Session.zeny);
+				}
+				if (Session.Character && Session.Character.weight != null && newUI.weight_max > 0) {
+					newUI.update('weight', Session.Character.weight, newUI.weight_max);
+				}
+			}
 		}
 		newUI.append();
 	}

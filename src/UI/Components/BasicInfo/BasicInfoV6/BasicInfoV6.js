@@ -83,7 +83,23 @@ BasicInfoV6.update = function update(type, val1, val2) {
 		case 'job':
 			this._loadJobIcon(root, val1);
 			break;
-		// D-26 no-op keys: 'jlvl', 'zeny', 'bexp', 'jexp', 'weight', 'ap'
+		// D-26: V6 doesn't display these, but must store them so
+		// Session.zeny stays in sync (Bank/Trade/Vending read it) and
+		// toggleNewUI() can transfer values to V4 on hot-swap.
+		case 'jlvl':
+			this._jlvl = val1;
+			break;
+		case 'zeny':
+			Session.zeny = val1;
+			break;
+		case 'bexp':
+			this.base_exp = val1;
+			break;
+		case 'jexp':
+			this.job_exp = val1;
+			break;
+		case 'weight':
+			break;
 		default:
 			break;
 	}
