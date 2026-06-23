@@ -1605,7 +1605,7 @@ function getScrollLineHeightPx(element) {
 
 ChatBox.applyFontScale = function applyFontScale() {
 	const scale = clampChatFontScale(_preferences.fontScale || 1.0);
-	const baseFont = 12;
+	const baseFont = 11;
 	const baseLineHeight = 14;
 	const baseInputLineHeight = 18;
 
@@ -1619,6 +1619,11 @@ ChatBox.applyFontScale = function applyFontScale() {
 	this.ui.find('.content').css({
 		fontSize: fontSize + 'px',
 		lineHeight: lineHeight + 'px'
+	});
+
+	// Tab labels — match chat content font size
+	this.ui.find('.header input').css({
+		fontSize: fontSize + 'px'
 	});
 
 	// Chat input (match "whisp box" inputs)

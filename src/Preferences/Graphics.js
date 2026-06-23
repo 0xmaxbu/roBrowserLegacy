@@ -40,8 +40,9 @@ const defaultGraphicsSettings = {
 	/**
 	 * Phase 12 D-22: Use new UI (BasicInfoV6 + panels + ButtonBar).
 	 * Persisted so the user's choice survives page reloads.
+	 * Default = false (V4). Players enable manually in Option settings.
 	 */
-	useNewUI: true,
+	useNewUI: false,
 
 	/**
 	 * Phase 12 D-23: Lock UI layout (disables panel dragging).

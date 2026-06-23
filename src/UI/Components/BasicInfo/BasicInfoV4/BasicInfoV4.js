@@ -62,7 +62,7 @@ const _preferences = Preferences.get(
 		x: 0,
 		y: 0,
 		reduce: true,
-		buttons: true,
+		buttons: false,
 		magnet_top: true,
 		magnet_bottom: false,
 		magnet_left: true,

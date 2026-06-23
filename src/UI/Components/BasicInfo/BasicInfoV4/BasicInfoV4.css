@@ -9,7 +9,7 @@
 	position: absolute;
 	width: 220px;
 	height: 135px;
-	font-size: 11px;
+	font-size: 10.5px;
 	letter-spacing: 0.03em;
 }
 #BasicInfoV4.small .large {
@@ -165,7 +165,11 @@
 	left: 0px;
 	top: 9px;
 	width: 220px;
-	height: 184px;
+	display: grid;
+	grid-template-columns: repeat(5, 1fr);
+	gap: 2px;
+	padding: 4px;
+	box-sizing: border-box;
 }
 #BasicInfoV4 .bt_menu {
 	position: absolute;
@@ -173,16 +177,23 @@
 	width: 216px;
 	height: 9px;
 }
-#BasicInfoV4 .buttons:hover {
-}
 #BasicInfoV4 .buttons button {
-	float: left;
-	width: 22px;
-	height: 22px;
+	width: 100%;
+	min-width: 0;
+	height: 44px;
 	border: none;
-	margin: 0px;
+	margin: 0;
+	padding: 0;
 	background-color: transparent;
 	background-repeat: no-repeat;
+	background-position: center 6px;
+	background-size: 26px 26px;
+	image-rendering: pixelated;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-end;
 }
 #BasicInfoV4 .buttons .clear {
 	clear: both;
@@ -215,32 +226,32 @@
 }
 
 #BasicInfoV4 .buttons button .name {
-	position: relative;
-	display: none;
-	z-index: 1;
-	top: -20px;
-	left: 0px;
-	background-color: rgba(0, 0, 0, 0.6);
-	text-shadow: 1px 1px black;
-	color: white;
-	padding: 5px;
+	display: block;
+	position: static;
+	z-index: auto;
+	top: auto;
+	left: auto;
+	background: none;
+	text-shadow: none;
+	color: #fff;
+	padding: 0;
 	white-space: nowrap;
-	font-size: 0.6rem;
-}
-#BasicInfoV4 .buttons button:hover .name {
-	display: table;
-}
-#BasicInfoV4 .buttons button .name {
-	display: none;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	width: 100%;
+	font-size: 0.48rem;
+	line-height: 1;
+	text-align: center;
 }
 
 #BasicInfoV4 .buttons .btn_overlay {
-	width: 35px;
-	height: 40px;
+	width: 26px;
+	height: 26px;
 	border: none;
-	position: relative;
-	top: -13px;
-	left: -7px;
+	position: absolute;
+	top: 6px;
+	left: 50%;
+	transform: translateX(-50%);
 	z-index: 10;
 	display: none;
 }

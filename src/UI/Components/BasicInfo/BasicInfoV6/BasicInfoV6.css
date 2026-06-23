@@ -39,7 +39,7 @@
 
 .bi-name {
 	font-weight: bold;
-	font-size: 0.8rem;
+	font-size: 0.65rem;
 	color: #3d3326;
 	white-space: nowrap;
 	overflow: hidden;
@@ -72,7 +72,7 @@
 	position: absolute;
 	inset: 0;
 	text-align: center;
-	font-size: 0.65rem;
+	font-size: 0.5rem;
 	color: #fff;
 	text-shadow: 1px 1px #3d3326;
 	line-height: 14px;
@@ -81,6 +81,6 @@
 
 .bi-level {
 	font-weight: bold;
-	font-size: 0.75rem;
+	font-size: 0.6rem;
 	color: #3d3326;
 }
