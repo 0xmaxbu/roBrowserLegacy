@@ -252,7 +252,7 @@ const langType = servers[0] && servers[0].langtype ? parseInt(servers[0].langtyp
 // setup default encoding
 const userCharpage = TextEncoding.detectEncodingByLangtype(langType, Configs.get('disableKorean'));
 const grfCharpage = 'windows-1252';
-TextEncoding.setCharset(grfCharpage);
+	TextEncoding.setCharset(grfCharpage);
 
 // create decoders
 const userStringDecoder = TextEncoding;
@@ -4880,9 +4880,9 @@ function loadItemInfo(filename, callback, onEnd) {
 					ItemTable[ItemID] = {
 						...(typeof ItemTable[ItemID] === 'object' && ItemTable[ItemID]),
 						unidentifiedDisplayName: userStringDecoder.decode(unidentifiedDisplayName, userCharpage),
-						unidentifiedResourceName: userStringDecoder.decode(unidentifiedResourceName),
+						unidentifiedResourceName: userStringDecoder.decode(unidentifiedResourceName, userCharpage),
 						identifiedDisplayName: userStringDecoder.decode(identifiedDisplayName, userCharpage),
-						identifiedResourceName: userStringDecoder.decode(identifiedResourceName),
+						identifiedResourceName: userStringDecoder.decode(identifiedResourceName, userCharpage),
 						unidentifiedDescriptionName: [],
 						identifiedDescriptionName: [],
 						EffectID: null,
