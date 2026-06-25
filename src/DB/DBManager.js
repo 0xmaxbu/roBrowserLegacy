@@ -335,6 +335,7 @@ class DB {
 			},
 			onLoad(),
 			true
+			true
 		);
 		const loadmsg = onLoad();
 		loadTable(
