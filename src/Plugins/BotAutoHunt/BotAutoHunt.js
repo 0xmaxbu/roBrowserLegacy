@@ -205,6 +205,7 @@ class BotAutoHunt {
 		this._lastMobSeenTick = 0; // 最后一次看到怪物的时间 (Date.now())
 		this._lastPatrolMoveTick = 0; // 最后一次巡逻移动的时间 (Date.now())
 		this._needMoveAwayFromPortal = false; // 过图后需远离传送门
+		this._portalStableTick = 0; // 过图返回后位置稳定计时
 
 		// ---------- 过图状态追踪 ----------
 		// 过图后 EntityManager 清空、Altitude 重载、PathFinding 暂时不可用
@@ -1370,13 +1371,15 @@ class BotAutoHunt {
 				this._returnTriedPortals = new Set();
 				this._returnTargetPortal = null;
 				this._needMoveAwayFromPortal = true; // 过图后远离传送门
+				this._portalStableTick = 0; // 重置稳定计时
 			}
 		} else if (currentMap && !this._lastMapName) {
 			this._lastMapName = currentMap;
 		}
 
-		// 过图宽限期：3 秒内不执行战斗逻辑（等地图/怪物加载完成）
-		if (this._mapChangeTick && Date.now() - this._mapChangeTick < 3000) {
+		// 过图宽限期：地图加载中不行动，加载完成后额外等 1.5 秒让怪物刷新
+		if (MapRenderer.loading) return;
+		if (this._mapChangeTick && Date.now() - this._mapChangeTick < 1500) {
 			return;
 		}
 
@@ -1399,20 +1402,34 @@ class BotAutoHunt {
 			return; // 返回途中不执行战斗逻辑
 		}
 
-		// 1.6. 过图返回后主动远离传送门 — 角色紧挨传送门会反复误触过图
+		// 1.6. 过图返回后主动远离传送门 — 等地图加载完 + 位置稳定后再计算安全路径
 		if (this._needMoveAwayFromPortal) {
-			if (Session.Entity.action === Session.Entity.ACTION.WALK) return;
+			if (MapRenderer.loading) return;
+			// 角色仍在走（过图惯性），重置稳定计时
+			if (Session.Entity.action === Session.Entity.ACTION.WALK) {
+				this._portalStableTick = 0;
+				return;
+			}
+			// 角色刚停止，记录停止时间
+			if (!this._portalStableTick) {
+				this._portalStableTick = Date.now();
+				return;
+			}
+			// 停止后等待 1 秒确认位置稳定
+			if (Date.now() - this._portalStableTick < 1000) return;
+
 			if (this._isOnCooldown('portal_avoid')) return;
 			this._markAction('portal_avoid', 1000);
 			const moved = this._moveAwayFromPortal();
 			if (moved) {
 				this._needMoveAwayFromPortal = false;
+				this._portalStableTick = 0;
 			}
 			return;
 		}
 
 		// 1.7. 巡逻前安全检查：角色当前坐标在传送门附近时强制远离
-		if (this._isNearPortal(Session.Entity.position[0] | 0, Session.Entity.position[1] | 0, 5)) {
+		if (this._isNearPortal(Session.Entity.position[0] | 0, Session.Entity.position[1] | 0, 7)) {
 			if (Session.Entity.action !== Session.Entity.ACTION.WALK && !this._isOnCooldown('portal_avoid')) {
 				this._markAction('portal_avoid', 1000);
 				this._moveAwayFromPortal();
@@ -1763,14 +1780,13 @@ class BotAutoHunt {
 
 			try {
 				const result = PathFinding.searchLong(cx, cy, tx, ty, 0, out);
-				// 无论 success 与否，out 数组都存储了沿射线的可达格
-				// pathLength = 射线走过的步数（不含起点）
 				if (result.pathLength >= 3) {
 					const lastIdx = result.pathLength * 2;
 					const rx = out[lastIdx];
 					const ry = out[lastIdx + 1];
 					if (rx !== undefined && ry !== undefined) {
-						if (this._isNearPortal(rx, ry)) continue; // 避开传送门附近
+						if (this._isNearPortal(rx, ry, 7)) continue;
+						if (!this._isPathSafe(out, result.pathLength, 5)) continue;
 						return [rx, ry];
 					}
 				}
@@ -1790,7 +1806,8 @@ class BotAutoHunt {
 				const rx = out[lastIdx];
 				const ry = out[lastIdx + 1];
 				if (rx !== undefined && ry !== undefined) {
-					if (this._isNearPortal(rx, ry)) continue; // 避开传送门附近
+					if (this._isNearPortal(rx, ry, 7)) continue;
+					if (!this._isPathSafe(out, pathLen - 1, 5)) continue;
 					return [rx, ry];
 				}
 			}
@@ -1817,9 +1834,29 @@ class BotAutoHunt {
 	}
 
 	/**
-	 * 过图后主动远离最近的传送门
-	 * 计算从最近传送门指向角色的方向，沿该方向走 20 格
-	 * @returns {boolean} true=已发送移动指令, false=不需要移动或寻路失败
+	 * 检查路径上每个中间格子是否都在传送门安全距离外
+	 * 跳过起点（i=1），因为起点安全性由调用方保证
+	 * @param {number[]} pathOut - PathFinding 输出的平坦数组 [x0,y0,x1,y1,...]
+	 * @param {number} pathLen - 路径步数
+	 * @param {number} radius - 安全半径（默认 5）
+	 * @returns {boolean} true=路径安全, false=途经传送门
+	 */
+	_isPathSafe(pathOut, pathLen, radius) {
+		if (radius === undefined) radius = 5;
+		for (let i = 1; i <= pathLen; i++) {
+			const px = pathOut[i * 2];
+			const py = pathOut[i * 2 + 1];
+			if (px !== undefined && py !== undefined && this._isNearPortal(px, py, radius)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * 过图后主动远离传送门（多传送门排斥 + 方向验证）
+	 * 收集 15 格内所有传送门，计算加权排斥方向，尝试多个角度找到安全逃离路径
+	 * @returns {boolean} true=已发送移动指令, false=不需要移动或所有方向不安全
 	 */
 	_moveAwayFromPortal() {
 		const cx = Session.Entity.position[0] | 0;
@@ -1828,37 +1865,45 @@ class BotAutoHunt {
 		const portals = MAP_CONNECTIONS[map];
 		if (!portals || !portals.length) return true;
 
-		let nearest = null;
-		let nearestD2 = Infinity;
+		// 收集 15 格内所有传送门
+		const nearby = [];
 		for (const p of portals) {
 			const dx = p.x - cx;
 			const dy = p.y - cy;
 			const d2 = dx * dx + dy * dy;
-			if (d2 < nearestD2) {
-				nearestD2 = d2;
-				nearest = p;
-			}
+			if (d2 < 15 * 15) nearby.push({ x: p.x, y: p.y, d2 });
 		}
-		if (!nearest) return true;
-		if (nearestD2 > 15 * 15) return true;
+		if (!nearby.length) return true;
 
-		const dx = cx - nearest.x;
-		const dy = cy - nearest.y;
-		const dist = Math.sqrt(dx * dx + dy * dy);
-		let tx, ty;
-		if (dist < 0.5) {
-			const angle = Math.random() * Math.PI * 2;
-			tx = Math.round(cx + Math.cos(angle) * 20);
-			ty = Math.round(cy + Math.sin(angle) * 20);
-		} else {
-			tx = Math.round(cx + (dx / dist) * 20);
-			ty = Math.round(cy + (dy / dist) * 20);
+		// 计算综合排斥方向（距离越近排斥力越大，反比于距离平方）
+		let repX = 0, repY = 0;
+		for (const p of nearby) {
+			const dx = cx - p.x;
+			const dy = cy - p.y;
+			const dist = Math.sqrt(p.d2) || 1;
+			repX += dx / (dist * dist);
+			repY += dy / (dist * dist);
 		}
-		return this._sendMoveTo(tx, ty);
+
+		const repLen = Math.sqrt(repX * repX + repY * repY) || 1;
+		const baseAngle = Math.atan2(repY / repLen, repX / repLen);
+
+		// 尝试 4 个方向：主方向 + 左右各 45° + 反方向兜底
+		const angles = [baseAngle, baseAngle + Math.PI / 4, baseAngle - Math.PI / 4, baseAngle + Math.PI];
+		for (const angle of angles) {
+			const tx = Math.round(cx + Math.cos(angle) * 20);
+			const ty = Math.round(cy + Math.sin(angle) * 20);
+			if (this._isNearPortal(tx, ty, 7)) continue;
+			const moved = this._sendMoveTo(tx, ty);
+			if (moved) return true;
+		}
+
+		return false;
 	}
 
 	/**
-	 * 发送移动封包到目标坐标（使用 PathFinding 寻路）
+	 * 发送移动封包到目标坐标（使用 PathFinding 寻路 + 路径安全检查）
+	 * 如果路径途经传送门区域，截断到安全的最远格子
 	 */
 	_sendMoveTo(tx, ty) {
 		const cx = Session.Entity.position[0] | 0;
@@ -1867,9 +1912,20 @@ class BotAutoHunt {
 		try {
 			const pathLen = PathFinding.search(cx, cy, tx, ty, 8, out);
 			if (pathLen > 2) {
-				const lastIdx = (pathLen - 1) * 2;
-				const destX = out[lastIdx];
-				const destY = out[lastIdx + 1];
+				// 从路径末端向前找第一个不在传送门附近的格子
+				let safeEnd = -1;
+				for (let i = pathLen - 1; i >= 1; i--) {
+					const px = out[i * 2];
+					const py = out[i * 2 + 1];
+					if (px !== undefined && py !== undefined && !this._isNearPortal(px, py, 5)) {
+						safeEnd = i;
+						break;
+					}
+				}
+				if (safeEnd < 1) return false; // 无安全落脚点
+
+				const destX = out[safeEnd * 2];
+				const destY = out[safeEnd * 2 + 1];
 				const pkt = new PACKET.CZ.REQUEST_MOVE2();
 				pkt.dest[0] = destX;
 				pkt.dest[1] = destY;

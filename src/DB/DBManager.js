@@ -671,7 +671,8 @@ class DB {
 				function (_index, key, val) {
 					(ItemTable[key] || (ItemTable[key] = {})).unidentifiedResourceName = val;
 				},
-				onLoad()
+				onLoad(),
+				true
 			);
 			loadTable(
 				'data/num2itemdesctable.txt',
@@ -700,7 +701,8 @@ class DB {
 				function (_index, key, val) {
 					(ItemTable[key] || (ItemTable[key] = {})).identifiedResourceName = val;
 				},
-				onLoad()
+				onLoad(),
+				true
 			);
 			loadTable(
 				'data/idnum2itemdesctable.txt',

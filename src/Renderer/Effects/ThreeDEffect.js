@@ -14,15 +14,12 @@ function randBetween(minimum, maximum) {
 const blendMode = {};
 let _soulStrikeFirstEffect = null;
 
-// 屏幕投影驱动 angle 所需的矩阵/向量与标定基准
+// 屏幕投影驱动 angle 所需的矩阵/向量
 const _mat4 = glMatrix.mat4;
 const _vec4 = glMatrix.vec4;
 const _projMatrix = _mat4.create();
 const _clipStart = _vec4.create();
 const _clipEnd = _vec4.create();
-// 标定基准：屏幕左下运动方向 atan2(-2.388,-0.772) ≈ -108° = -1.885rad，对应 angle=112.5° 视觉正确
-const BASE_SCREEN_THETA = -1.885;
-let _dirLogCount = 0;
 
 class ThreeDEffect {
 	constructor(effect, EF_Inst_Par, EF_Init_Par) {
@@ -347,7 +344,6 @@ class ThreeDEffect {
 
 		this.rotateWithCamera = effect.rotateWithCamera ? true : false;
 		this.rotateToScreenDirection = effect.rotateToScreenDirection ? true : false;
-		this._dirLogged = false;
 
 		if (effect.soulStrikePattern || effect.drainPattern) {
 			if (!EF_Inst_Par.duplicateID || effect.drainPattern) {
@@ -672,12 +668,7 @@ class ThreeDEffect {
 			_vec4.transformMat4(_clipStart, _clipStart, _projMatrix);
 			_vec4.transformMat4(_clipEnd, _clipEnd, _projMatrix);
 			const thetaScreen = Math.atan2(_clipEnd[1] - _clipStart[1], _clipEnd[0] - _clipStart[0]);
-			SpriteRenderer.angle = this.angle - (thetaScreen - BASE_SCREEN_THETA) * (180 / Math.PI);
-			if (!this._dirLogged && _dirLogCount < 10) {
-				this._dirLogged = true;
-				_dirLogCount++;
-				console.log('[rotateToScreenDirection]', this._effectName || '', 'thetaScreen=', thetaScreen.toFixed(3), 'angle=', SpriteRenderer.angle.toFixed(1), 'baseAngle=', this.angle);
-			}
+			SpriteRenderer.angle = thetaScreen * (180 / Math.PI);
 		} else {
 			SpriteRenderer.angle = this.rotateWithCamera ? this.angle + Camera.angle[1] : this.angle;
 		}
