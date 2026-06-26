@@ -15,6 +15,7 @@ import SkillInfo from 'DB/Skills/SkillInfo.js';
 import StatusConst from 'DB/Status/StatusConst.js';
 import StatusState from 'DB/Status/StatusState.js';
 import Emotions from 'DB/Emotions.js';
+import NpcTranslateTable from 'DB/NpcTranslateTable.js';
 import SkillEffect from 'DB/Skills/SkillEffect.js';
 import SkillActionTable from 'DB/Skills/SkillAction.js';
 import EffectConst from 'DB/Effects/EffectConst.js';
@@ -992,6 +993,14 @@ function onEntityTalkColor(pkt) {
 function onEntityIdentity(pkt) {
 	const entity = EntityManager.get(pkt.AID);
 	if (entity) {
+		// Translate NPC names client-side
+		if (entity.objecttype === Entity.TYPE_NPC ||
+			entity.objecttype === Entity.TYPE_NPC2 ||
+			entity.objecttype === Entity.TYPE_NPC_ABR ||
+			entity.objecttype === Entity.TYPE_NPC_BIONIC) {
+			pkt.CName = NpcTranslateTable.getTranslation(pkt.CName);
+		}
+
 		if (entity.display.name) {
 			entity.display.fakename = pkt.CName;
 		} else {
