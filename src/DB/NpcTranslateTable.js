@@ -28,9 +28,15 @@ const NpcTranslateTable = {
   'Kafra Teleportation': '卡普拉传送服务',
   'Kafra Teleportation#prontera': '卡普拉传送服务',
   'Cool Event Corp. Staff': '酷活动公司员工',
+  'Cool Event Staff': '酷活动员工',
   'Kafra Voting Staff': '卡普拉投票员工',
   'Kafra Voting Staff#prt': '卡普拉投票员工',
   'Cash Sales Guide': '现金商城引导员',
+
+  // Guild
+  'Guild Warehouse Manager': '公会仓库管理员',
+  'Clan Helper': '公会助手',
+  'Maroll Battle Recruiter': '马洛尔战场招募官',
 
   // ==========================================================
   // 二、商人/商店 (Merchants & Shops)
@@ -52,6 +58,15 @@ const NpcTranslateTable = {
   'Food Vendor': '食品商人',
   'Fruit Vendor': '水果商人',
   'Gemstone Trader': '宝石商人',
+  'Rare Diamond Merchant': '稀有钻石商人',
+  'Cat Paw Shrimp Merchant': '猫爪虾商人',
+  'Point Merchant': '点数商人',
+  'Talisman Merchant': '护符商人',
+  'Arrow Merchant': '箭矢商人',
+  'Ammunition Merchant': '弹药商人',
+  'Ninja Tool Merchant': '忍具商人',
+  'Mado Gear Merchant': '魔导机甲商人',
+  'Vendor from Milk Ranch': '牛奶牧场商人',
   'Arrow Dealer': '箭矢商人',
   'Arrows Merchant': '箭矢商人',
   'Potion Dealer': '药水商人',
@@ -111,6 +126,8 @@ const NpcTranslateTable = {
   'MvP Ladder Warper': 'MVP天梯传送员',
   'Zonda Rep': '宗达代表',
   'Zonda Rep#pron': '宗达代表',
+  'Zonda Teleportation': '宗达传送服务',
+  'Eden Teleport Officer': '伊甸园传送官',
   'Airship Staff': '飞空艇工作人员',
 
   // ==========================================================
@@ -152,6 +169,7 @@ const NpcTranslateTable = {
   'Little Girl': '小女孩',
   'Young Man': '年轻男子',
   'Young Woman': '年轻女子',
+  'Town Girl': '城镇少女',
   'Warmhearted woman': '热心女人',
   'Wandering Man': '流浪男子',
   Wanderer: '流浪者',
@@ -172,6 +190,7 @@ const NpcTranslateTable = {
   Miner: '矿工',
   Fisherman: '渔夫',
   Farmer: '农夫',
+  'Fruit Gardener': '水果园丁',
   Hunter: '猎人',
   Scholar: '学者',
   Adventurer: '冒险者',
@@ -179,6 +198,8 @@ const NpcTranslateTable = {
   Mason: '梅森',
   'Berry Toe': '贝瑞托',
   'Hypnotist': '催眠师',
+  'Chef Assistant': '厨师助手',
+  'Wedding Secretary': '婚礼秘书',
 
   // ==========================================================
   // 八、公告栏/标牌 (Bulletins & Signs)
@@ -186,6 +207,7 @@ const NpcTranslateTable = {
   'Bulletin Board': '公告栏',
   'Mission Board': '任务公告栏',
   Sign: '指示牌',
+  Signposts: '指示牌',
   'Sign Post': '指示牌',
   'Sign Post#Prt1': '指示牌',
   Billboard: '公告板',
@@ -252,6 +274,7 @@ const NpcTranslateTable = {
   // Other named NPCs (alphabetical)
   'Arthail': '阿尔塞尔',
   'Assistant Alonzo': '助手阿隆佐',
+  'Ayothaya Guide Noi': '艾尔贝塔向导诺伊',
   Cellerb: '塞勒布',
   'Clanux Heffron': '克拉努克斯·赫弗伦',
   Dassy: '达茜',
@@ -266,12 +289,15 @@ const NpcTranslateTable = {
   Lenneth: '蕾娜丝',
   'Nephia#1': '奈菲亚',
   'Nerlen#es07': '奈尔伦',
+  Nuernberg: '纽伦堡',
   'Oholy#pron': '奥荷莉',
   'Pandit chacha': '潘迪特叔叔',
   Putty: '普蒂',
   'Rina#Easter': '丽娜',
   'Rina\'s Little Friend': '丽娜的小伙伴',
+  Rothenburg: '罗滕堡',
   Sagle: '萨格尔',
+  Skoegul: '斯克古尔',
   Tialfi: '提亚菲',
   Tine: '蒂妮',
   'Twin Towers': '双子塔',
