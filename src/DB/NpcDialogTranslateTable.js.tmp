@@ -1,4 +1,0 @@
-// === Kafra fragment lines (multi-line mes) ===
-t("Welcome to the", "欢迎光临");
-t("Kafra Corporation.", "卡普拉公司。");
-t("The Kafra Corporation", "卡普拉公司");
