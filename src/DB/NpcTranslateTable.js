@@ -17,9 +17,14 @@ const NpcTranslateTable = {
   'Kafra Employee#3': '卡普拉服务员',
   'Kafra Employee#4': '卡普拉服务员',
   'Cool Event Corp. Staff': '酷活动公司员工',
+  'Kafra Voting Staff': '卡普拉投票员工',
 
   // Healer
   Healer: '治疗师',
+
+  // Prontera Town NPCs
+  'Smile Assistance': '微笑服务',
+  'Mado Gear Armorer': '魔导机甲装备商',
 
   // Tool/Weapon/Armor Dealers
   'Tool Dealer': '道具商人',
@@ -32,6 +37,11 @@ const NpcTranslateTable = {
 
   // Guides
   Guide: '向导',
+
+  // Custom NPCs
+  QuestMaster: '任务大师',
+  SampleGuide: '示例向导',
+  SampleShop: '示例商店',
 
   // Job NPCs
   'Job Master': '职业大师',
