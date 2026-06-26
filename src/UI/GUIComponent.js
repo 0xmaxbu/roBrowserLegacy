@@ -961,7 +961,7 @@ class GUIComponent {
 		}
 
 		// Default background
-		if (background) {
+		if (background && _DB) {
 			_Client?.loadFile(_DB.INTERFACE_PATH + background, dataURI => {
 				bgUri = dataURI;
 				if (dataURI instanceof ArrayBuffer) {
@@ -978,7 +978,7 @@ class GUIComponent {
 		}
 
 		// Active background
-		if (active) {
+		if (active && _DB) {
 			_Client?.loadFile(_DB.INTERFACE_PATH + active, dataURI => {
 				activeUri = dataURI;
 				if (node.classList.contains('active')) {
@@ -1008,7 +1008,7 @@ class GUIComponent {
 		}
 
 		// Hover background
-		if (hover) {
+		if (hover && _DB) {
 			_Client?.loadFile(_DB.INTERFACE_PATH + hover, dataURI => {
 				hoverUri = dataURI;
 			});
@@ -1023,7 +1023,7 @@ class GUIComponent {
 		}
 
 		// Down background
-		if (down) {
+		if (down && _DB) {
 			_Client?.loadFile(_DB.INTERFACE_PATH + down, dataURI => {
 				downUri = dataURI;
 			});
@@ -1045,7 +1045,7 @@ class GUIComponent {
 		}
 
 		// Preload images
-		if (preload) {
+		if (preload && _DB) {
 			const files = preload.split(';').map(f => _DB.INTERFACE_PATH + f.trim());
 			_Client?.loadFiles(files);
 		}
