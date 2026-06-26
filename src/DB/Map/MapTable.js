@@ -15,7 +15,7 @@ const MapInfo = {
 			subTitle: 'Expedition'
 		},
 		notifyEnter: true,
-		displayName: 'Biological Experiment Center'
+		displayName: '生物实验楼'
 	},
 	'1@tnm1.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -32,10 +32,10 @@ const MapInfo = {
 			subTitle: 'Greenwood Lake'
 		},
 		notifyEnter: true,
-		displayName: 'Greenwood Lake Dungeon 2F'
+		displayName: '公会地下密穴 2层'
 	},
 	'ra_temin.rsw': {
-		displayName: 'Inside Rachel Sanctuary'
+		displayName: '神殿内部'
 	},
 	'1@lhz.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -51,7 +51,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Copass'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Copass'
+		displayName: 'PvP : 罗盘 房间'
 	},
 	'verus01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -60,13 +60,13 @@ const MapInfo = {
 			subTitle: 'Verus City'
 		},
 		notifyEnter: true,
-		displayName: 'Laboratory-OPTATIO'
+		displayName: '实验楼-OPTATIO'
 	},
 	'payon_in03.rsw': {
-		displayName: 'Inside Payon'
+		displayName: '山岳之都 斐扬'
 	},
 	'job3_rune02.rsw': {
-		displayName: 'Test room for Rune Knight Job Change'
+		displayName: '符文骑士转职考场'
 	},
 	'hero_lb.rsw': {
 		backgroundBmp: 'siege',
@@ -75,7 +75,7 @@ const MapInfo = {
 			subTitle: 'Herosria'
 		},
 		notifyEnter: true,
-		displayName: 'Herosria Garden of Beginnings'
+		displayName: '希罗斯里亚初始庭园'
 	},
 	'rag_fes_a.rsw': {
 		backgroundBmp: 'village',
@@ -110,7 +110,7 @@ const MapInfo = {
 			mainTitle: 'Veins Field'
 		},
 		notifyEnter: true,
-		displayName: 'Veins Field'
+		displayName: '伯仁斯 旷野'
 	},
 	'ra_san02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -119,7 +119,7 @@ const MapInfo = {
 			subTitle: 'Rachel Temple'
 		},
 		notifyEnter: true,
-		displayName: 'Rachel Temple Sanctuary West Area 1F'
+		displayName: '拉赫 神殿圣域1层 西边地区'
 	},
 	'hero_tra.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -128,7 +128,7 @@ const MapInfo = {
 			subTitle: 'Sanctuary Herosria'
 		},
 		notifyEnter: true,
-		displayName: 'Sanctuary Herosria Training Grounds'
+		displayName: '圣域希罗斯里亚训练场'
 	},
 	'1@xm_d2.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -153,7 +153,7 @@ const MapInfo = {
 			mainTitle: 'Suei Long Gon'
 		},
 		notifyEnter: true,
-		displayName: 'Suei Long Gon'
+		displayName: '龙之城 审良宫'
 	},
 	'pvp_n_2-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -161,10 +161,10 @@ const MapInfo = {
 			mainTitle: 'PvP Room Copass'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Copass'
+		displayName: 'PvP : 罗盘 房间'
 	},
 	'dew_in01.rsw': {
-		displayName: 'Inside Dewata'
+		displayName: '贾提族部落 内部'
 	},
 	'ayo_dun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -172,7 +172,7 @@ const MapInfo = {
 			mainTitle: 'Inside Ancient Shrine'
 		},
 		notifyEnter: true,
-		displayName: 'Inside Ancient Shrine'
+		displayName: '哎哟泰雅 古代神殿内部'
 	},
 	'star_frst.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -180,7 +180,7 @@ const MapInfo = {
 			mainTitle: 'Yu Seong Lim'
 		},
 		notifyEnter: true,
-		displayName: 'Yu Seong Lim'
+		displayName: '流星林'
 	},
 	'1@bamq.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -188,7 +188,7 @@ const MapInfo = {
 			mainTitle: 'Unfair Dock'
 		},
 		notifyEnter: true,
-		displayName: 'Unfair Dock'
+		displayName: '飞空艇机场'
 	},
 	'1@def03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -206,7 +206,7 @@ const MapInfo = {
 			subTitle: 'Native Hidout'
 		},
 		notifyEnter: true,
-		displayName: 'Gray Wolf Village'
+		displayName: '灰狼村'
 	},
 	'tur_d03_i.rsw': {
 		backgroundBmp: 'dungeon',
@@ -218,7 +218,7 @@ const MapInfo = {
 		displayName: 'Desolate Village'
 	},
 	'mosk_ship.rsw': {
-		displayName: 'Charabel'
+		displayName: '船舶'
 	},
 	'1@vrev.rsw': {
 		backgroundBmp: 'dungeon',
@@ -244,7 +244,7 @@ const MapInfo = {
 			mainTitle: 'Mt.Mjolnir North Area'
 		},
 		notifyEnter: true,
-		displayName: 'Mt.Mjolnir North Area'
+		displayName: '妙勒尼山脉 北边地区'
 	},
 	'gon_test.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -252,7 +252,7 @@ const MapInfo = {
 			mainTitle: 'Kunlun Fighting Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Kunlun Fighting Ground'
+		displayName: '昆仑 战斗场'
 	},
 	'bra_dun02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -261,7 +261,7 @@ const MapInfo = {
 			subTitle: 'Brasilis'
 		},
 		notifyEnter: true,
-		displayName: 'Beyond the Waterfall'
+		displayName: '巴西瀑布里 洞穴内部'
 	},
 	'xmas.rsw': {
 		backgroundBmp: 'village',
@@ -270,7 +270,7 @@ const MapInfo = {
 			subTitle: 'Snow Village'
 		},
 		notifyEnter: true,
-		displayName: 'Lutie, the Snow Village'
+		displayName: '白雪村落 姜饼城'
 	},
 	'iz_ac02_a.rsw': {
 		backgroundBmp: 'noname_s1',
@@ -278,7 +278,7 @@ const MapInfo = {
 			subTitle: 'Criatura Academy F2'
 		},
 		notifyEnter: true,
-		displayName: 'Criatura Academy F2'
+		displayName: '魔法学院 2层'
 	},
 	'jor_back4.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -302,7 +302,7 @@ const MapInfo = {
 			mainTitle: 'Jeepney'
 		},
 		notifyEnter: true,
-		displayName: 'Inside of Jeepney'
+		displayName: '吉普尼车 内部'
 	},
 	'rockmi1.rsw': {
 		backgroundBmp: 'dungeon',
@@ -310,7 +310,7 @@ const MapInfo = {
 			mainTitle: 'Rockridge Mine F1'
 		},
 		notifyEnter: true,
-		displayName: 'Rockridge Mine'
+		displayName: '洛克里奇矿山'
 	},
 	'jor_back6.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -327,10 +327,10 @@ const MapInfo = {
 			subTitle: 'Rachel'
 		},
 		notifyEnter: true,
-		displayName: 'Valfreyja'
+		displayName: '发菲依雅公会'
 	},
 	'ordeal_2-2.rsw': {
-		displayName: 'Battle Ordeal Mode'
+		displayName: '团体战斗模式'
 	},
 	'arug_cas01.rsw': {
 		backgroundBmp: 'siege',
@@ -339,7 +339,7 @@ const MapInfo = {
 			subTitle: 'Valfreyja'
 		},
 		notifyEnter: true,
-		displayName: 'Mardol Castle'
+		displayName: '发菲依雅公会'
 	},
 	'tha_t11.rsw': {
 		backgroundBmp: 'dungeon',
@@ -348,7 +348,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Tower Upper Level'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Upper Level - Room of Despair'
+		displayName: '达纳托斯之塔 上层 绝望之房'
 	},
 	'1@4sac.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -356,7 +356,7 @@ const MapInfo = {
 			mainTitle: 'Shadow Mension'
 		},
 		notifyEnter: true,
-		displayName: 'Shadow Mension'
+		displayName: '影宅'
 	},
 	'lou_dun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -364,10 +364,10 @@ const MapInfo = {
 			mainTitle: 'Inside the Royal Tomb'
 		},
 		notifyEnter: true,
-		displayName: 'Inside the Royal Tomb'
+		displayName: '龙之城王陵 内部'
 	},
 	'priest_1-1.rsw': {
-		displayName: 'The Sanctum'
+		displayName: '牧师转职所'
 	},
 	'1@md_pay.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -383,7 +383,7 @@ const MapInfo = {
 			mainTitle: 'Od Canyon'
 		},
 		notifyEnter: true,
-		displayName: 'Od Canyon'
+		displayName: '拉赫欧兹峡谷'
 	},
 	'iz_d05_i.rsw': {
 		backgroundBmp: 'dungeon',
@@ -391,7 +391,7 @@ const MapInfo = {
 			mainTitle: 'Deep Sea Cave'
 		},
 		notifyEnter: true,
-		displayName: 'Deep Sea Cave'
+		displayName: '深渊海底洞穴下层'
 	},
 	'1@4inq.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -399,7 +399,7 @@ const MapInfo = {
 			mainTitle: 'Monastery Basement'
 		},
 		notifyEnter: true,
-		displayName: 'Monastery Basement'
+		displayName: '修道院地下'
 	},
 	'pvp_y_4-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -407,7 +407,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Izlude'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Izlude'
+		displayName: 'PvP : 依斯鲁得'
 	},
 	'1@vrhha.rsw': {
 		backgroundBmp: 'noname',
@@ -424,7 +424,7 @@ const MapInfo = {
 			mainTitle: 'Morocc Castle - Basement'
 		},
 		notifyEnter: true,
-		displayName: 'Morocc Castle - Basement'
+		displayName: '梦罗克城地下'
 	},
 	'aldebaran.rsw': {
 		backgroundBmp: 'village',
@@ -433,7 +433,7 @@ const MapInfo = {
 			subTitle: 'Border City in the Rune-Midgarts Kingdom'
 		},
 		notifyEnter: true,
-		displayName: 'Border City Aldebaran'
+		displayName: '运河之都 艾尔帕兰'
 	},
 	'3@ch_t.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -465,7 +465,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Payon'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Payon'
+		displayName: 'PvP : 斐扬'
 	},
 	'yuno_in05.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -481,7 +481,7 @@ const MapInfo = {
 			mainTitle: 'Twilight Garden'
 		},
 		notifyEnter: true,
-		displayName: 'Twilight Garden'
+		displayName: '暮光庭院'
 	},
 	'pvp_n_8-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -489,7 +489,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Copass'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Copass'
+		displayName: 'PvP : 罗盘 房间'
 	},
 	'pvp_n_1-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -497,7 +497,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Rock On'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Rock On'
+		displayName: 'PvP : 雷达锁定 房间'
 	},
 	'jor_root3.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -513,10 +513,10 @@ const MapInfo = {
 			mainTitle: 'Nogg Road F3'
 		},
 		notifyEnter: true,
-		displayName: 'Nogg Road F3'
+		displayName: '朱诺 诺可罗德 3层'
 	},
 	'ayo_in02.rsw': {
-		displayName: 'Inside Ayothaya'
+		displayName: '哎哟泰雅 内部'
 	},
 	'pvp_n_6-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -524,7 +524,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Sandwich'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Sandwich'
+		displayName: 'PvP : 3明治 房间'
 	},
 	'yuno_fild09.rsw': {
 		backgroundBmp: 'field_s2',
@@ -532,7 +532,7 @@ const MapInfo = {
 			mainTitle: 'Schwartzwald Guards Camp'
 		},
 		notifyEnter: true,
-		displayName: 'Schwartzwald Guards Camp'
+		displayName: '秀发兹发德 警备队露营地'
 	},
 	'prt_fild08a.rsw': {
 		backgroundBmp: 'field_s2',
@@ -540,7 +540,7 @@ const MapInfo = {
 			mainTitle: 'South Field of Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'bat_room.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -548,7 +548,7 @@ const MapInfo = {
 			mainTitle: 'Battlegrounds Waiting Room'
 		},
 		notifyEnter: true,
-		displayName: 'Battlegrounds Waiting Room'
+		displayName: '战场等候室'
 	},
 	'jor_twig.rsw': {
 		backgroundBmp: 'village',
@@ -560,7 +560,7 @@ const MapInfo = {
 		displayName: "Isgard Sanctuary Twig's Nest"
 	},
 	'job_soul.rsw': {
-		displayName: 'Your Heart'
+		displayName: '灵魂之地'
 	},
 	'pvp_y_6-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -568,7 +568,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Izlude'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Izlude'
+		displayName: 'PvP : 依斯鲁得'
 	},
 	'1@swat.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -576,7 +576,7 @@ const MapInfo = {
 			mainTitle: 'Heart Hunter Military Base'
 		},
 		notifyEnter: true,
-		displayName: 'Heart Hunter Military Base'
+		displayName: '邪心猎人军事基地'
 	},
 	'lasa_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -584,7 +584,7 @@ const MapInfo = {
 			mainTitle: 'Dragon Nest F1'
 		},
 		notifyEnter: true,
-		displayName: 'Dragon Nest'
+		displayName: '龙巢穴'
 	},
 	'dic_dun03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -593,7 +593,7 @@ const MapInfo = {
 			subTitle: 'Kamidal Tunnel'
 		},
 		notifyEnter: true,
-		displayName: 'Scaraba Hole - Nightmare Mode'
+		displayName: '斯卡勒伯熔岩'
 	},
 	'pvp_y_5-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -601,7 +601,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Izlude'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Izlude'
+		displayName: 'PvP : 依斯鲁得'
 	},
 	'pvp_c_room.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -609,7 +609,7 @@ const MapInfo = {
 			mainTitle: 'PvP Waiting Room'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Waiting Room'
+		displayName: 'PvP : 等候室'
 	},
 	'hero_in3.rsw': {
 		backgroundBmp: 'siege',
@@ -618,7 +618,7 @@ const MapInfo = {
 			subTitle: 'Herosria'
 		},
 		notifyEnter: true,
-		displayName: 'Herosria Fall Garden'
+		displayName: '希罗斯里亚秋季庭园'
 	},
 	'1@def01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -644,7 +644,7 @@ const MapInfo = {
 			mainTitle: 'Catacombs'
 		},
 		notifyEnter: true,
-		displayName: 'Catacombs'
+		displayName: '地下墓穴'
 	},
 	'2@cata.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -652,7 +652,7 @@ const MapInfo = {
 			mainTitle: 'Sealed Shrine'
 		},
 		notifyEnter: true,
-		displayName: 'Sealed Shrine'
+		displayName: '封印的神殿'
 	},
 	'ba_2whs02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -660,7 +660,7 @@ const MapInfo = {
 			mainTitle: 'Lower Floor of Tartaros Storage'
 		},
 		notifyEnter: true,
-		displayName: 'Lower Floor of Tartaros Storage'
+		displayName: '塔尔塔罗斯储藏室下层'
 	},
 	'pvp_n_6-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -668,10 +668,10 @@ const MapInfo = {
 			mainTitle: 'PvP Room Rock On'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Rock On'
+		displayName: 'PvP : 雷达锁定 房间'
 	},
 	'bra_in01.rsw': {
-		displayName: 'Inside Brasilis'
+		displayName: '巴西内部'
 	},
 	'gef_fild00.rsw': {
 		backgroundBmp: 'field_s2',
@@ -679,7 +679,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Field'
+		displayName: '吉芬 旷野'
 	},
 	'prtg_cas04.rsw': {
 		backgroundBmp: 'siege',
@@ -688,7 +688,7 @@ const MapInfo = {
 			subTitle: 'Valkyrie Realm'
 		},
 		notifyEnter: true,
-		displayName: 'Skoegul Castle'
+		displayName: '瓦尔基里雷恩 公会'
 	},
 	'1@ghg.rsw': {
 		backgroundBmp: 'dungeon',
@@ -697,7 +697,7 @@ const MapInfo = {
 			subTitle: 'Floating Garden'
 		},
 		notifyEnter: true,
-		displayName: 'Orthos Aqua'
+		displayName: '水精灵奥尔图斯'
 	},
 	'gld_dun04_2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -706,7 +706,7 @@ const MapInfo = {
 			subTitle: 'Brittoria'
 		},
 		notifyEnter: true,
-		displayName: 'Brittoria Dungeon 2F'
+		displayName: '公会地下密穴 2层'
 	},
 	'payg_cas01.rsw': {
 		backgroundBmp: 'siege',
@@ -715,7 +715,7 @@ const MapInfo = {
 			subTitle: 'Greenwood Lake'
 		},
 		notifyEnter: true,
-		displayName: 'Bright Arbor Castle'
+		displayName: '青林湖泊 公会'
 	},
 	'prtg_cas05.rsw': {
 		backgroundBmp: 'siege',
@@ -724,13 +724,13 @@ const MapInfo = {
 			subTitle: 'Valkyrie Realm'
 		},
 		notifyEnter: true,
-		displayName: 'Gondul Castle'
+		displayName: '瓦尔基里雷恩 公会'
 	},
 	'sec_in01.rsw': {
-		displayName: 'Inside Valhalla'
+		displayName: '巴哈拉宫 内部'
 	},
 	'mosk_in.rsw': {
-		displayName: 'Inside Moscovia'
+		displayName: '莫斯科比亚 内部'
 	},
 	'bl_venom.rsw': {
 		backgroundBmp: 'dungeon',
@@ -748,7 +748,7 @@ const MapInfo = {
 			subTitle: 'Comodo'
 		},
 		notifyEnter: true,
-		displayName: 'Kokomo Beach'
+		displayName: '克魔岛 海边'
 	},
 	'1@cor.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -756,7 +756,7 @@ const MapInfo = {
 			mainTitle: 'Cor'
 		},
 		notifyEnter: true,
-		displayName: 'Cor Memorial'
+		displayName: '柯尔记忆副本'
 	},
 	'pay_fild04.rsw': {
 		backgroundBmp: 'field_s2',
@@ -764,7 +764,7 @@ const MapInfo = {
 			mainTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert'
+		displayName: '苏克拉特沙漠'
 	},
 	'1@exnw.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -772,7 +772,7 @@ const MapInfo = {
 			mainTitle: 'Clana Nemieri'
 		},
 		notifyEnter: true,
-		displayName: 'Clana Nemieri'
+		displayName: '夜巡者转职考试地点'
 	},
 	'moc_fild18.rsw': {
 		backgroundBmp: 'field_s2',
@@ -780,10 +780,10 @@ const MapInfo = {
 			mainTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert'
+		displayName: '苏克拉特沙漠'
 	},
 	'job_sage.rsw': {
-		displayName: 'Sage Realm'
+		displayName: '贤者转职考场'
 	},
 	'job_gun.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -791,7 +791,7 @@ const MapInfo = {
 			mainTitle: 'Shelter of Rebellion'
 		},
 		notifyEnter: true,
-		displayName: 'Shelter of Rebellion'
+		displayName: '解放的休憩区'
 	},
 	'1@ffp.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -817,7 +817,7 @@ const MapInfo = {
 			subTitle: 'Illusion'
 		},
 		notifyEnter: true,
-		displayName: '250 Pages'
+		displayName: '第250页'
 	},
 	've_fild07.rsw': {
 		backgroundBmp: 'field_s2',
@@ -825,7 +825,7 @@ const MapInfo = {
 			mainTitle: 'Veins Field'
 		},
 		notifyEnter: true,
-		displayName: 'Veins Field'
+		displayName: '伯仁斯 旷野'
 	},
 	'c_tower4.rsw': {
 		backgroundBmp: 'dungeon',
@@ -834,7 +834,7 @@ const MapInfo = {
 			subTitle: 'Aldebaran'
 		},
 		notifyEnter: true,
-		displayName: 'Clock Tower F4'
+		displayName: '艾尔帕兰 钟塔上层 4层'
 	},
 	'ra_fild05.rsw': {
 		backgroundBmp: 'field_s2',
@@ -842,7 +842,7 @@ const MapInfo = {
 			mainTitle: 'Audumla Grassland'
 		},
 		notifyEnter: true,
-		displayName: 'Audumla Grassland'
+		displayName: '拉赫 奥顿拉草原'
 	},
 	'ra_san05.rsw': {
 		backgroundBmp: 'dungeon',
@@ -851,7 +851,7 @@ const MapInfo = {
 			subTitle: 'Rachel Temple'
 		},
 		notifyEnter: true,
-		displayName: 'Rachel Temple Sanctuary Central Area 2F'
+		displayName: '拉赫 神殿圣域2层 中央地区'
 	},
 	'hero_ent3.rsw': {
 		backgroundBmp: 'siege',
@@ -869,7 +869,7 @@ const MapInfo = {
 			subTitle: 'Rockridge'
 		},
 		notifyEnter: true,
-		displayName: 'Underground Waterway'
+		displayName: '地下水道'
 	},
 	'prt_elib.rsw': {
 		backgroundBmp: 'village_s1',
@@ -885,7 +885,7 @@ const MapInfo = {
 			subTitle: 'Criatura Academy F1'
 		},
 		notifyEnter: true,
-		displayName: 'Criatura Academy F1'
+		displayName: '魔法学院 1层'
 	},
 	'gef_fild09.rsw': {
 		backgroundBmp: 'field_s2',
@@ -893,7 +893,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Field'
+		displayName: '吉芬 旷野'
 	},
 	'1@eom.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -901,7 +901,7 @@ const MapInfo = {
 			mainTitle: 'Shrine of Demon God'
 		},
 		notifyEnter: true,
-		displayName: 'Shrine of Demon God'
+		displayName: '魔神殿'
 	},
 	'1@exsh.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -909,7 +909,7 @@ const MapInfo = {
 			mainTitle: 'Deep Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Deep Forest'
+		displayName: '深邃的森林'
 	},
 	'z_agit.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -925,7 +925,7 @@ const MapInfo = {
 			mainTitle: 'Robot Factory F2'
 		},
 		notifyEnter: true,
-		displayName: 'Robot Factory F2'
+		displayName: '机械娃娃工厂 2层'
 	},
 	'ma_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -933,7 +933,7 @@ const MapInfo = {
 			mainTitle: 'Bangungot Hospital F1'
 		},
 		notifyEnter: true,
-		displayName: 'Bangungot Hospital F1'
+		displayName: '噩梦医院 1层'
 	},
 	'thor_camp.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -941,7 +941,7 @@ const MapInfo = {
 			mainTitle: 'Thor Volcano Camp'
 		},
 		notifyEnter: true,
-		displayName: 'Thor Volcano Camp'
+		displayName: '伯仁斯托尔火山 后勤基地'
 	},
 	'1@exds.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -949,7 +949,7 @@ const MapInfo = {
 			mainTitle: 'Foot of Mt. Mumyeong'
 		},
 		notifyEnter: true,
-		displayName: 'Foot of Mt. Mumyeong'
+		displayName: '无名山山脚'
 	},
 	'2@exds.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -957,16 +957,16 @@ const MapInfo = {
 			mainTitle: 'Foot of Mt. Mumyeong'
 		},
 		notifyEnter: true,
-		displayName: 'Foot of Mt. Mumyeong'
+		displayName: '无名山山脚'
 	},
 	'lhz_in03.rsw': {
-		displayName: 'Inside Lighthalzen'
+		displayName: '里希塔乐镇 内部'
 	},
 	'turbo_e_16.rsw': {
-		displayName: 'Turbo Track Stadium'
+		displayName: '竞速场地 竞赛场'
 	},
 	'job3_arch01.rsw': {
-		displayName: 'Waiting room for Archbishop Job Change'
+		displayName: '大主教转职等候室'
 	},
 	'prt_monk.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -974,7 +974,7 @@ const MapInfo = {
 			mainTitle: 'St. Capitolina Abbey'
 		},
 		notifyEnter: true,
-		displayName: 'St. Capitolina Abbey'
+		displayName: '圣●卡毕利那 修道院'
 	},
 	'odin_tem02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -990,7 +990,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'mjolnir_06.rsw': {
 		backgroundBmp: 'field_s2',
@@ -998,7 +998,7 @@ const MapInfo = {
 			mainTitle: 'Mt.Mjolnir South Area'
 		},
 		notifyEnter: true,
-		displayName: 'Mt.Mjolnir South Area'
+		displayName: '妙勒尼山脉 南边地区'
 	},
 	'schg_cas04.rsw': {
 		backgroundBmp: 'siege',
@@ -1007,7 +1007,7 @@ const MapInfo = {
 			subTitle: 'Nidhoggur'
 		},
 		notifyEnter: true,
-		displayName: 'Hljod Castle'
+		displayName: '尼它堆公会'
 	},
 	'prt_sewb4.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1016,7 +1016,7 @@ const MapInfo = {
 			subTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Culvert F4'
+		displayName: '普隆德拉地下水道 4层'
 	},
 	'jor_back5.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -1032,7 +1032,7 @@ const MapInfo = {
 			mainTitle: 'Ida Plains'
 		},
 		notifyEnter: true,
-		displayName: 'Ida Plains'
+		displayName: '拉赫 伊达 旷野'
 	},
 	'tha_t08.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1041,7 +1041,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Tower Upper Level'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Upper Level - Room of Angel'
+		displayName: '达纳托斯之塔 上层 天使之房'
 	},
 	'gefg_cas04.rsw': {
 		backgroundBmp: 'siege',
@@ -1050,7 +1050,7 @@ const MapInfo = {
 			subTitle: 'Britoniah'
 		},
 		notifyEnter: true,
-		displayName: 'Bergel Castle'
+		displayName: '咘哩妥利亚 公会'
 	},
 	'ra_fild10.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1058,7 +1058,7 @@ const MapInfo = {
 			mainTitle: 'Od Canyon'
 		},
 		notifyEnter: true,
-		displayName: 'Od Canyon'
+		displayName: '拉赫欧兹峡谷'
 	},
 	'que_temsky.rsw': {
 		backgroundBmp: 'noname',
@@ -1075,7 +1075,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Alberta'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Alberta'
+		displayName: 'PvP : 艾尔贝塔'
 	},
 	'1@dth1.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1083,7 +1083,7 @@ const MapInfo = {
 			mainTitle: 'Bios Island'
 		},
 		notifyEnter: true,
-		displayName: 'Bios Island'
+		displayName: '拜欧斯岛'
 	},
 	'gefg_cas01.rsw': {
 		backgroundBmp: 'siege',
@@ -1092,7 +1092,7 @@ const MapInfo = {
 			subTitle: 'Britoniah'
 		},
 		notifyEnter: true,
-		displayName: 'Repherion Castle'
+		displayName: '咘哩妥利亚 公会'
 	},
 	'1@halo.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1109,10 +1109,10 @@ const MapInfo = {
 			subTitle: 'Illusion'
 		},
 		notifyEnter: true,
-		displayName: 'Luanda, the North Cave'
+		displayName: '北边洞穴 卢安达'
 	},
 	'job_monk.rsw': {
-		displayName: 'Saint Capitolina Abbey'
+		displayName: '圣●卡毕利那 修道院'
 	},
 	'lasagna.rsw': {
 		backgroundBmp: 'village',
@@ -1121,7 +1121,7 @@ const MapInfo = {
 			subTitle: 'Far-Star Continental Port Town'
 		},
 		notifyEnter: true,
-		displayName: 'Port Town Lasagna'
+		displayName: '港口都市 罗札纳'
 	},
 	'iz_dun04.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1130,7 +1130,7 @@ const MapInfo = {
 			subTitle: 'Baylan Island'
 		},
 		notifyEnter: true,
-		displayName: 'Undersea Tunnel B5'
+		displayName: '依斯鲁得海底洞穴 5层'
 	},
 	'2@gl_k2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1148,10 +1148,10 @@ const MapInfo = {
 			subTitle: 'Valkyrie Realm'
 		},
 		notifyEnter: true,
-		displayName: 'Swanhild Castle'
+		displayName: '瓦尔基里雷恩 公会'
 	},
 	'1@soul.rsw': {
-		displayName: 'Soul Passage'
+		displayName: '灵魂的通道'
 	},
 	'1@sthd.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1159,7 +1159,7 @@ const MapInfo = {
 			mainTitle: 'Air Fortress - Top Floor'
 		},
 		notifyEnter: true,
-		displayName: 'Air Fortress - Top Floor'
+		displayName: '空中要塞最顶层'
 	},
 	'pvp_n_5-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1167,7 +1167,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Rock On'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Rock On'
+		displayName: 'PvP : 雷达锁定 房间'
 	},
 	'bl_death.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1184,7 +1184,7 @@ const MapInfo = {
 			mainTitle: 'Nameless Island Entrance'
 		},
 		notifyEnter: true,
-		displayName: 'Nameless Island Entrance'
+		displayName: '无名岛'
 	},
 	'pay_gld.rsw': {
 		backgroundBmp: 'siege',
@@ -1193,7 +1193,7 @@ const MapInfo = {
 			subTitle: 'Payon'
 		},
 		notifyEnter: true,
-		displayName: 'Greenwood Lake'
+		displayName: '青林湖泊'
 	},
 	'kh_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1201,7 +1201,7 @@ const MapInfo = {
 			mainTitle: 'Robot Factory F1'
 		},
 		notifyEnter: true,
-		displayName: 'Robot Factory F1'
+		displayName: '机械娃娃工厂 1层'
 	},
 	'xmas_dun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1210,10 +1210,10 @@ const MapInfo = {
 			subTitle: 'Lutie'
 		},
 		notifyEnter: true,
-		displayName: 'Toy Factory Warehouse'
+		displayName: '姜饼城 玩具工厂仓库'
 	},
 	'alberta_in.rsw': {
-		displayName: 'Inside Alberta'
+		displayName: '港口之都 艾尔贝塔'
 	},
 	'prt_fild03.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1221,7 +1221,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'pvp_n_1-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1229,7 +1229,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Undercross'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Undercross'
+		displayName: 'PvP : 反十字 房间'
 	},
 	'dic_fild01.rsw': {
 		backgroundBmp: 'field',
@@ -1238,7 +1238,7 @@ const MapInfo = {
 			subTitle: 'Jotunheim'
 		},
 		notifyEnter: true,
-		displayName: 'Bottom of Kamidal Mountain'
+		displayName: '卡米达山麓'
 	},
 	'ra_fild11.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1246,7 +1246,7 @@ const MapInfo = {
 			mainTitle: 'Ida Plains'
 		},
 		notifyEnter: true,
-		displayName: 'Ida Plains'
+		displayName: '拉赫 伊达平原'
 	},
 	'1@mist.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1254,7 +1254,7 @@ const MapInfo = {
 			mainTitle: 'The Hazy Maze Forest'
 		},
 		notifyEnter: true,
-		displayName: 'The Hazy Maze Forest'
+		displayName: '迷雾森林'
 	},
 	'moc_pryd04.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1263,7 +1263,7 @@ const MapInfo = {
 			subTitle: 'Morroc'
 		},
 		notifyEnter: true,
-		displayName: 'Inside Pyramid F4'
+		displayName: '梦罗克金字塔 4层'
 	},
 	'gld_dun04.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1272,7 +1272,7 @@ const MapInfo = {
 			subTitle: 'Britoniah'
 		},
 		notifyEnter: true,
-		displayName: 'Britoniah Guild Dungeon'
+		displayName: '公会地下密穴'
 	},
 	'verus03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1281,7 +1281,7 @@ const MapInfo = {
 			subTitle: 'Verus City'
 		},
 		notifyEnter: true,
-		displayName: 'Verus - Central Plaza'
+		displayName: '贝鲁兹 中央广场'
 	},
 	'niflheim.rsw': {
 		backgroundBmp: 'village',
@@ -1290,7 +1290,7 @@ const MapInfo = {
 			subTitle: 'Realm of the Dead'
 		},
 		notifyEnter: true,
-		displayName: 'Niflheim, Realm of the Dead'
+		displayName: '亡者国度 尼芙菲姆'
 	},
 	'guild_vs3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1298,7 +1298,7 @@ const MapInfo = {
 			mainTitle: 'Guild Arena'
 		},
 		notifyEnter: true,
-		displayName: 'Guild Arena'
+		displayName: '公会对抗竞技场'
 	},
 	'pvp_y_8-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1306,7 +1306,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Alberta'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Alberta'
+		displayName: 'PvP : 艾尔贝塔'
 	},
 	'6@thts.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1315,7 +1315,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Memory'
 		},
 		notifyEnter: true,
-		displayName: 'Memory of Despair'
+		displayName: '绝望的记忆'
 	},
 	'5@thts.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1324,7 +1324,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Memory'
 		},
 		notifyEnter: true,
-		displayName: 'Memory of Sadness'
+		displayName: '悲哀的记忆'
 	},
 	'8@thts.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1333,7 +1333,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Memory'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower'
+		displayName: '达纳托斯塔'
 	},
 	'7@thts.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1342,7 +1342,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Memory'
 		},
 		notifyEnter: true,
-		displayName: 'Memories of Anger'
+		displayName: '愤怒的记忆'
 	},
 	'2@thts.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1360,7 +1360,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Memory'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower'
+		displayName: '达纳托斯塔'
 	},
 	'4@thts.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1369,7 +1369,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Memory'
 		},
 		notifyEnter: true,
-		displayName: 'Memory of Agony'
+		displayName: '苦恼的记忆'
 	},
 	'3@thts.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1378,7 +1378,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Memory'
 		},
 		notifyEnter: true,
-		displayName: 'Hateful Memories'
+		displayName: '憎恨的记忆'
 	},
 	'jor_maze.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1394,10 +1394,10 @@ const MapInfo = {
 			mainTitle: 'Morestone Prairie'
 		},
 		notifyEnter: true,
-		displayName: 'Morestone Prairie'
+		displayName: '莫尔斯敦草地'
 	},
 	'job_thief1.rsw': {
-		displayName: 'Mushroom Farm'
+		displayName: '盗贼转职所'
 	},
 	'rockrdg1.rsw': {
 		backgroundBmp: 'field',
@@ -1406,7 +1406,7 @@ const MapInfo = {
 			subTitle: 'Rockridge'
 		},
 		notifyEnter: true,
-		displayName: 'Kiwawa Desert'
+		displayName: '契瓦瓦沙漠'
 	},
 	'gl_cas01_.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1415,7 +1415,7 @@ const MapInfo = {
 			subTitle: 'Abyss Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Abyss Glastheim Castle F1'
+		displayName: '克雷斯特汉姆古城深渊1层'
 	},
 	'moc_fild19.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1423,7 +1423,7 @@ const MapInfo = {
 			mainTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert'
+		displayName: '苏克拉特沙漠'
 	},
 	'lasa_fild01.rsw': {
 		backgroundBmp: 'field',
@@ -1432,7 +1432,7 @@ const MapInfo = {
 			subTitle: 'Lasagna'
 		},
 		notifyEnter: true,
-		displayName: 'Ravioli Plain, Border Post'
+		displayName: '罗比奥平原岗亭'
 	},
 	'air_if.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1440,7 +1440,7 @@ const MapInfo = {
 			mainTitle: 'Inside the Aircraft Ifho'
 		},
 		notifyEnter: true,
-		displayName: 'Inside the Aircraft Ifho'
+		displayName: '飞空艇伊夫号内部'
 	},
 	'1@tre.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1457,7 +1457,7 @@ const MapInfo = {
 			subTitle: 'Abyss Lake'
 		},
 		notifyEnter: true,
-		displayName: 'Abyss Lake Underground Cave 2F'
+		displayName: '毀葛深渊湖水 地下洞穴2层'
 	},
 	'ma_zif02.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1465,7 +1465,7 @@ const MapInfo = {
 			mainTitle: 'Jeepney'
 		},
 		notifyEnter: true,
-		displayName: 'Inside of Jeepney'
+		displayName: '吉普尼车 内部'
 	},
 	'jor_twice.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -1485,7 +1485,7 @@ const MapInfo = {
 		displayName: 'Fantasy Series-Lilium Palace'
 	},
 	'auction_02.rsw': {
-		displayName: 'Auction Hall'
+		displayName: '拍卖场'
 	},
 	'hero_in2.rsw': {
 		backgroundBmp: 'siege',
@@ -1494,7 +1494,7 @@ const MapInfo = {
 			subTitle: 'Herosria'
 		},
 		notifyEnter: true,
-		displayName: 'Herosria Summer Garden'
+		displayName: '希罗斯里亚夏季庭园'
 	},
 	'pvp_n_3-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1502,7 +1502,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Sandwich'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Sandwich'
+		displayName: 'PvP : 3明治 房间'
 	},
 	'1@lvcb.rsw': {
 		backgroundBmp: 'noname',
@@ -1514,7 +1514,7 @@ const MapInfo = {
 		displayName: 'Damp Sewer'
 	},
 	'ordeal_1-2.rsw': {
-		displayName: 'Battle Ordeal Mode'
+		displayName: '团体战斗模式'
 	},
 	'poring_w02.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1522,7 +1522,7 @@ const MapInfo = {
 			mainTitle: 'Poring War Market'
 		},
 		notifyEnter: true,
-		displayName: 'Poring War Market'
+		displayName: '波利大战场'
 	},
 	'ma_zif06.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1530,7 +1530,7 @@ const MapInfo = {
 			mainTitle: 'Jeepney'
 		},
 		notifyEnter: true,
-		displayName: 'Inside of Jeepney'
+		displayName: '吉普尼车 内部'
 	},
 	'ein_dun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1538,7 +1538,7 @@ const MapInfo = {
 			mainTitle: 'Einbroch Mine F2'
 		},
 		notifyEnter: true,
-		displayName: 'Einbroch Mine F2'
+		displayName: '艾音贝赫矿山 2层'
 	},
 	'ama_dun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1546,10 +1546,10 @@ const MapInfo = {
 			mainTitle: 'Battle Field in the Underground Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Battle Field in the Underground Forest'
+		displayName: '樱花城 地下森林战场'
 	},
 	'job_knt.rsw': {
-		displayName: 'Knight Realm'
+		displayName: '骑士转职考场'
 	},
 	'pvp_n_4-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1557,7 +1557,7 @@ const MapInfo = {
 			mainTitle: 'PvP Four Room'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Four Room'
+		displayName: 'PvP : 4通道 房间'
 	},
 	'mjolnir_01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1565,7 +1565,7 @@ const MapInfo = {
 			mainTitle: 'Mt.Mjolnir North Area'
 		},
 		notifyEnter: true,
-		displayName: 'Mt.Mjolnir North Area'
+		displayName: '妙勒尼山脉 北边地区'
 	},
 	'gonryun.rsw': {
 		backgroundBmp: 'village',
@@ -1574,11 +1574,11 @@ const MapInfo = {
 			subTitle: 'Hermit Land'
 		},
 		notifyEnter: true,
-		displayName: 'Gonryun, the Hermit Land (Kunlun)'
+		displayName: '神仙之岛 昆仑'
 	},
 	'bat_c02.rsw': {
 		notifyEnter: true,
-		displayName: 'Krieger von Midgard'
+		displayName: '克里格·冯·米德加尔特'
 	},
 	'1@twsd.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1603,7 +1603,7 @@ const MapInfo = {
 			subTitle: 'Kamidal Tunnel'
 		},
 		notifyEnter: true,
-		displayName: 'Scaraba Hall'
+		displayName: '斯卡勒伯熔岩'
 	},
 	'pay_fild08.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1611,7 +1611,7 @@ const MapInfo = {
 			mainTitle: 'Payon Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Forest'
+		displayName: '斐扬树林'
 	},
 	'cmd_fild03.rsw': {
 		backgroundBmp: 'field',
@@ -1620,7 +1620,7 @@ const MapInfo = {
 			subTitle: 'Comodo'
 		},
 		notifyEnter: true,
-		displayName: 'Zenhai Marsh'
+		displayName: '克魔岛 基乃依沼泽地'
 	},
 	'mjolnir_10.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1628,7 +1628,7 @@ const MapInfo = {
 			mainTitle: 'Mt.Mjolnir South Area'
 		},
 		notifyEnter: true,
-		displayName: 'Mt.Mjolnir South Area'
+		displayName: '妙勒尼山脉 南边地区'
 	},
 	'job4_mag.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -1636,7 +1636,7 @@ const MapInfo = {
 			mainTitle: 'Magic Fountain'
 		},
 		notifyEnter: true,
-		displayName: 'Magic Fountain'
+		displayName: '魔力之泉'
 	},
 	'moc_fild20.rsw': {
 		backgroundBmp: 'field',
@@ -1645,7 +1645,7 @@ const MapInfo = {
 			subTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert - Dimensional Rift'
+		displayName: '苏克拉特沙漠 次元裂缝'
 	},
 	'teg_dun02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1662,7 +1662,7 @@ const MapInfo = {
 			mainTitle: 'Dimensional Rift'
 		},
 		notifyEnter: true,
-		displayName: 'Dimensional Rift'
+		displayName: '次元裂缝'
 	},
 	'hu_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1670,10 +1670,10 @@ const MapInfo = {
 			mainTitle: 'Hugel Field'
 		},
 		notifyEnter: true,
-		displayName: 'Hugel Field'
+		displayName: '毁葛 旷野'
 	},
 	'ma_in01.rsw': {
-		displayName: 'Inside of Malaya'
+		displayName: '马来亚 市内'
 	},
 	'gef_fild10.rsw': {
 		backgroundBmp: 'field',
@@ -1682,7 +1682,7 @@ const MapInfo = {
 			subTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Orc Village'
+		displayName: '东边 兽人村落'
 	},
 	'prt_maze03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1691,7 +1691,7 @@ const MapInfo = {
 			subTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Labyrinth Forest F3'
+		displayName: '普隆德拉北部森林 密穴3层'
 	},
 	'dew_dun02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1700,7 +1700,7 @@ const MapInfo = {
 			subTitle: 'Dewata'
 		},
 		notifyEnter: true,
-		displayName: 'Istana Cave'
+		displayName: '伊斯坦纳洞穴'
 	},
 	'ba_in01.rsw': {
 		displayName: "Inside the Varmundt's Mansion"
@@ -1711,10 +1711,10 @@ const MapInfo = {
 			mainTitle: 'PvP Room Izlude'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Izlude'
+		displayName: 'PvP : 依斯鲁得'
 	},
 	'wizard_2-1.rsw': {
-		displayName: 'Wizard Academy'
+		displayName: '巫师转职所'
 	},
 	'amicitia2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1723,7 +1723,7 @@ const MapInfo = {
 			subTitle: 'Abandoned Lab Amicitia'
 		},
 		notifyEnter: true,
-		displayName: 'Abandoned Lab Amicitia'
+		displayName: '废弃研究所阿米希提娅'
 	},
 	'1@vrgen.rsw': {
 		backgroundBmp: 'noname',
@@ -1740,7 +1740,7 @@ const MapInfo = {
 			mainTitle: 'Guild Arena Waiting Room'
 		},
 		notifyEnter: true,
-		displayName: 'Guild Arena Waiting Room'
+		displayName: '公会对抗竞技场 休息室'
 	},
 	'bl_lava.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1765,7 +1765,7 @@ const MapInfo = {
 			mainTitle: 'Port Malaya'
 		},
 		notifyEnter: true,
-		displayName: 'Port Malaya'
+		displayName: '马来亚港'
 	},
 	'alberta.rsw': {
 		backgroundBmp: 'village',
@@ -1774,7 +1774,7 @@ const MapInfo = {
 			subTitle: 'Port City of Rune-Midgarts Kingdom'
 		},
 		notifyEnter: true,
-		displayName: 'Port City Alberta'
+		displayName: '港口之都 艾尔贝塔'
 	},
 	'ra_fild06.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1782,7 +1782,7 @@ const MapInfo = {
 			mainTitle: 'Portus Luna'
 		},
 		notifyEnter: true,
-		displayName: 'Portus Luna'
+		displayName: '珀尔特鲁纳'
 	},
 	'tur_dun04.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1790,7 +1790,7 @@ const MapInfo = {
 			mainTitle: 'Turtle Palace'
 		},
 		notifyEnter: true,
-		displayName: 'Turtle Palace'
+		displayName: '乌龟岛  密穴'
 	},
 	'jupe_gate.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1798,7 +1798,7 @@ const MapInfo = {
 			mainTitle: 'Juperos, Restricted Zone'
 		},
 		notifyEnter: true,
-		displayName: 'Juperos, Restricted Zone'
+		displayName: '优配擂斯保安旷野'
 	},
 	'mal_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1806,7 +1806,7 @@ const MapInfo = {
 			mainTitle: 'Starry Coral Area'
 		},
 		notifyEnter: true,
-		displayName: 'Starry Coral Area'
+		displayName: '星光珊瑚 地区'
 	},
 	'pvp_y_7-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -1814,7 +1814,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Alberta'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Alberta'
+		displayName: 'PvP : 艾尔贝塔'
 	},
 	'gl_knt01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1823,7 +1823,7 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Inside Glastheim Chivalry F1'
+		displayName: '克雷斯特汉姆古城 骑士团1层'
 	},
 	'gl_sew02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1832,7 +1832,7 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Glastheim Underground Waterway B2'
+		displayName: '克雷斯特汉姆古城 地下水道2层'
 	},
 	'prt_maze02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1841,7 +1841,7 @@ const MapInfo = {
 			subTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Labyrinth Forest F2'
+		displayName: '普隆德拉北部森林 密穴2层'
 	},
 	'moc_fild13.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1849,10 +1849,10 @@ const MapInfo = {
 			mainTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert'
+		displayName: '苏克拉特沙漠'
 	},
 	'thana_boss.rsw': {
-		displayName: 'Thanatos Tower - Unknown Place'
+		displayName: '达纳托斯之塔 (未知旷野)'
 	},
 	'ra_temsky.rsw': {
 		backgroundBmp: 'noname',
@@ -1864,10 +1864,10 @@ const MapInfo = {
 		displayName: "Pope's Room (Sky Garden)"
 	},
 	'knight_3-1.rsw': {
-		displayName: 'The Chivalry'
+		displayName: '骑士转职所'
 	},
 	'job_cru.rsw': {
-		displayName: 'Crusader Realm'
+		displayName: '十字军 转职考场'
 	},
 	'gw_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1875,7 +1875,7 @@ const MapInfo = {
 			mainTitle: 'Gray Wolf Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Gray Wolf Forest'
+		displayName: '灰狼森林'
 	},
 	'eclage.rsw': {
 		backgroundBmp: 'village',
@@ -1884,7 +1884,7 @@ const MapInfo = {
 			subTitle: 'Alfheim - Lapine Capital'
 		},
 		notifyEnter: true,
-		displayName: 'Eclage, the capital of Lapine'
+		displayName: '守护精灵首都 埃克拉珠'
 	},
 	'einbech.rsw': {
 		backgroundBmp: 'village',
@@ -1893,7 +1893,7 @@ const MapInfo = {
 			subTitle: 'Mining Village in the Schwartzwald Republic'
 		},
 		notifyEnter: true,
-		displayName: 'Einbech, the Mining Village'
+		displayName: '采矿村落 艾音贝赫'
 	},
 	'verus02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1902,7 +1902,7 @@ const MapInfo = {
 			subTitle: 'Verus City'
 		},
 		notifyEnter: true,
-		displayName: 'Research Building-WISH'
+		displayName: '研究楼-WISH'
 	},
 	'tur_dun05.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1910,7 +1910,7 @@ const MapInfo = {
 			mainTitle: 'Underground Swamp Zone'
 		},
 		notifyEnter: true,
-		displayName: 'Underground Swamp Zone'
+		displayName: '地下沼泽区'
 	},
 	'1@ma_b.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1918,7 +1918,7 @@ const MapInfo = {
 			mainTitle: 'Bakonawa Hideout'
 		},
 		notifyEnter: true,
-		displayName: 'Bakonawa Hideout'
+		displayName: '食月者的藏身处'
 	},
 	'c_tower3_.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1927,7 +1927,7 @@ const MapInfo = {
 			subTitle: 'The Twisted Time'
 		},
 		notifyEnter: true,
-		displayName: 'Twisted Clock Tower F3'
+		displayName: '梦魇钟塔 3层'
 	},
 	'1@infi.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1935,7 +1935,7 @@ const MapInfo = {
 			mainTitle: 'Infinite Space'
 		},
 		notifyEnter: true,
-		displayName: 'Infinite Space'
+		displayName: '无限空间'
 	},
 	'1@dime.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -1952,7 +1952,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Tower Upper Level'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Upper Level - Room of Agony'
+		displayName: '达纳托斯之塔 上层 苦恼之房'
 	},
 	'1@exhn.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -1969,7 +1969,7 @@ const MapInfo = {
 			subTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert - Dimensional Rift'
+		displayName: '苏克拉特沙漠 次元裂缝'
 	},
 	'amicitia1.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1978,7 +1978,7 @@ const MapInfo = {
 			subTitle: 'Abandoned Lab Amicitia'
 		},
 		notifyEnter: true,
-		displayName: 'Abandoned Lab Amicitia'
+		displayName: '废弃研究所阿米希提娅'
 	},
 	'man_fild03.rsw': {
 		backgroundBmp: 'field_s2',
@@ -1986,7 +1986,7 @@ const MapInfo = {
 			mainTitle: 'Manuk Field'
 		},
 		notifyEnter: true,
-		displayName: 'Manuk Field'
+		displayName: '马努克 旷野'
 	},
 	'clock_01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -1995,7 +1995,7 @@ const MapInfo = {
 			subTitle: 'Clock Tower'
 		},
 		notifyEnter: true,
-		displayName: 'Clock Tower Unknown Basement'
+		displayName: '钟塔：未知的地下层'
 	},
 	'jor_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2011,7 +2011,7 @@ const MapInfo = {
 			mainTitle: 'Bossnia'
 		},
 		notifyEnter: true,
-		displayName: 'Bossnia'
+		displayName: '波斯尼亚'
 	},
 	'icecastle.rsw': {
 		backgroundBmp: 'village',
@@ -2020,7 +2020,7 @@ const MapInfo = {
 			subTitle: 'Isgard'
 		},
 		notifyEnter: true,
-		displayName: 'Isgard Ice Castle'
+		displayName: '伊斯加尔特冰封之城'
 	},
 	'1@os_a.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2028,7 +2028,7 @@ const MapInfo = {
 			mainTitle: 'Occupied Battle'
 		},
 		notifyEnter: true,
-		displayName: 'Occupied Battle'
+		displayName: '占领欧斯大作战'
 	},
 	'guild_vs2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2036,10 +2036,10 @@ const MapInfo = {
 			mainTitle: 'Guild Arena'
 		},
 		notifyEnter: true,
-		displayName: 'Guild Arena'
+		displayName: '公会对抗竞技场'
 	},
 	'izlude_in.rsw': {
-		displayName: 'Inside Izlude'
+		displayName: '依斯鲁得 内部'
 	},
 	'new_5-1.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2047,7 +2047,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'nif_dun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2065,7 +2065,7 @@ const MapInfo = {
 			subTitle: 'Morroc'
 		},
 		notifyEnter: true,
-		displayName: 'Inside Pyramid F3'
+		displayName: '梦罗克金字塔 3层'
 	},
 	'jor_tail.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -2073,10 +2073,10 @@ const MapInfo = {
 			mainTitle: 'Frozen Tail'
 		},
 		notifyEnter: true,
-		displayName: 'Frozen Tail'
+		displayName: '冰鳞尽头'
 	},
 	'yuno_in03.rsw': {
-		displayName: 'Inside Yuno'
+		displayName: '朱诺 内部'
 	},
 	'pvp_y_1-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2084,7 +2084,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Prontera'
+		displayName: 'PvP : 普隆德拉'
 	},
 	'geffen.rsw': {
 		backgroundBmp: 'village',
@@ -2093,7 +2093,7 @@ const MapInfo = {
 			subTitle: 'Magic City in the Rune-Midgarts Kingdom'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen, the Magic City'
+		displayName: '魔法之都 吉芬'
 	},
 	'bat_a01.rsw': {
 		backgroundBmp: 'noname',
@@ -2102,7 +2102,7 @@ const MapInfo = {
 			subTitle: 'Battleground'
 		},
 		notifyEnter: true,
-		displayName: 'Tierra Valley'
+		displayName: '提耶拉峡谷'
 	},
 	've_fild06.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2110,7 +2110,7 @@ const MapInfo = {
 			mainTitle: 'Veins Field'
 		},
 		notifyEnter: true,
-		displayName: 'Veins Field'
+		displayName: '伯仁斯 旷野'
 	},
 	've_fild05.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2118,7 +2118,7 @@ const MapInfo = {
 			mainTitle: 'Veins Field'
 		},
 		notifyEnter: true,
-		displayName: 'Veins Field'
+		displayName: '伯仁斯 旷野'
 	},
 	'aldeg_cas05.rsw': {
 		backgroundBmp: 'siege',
@@ -2127,7 +2127,7 @@ const MapInfo = {
 			subTitle: 'Luina'
 		},
 		notifyEnter: true,
-		displayName: 'Rothenburg Castle'
+		displayName: '露依纳公会'
 	},
 	'cmd_fild09.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2135,7 +2135,7 @@ const MapInfo = {
 			mainTitle: 'Fortress Saint Darmain (South'
 		},
 		notifyEnter: true,
-		displayName: 'Fortress Saint Darmain (South'
+		displayName: '要塞都市 山特乐曼 南边地区'
 	},
 	'ra_fild08.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2143,7 +2143,7 @@ const MapInfo = {
 			mainTitle: 'Ida Plains'
 		},
 		notifyEnter: true,
-		displayName: 'Ida Plains'
+		displayName: '拉赫 伊达平原'
 	},
 	'man_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2151,7 +2151,7 @@ const MapInfo = {
 			mainTitle: 'Manuk Field'
 		},
 		notifyEnter: true,
-		displayName: 'Manuk Field'
+		displayName: '马努克 旷野'
 	},
 	'dew_fild01.rsw': {
 		backgroundBmp: 'field',
@@ -2160,7 +2160,7 @@ const MapInfo = {
 			subTitle: 'Dewata'
 		},
 		notifyEnter: true,
-		displayName: 'Dewata Field (Tribal Village)'
+		displayName: '德瓦他旷野 贾提族部落'
 	},
 	'1@os_b.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2168,10 +2168,10 @@ const MapInfo = {
 			mainTitle: 'Sealed OS'
 		},
 		notifyEnter: true,
-		displayName: 'Sealed OS'
+		displayName: '封锁的欧斯'
 	},
 	'priest_2-1.rsw': {
-		displayName: 'The Sanctum'
+		displayName: '牧师转职所'
 	},
 	'ant_d02_i.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2189,10 +2189,10 @@ const MapInfo = {
 			subTitle: 'Aldebaran'
 		},
 		notifyEnter: true,
-		displayName: 'Clock Tower B4'
+		displayName: '艾尔帕兰钟塔 地下4层'
 	},
 	'job3_arch02.rsw': {
-		displayName: 'Odin Temple'
+		displayName: '奥丁神殿'
 	},
 	'man_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2200,7 +2200,7 @@ const MapInfo = {
 			mainTitle: 'Manuk Mining Camp'
 		},
 		notifyEnter: true,
-		displayName: 'Manuk Mining Camp'
+		displayName: '马努克 旷野'
 	},
 	'new_4-2.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2208,7 +2208,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'ecl_fild01.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -2216,10 +2216,10 @@ const MapInfo = {
 			mainTitle: 'Blooming Flower Land'
 		},
 		notifyEnter: true,
-		displayName: 'Blooming Flower Land'
+		displayName: '花开伊始的大地'
 	},
 	'job3_rune03.rsw': {
-		displayName: 'Test room for Rune Knight Job Change'
+		displayName: '符文骑士转职考场'
 	},
 	'treasure_n1.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2227,7 +2227,7 @@ const MapInfo = {
 			mainTitle: 'Izlude Shipwreck B1'
 		},
 		notifyEnter: true,
-		displayName: 'Izlude Shipwreck B1'
+		displayName: '依斯鲁得遇难船 1层'
 	},
 	'1@lost.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2236,7 +2236,7 @@ const MapInfo = {
 			subTitle: 'Lost Valley'
 		},
 		notifyEnter: true,
-		displayName: 'Farm of Forgotten Time'
+		displayName: '被时间遗忘的饲养场'
 	},
 	'pvp_n_3-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2244,7 +2244,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Undercross'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Undercross'
+		displayName: 'PvP : 反十字 房间'
 	},
 	'1@exsr.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -2252,7 +2252,7 @@ const MapInfo = {
 			mainTitle: 'Inner World'
 		},
 		notifyEnter: true,
-		displayName: 'Inner World'
+		displayName: '内心世界'
 	},
 	'iz_ac02_d.rsw': {
 		backgroundBmp: 'noname_s1',
@@ -2260,7 +2260,7 @@ const MapInfo = {
 			subTitle: 'Criatura Academy F2'
 		},
 		notifyEnter: true,
-		displayName: 'Criatura Academy F2'
+		displayName: '魔法学院 2层'
 	},
 	'1@vrac1.rsw': {
 		backgroundBmp: 'village',
@@ -2278,7 +2278,7 @@ const MapInfo = {
 			subTitle: 'Alberta'
 		},
 		notifyEnter: true,
-		displayName: 'Sunken Ship B1'
+		displayName: '艾尔贝塔沉船 1层'
 	},
 	'que_qaru04.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2286,7 +2286,7 @@ const MapInfo = {
 			mainTitle: 'Fallacious Okolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Fallacious Okolnir'
+		displayName: '虚幻的奥克尼尔'
 	},
 	'gl_prison.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2295,7 +2295,7 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Glastheim Underground Prison B1'
+		displayName: '克雷斯特汉姆古城 地下监狱1层'
 	},
 	'1@rev.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2303,7 +2303,7 @@ const MapInfo = {
 			mainTitle: 'Morse Cave'
 		},
 		notifyEnter: true,
-		displayName: 'Morse Cave'
+		displayName: '死亡洞穴'
 	},
 	'anthell01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2312,10 +2312,10 @@ const MapInfo = {
 			subTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Ant Hell Dungeon F1'
+		displayName: '蚂蚁地狱密穴 1层'
 	},
 	'ayo_in01.rsw': {
-		displayName: 'Inside Ayothaya'
+		displayName: '哎哟泰雅 内部'
 	},
 	'gl_sew01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2324,7 +2324,7 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Glastheim Underground Waterway B1'
+		displayName: '克雷斯特汉姆古城 地下水道1层'
 	},
 	'1@sthc.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2332,7 +2332,7 @@ const MapInfo = {
 			mainTitle: 'Air Fortress - Secret Chamber'
 		},
 		notifyEnter: true,
-		displayName: 'Air Fortress - Secret Chamber'
+		displayName: '空中要塞神秘的房间'
 	},
 	'ecl_tdun03.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2340,7 +2340,7 @@ const MapInfo = {
 			mainTitle: 'Bifrost Tower 3F'
 		},
 		notifyEnter: true,
-		displayName: 'Bifrost Tower 3F'
+		displayName: '彩虹桥高塔 3层'
 	},
 	'gef_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2348,7 +2348,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Dungeon B2'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Dungeon B2'
+		displayName: '吉芬 地下密穴 1层'
 	},
 	'1@gol2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2357,7 +2357,7 @@ const MapInfo = {
 			subTitle: 'Expedition'
 		},
 		notifyEnter: true,
-		displayName: 'Body Storage'
+		displayName: '停尸房'
 	},
 	'que_thr.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2365,7 +2365,7 @@ const MapInfo = {
 			mainTitle: 'Inside Thor Volcano'
 		},
 		notifyEnter: true,
-		displayName: 'Inside Thor Volcano'
+		displayName: '托尔火山内部'
 	},
 	'prt_fild08.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2373,7 +2373,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'pay_dun00.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2382,7 +2382,7 @@ const MapInfo = {
 			subTitle: 'Payon Archer Village'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Cave F1'
+		displayName: '斐扬洞穴 1层'
 	},
 	'que_qaru02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2390,10 +2390,10 @@ const MapInfo = {
 			mainTitle: 'Fallacious Okolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Fallacious Okolnir'
+		displayName: '虚幻的奥克尼尔'
 	},
 	'lhz_in02.rsw': {
-		displayName: 'Inside Lighthalzen'
+		displayName: '里希塔乐镇 内部'
 	},
 	'hero_in1.rsw': {
 		backgroundBmp: 'siege',
@@ -2402,7 +2402,7 @@ const MapInfo = {
 			subTitle: 'Herosria'
 		},
 		notifyEnter: true,
-		displayName: 'Herosria Spring Garden'
+		displayName: '希罗斯里亚春季庭园'
 	},
 	'slabw01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2410,7 +2410,7 @@ const MapInfo = {
 			mainTitle: 'Werner Research Institute'
 		},
 		notifyEnter: true,
-		displayName: 'Werner Research Institute'
+		displayName: '维尔纳研究所'
 	},
 	'harboro1.rsw': {
 		backgroundBmp: 'village_s2',
@@ -2418,7 +2418,7 @@ const MapInfo = {
 			mainTitle: 'Rockridge'
 		},
 		notifyEnter: true,
-		displayName: 'Rockridge'
+		displayName: '洛克里奇'
 	},
 	'orcsdun02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2427,7 +2427,7 @@ const MapInfo = {
 			subTitle: 'Orc Village'
 		},
 		notifyEnter: true,
-		displayName: 'Orc Dungeon F2'
+		displayName: '吉芬 兽人地下洞穴 2层'
 	},
 	'himinn.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2435,7 +2435,7 @@ const MapInfo = {
 			mainTitle: 'Valkyrie Hall'
 		},
 		notifyEnter: true,
-		displayName: 'Valkyrie Hall (Himinn)'
+		displayName: '瓦尔基里 神殿'
 	},
 	'pvp_2vs2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2443,7 +2443,7 @@ const MapInfo = {
 			mainTitle: 'PvP Event Coliseum'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Event Coliseum'
+		displayName: 'PvP : 活动 竞技场'
 	},
 	'new_1-3.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2451,7 +2451,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'prt_prison.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2460,7 +2460,7 @@ const MapInfo = {
 			subTitle: 'Prontera Castle'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Prison Cell'
+		displayName: '普隆德拉地下监狱'
 	},
 	'1@rgsr.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2469,7 +2469,7 @@ const MapInfo = {
 			subTitle: 'Research Institute'
 		},
 		notifyEnter: true,
-		displayName: 'Regenshir'
+		displayName: '雷根修芦'
 	},
 	'moscovia.rsw': {
 		backgroundBmp: 'village_s2',
@@ -2477,7 +2477,7 @@ const MapInfo = {
 			mainTitle: 'Moscovia'
 		},
 		notifyEnter: true,
-		displayName: 'Moscovia'
+		displayName: '莫斯科比亚'
 	},
 	'nyd_dun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2485,7 +2485,7 @@ const MapInfo = {
 			mainTitle: 'Yggdrasil Root F2'
 		},
 		notifyEnter: true,
-		displayName: 'Yggdrasil Root F2'
+		displayName: '辉煌残暴者的伤口 2层'
 	},
 	'1@orcs.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2493,7 +2493,7 @@ const MapInfo = {
 			mainTitle: 'Orc Underground Cave'
 		},
 		notifyEnter: true,
-		displayName: 'Orc Underground Cave'
+		displayName: '兽人地下洞穴'
 	},
 	'2@orcs.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2501,7 +2501,7 @@ const MapInfo = {
 			mainTitle: 'Orc Underground Cave'
 		},
 		notifyEnter: true,
-		displayName: 'Orc Underground Cave'
+		displayName: '兽人地下洞穴'
 	},
 	'que_rachel.rsw': {
 		displayName: "Inside Freya's Temple"
@@ -2512,7 +2512,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'iz_ac01_b.rsw': {
 		backgroundBmp: 'noname_s1',
@@ -2520,7 +2520,7 @@ const MapInfo = {
 			subTitle: 'Criatura Academy F1'
 		},
 		notifyEnter: true,
-		displayName: 'Criatura Academy F1'
+		displayName: '魔法学院 1层'
 	},
 	'iz_int03.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2528,7 +2528,7 @@ const MapInfo = {
 			mainTitle: 'Stranded Passenger Ship'
 		},
 		notifyEnter: true,
-		displayName: 'Stranded Passenger Ship'
+		displayName: '新手地图'
 	},
 	'1@jorchs.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2539,7 +2539,7 @@ const MapInfo = {
 		displayName: "Confused Snake's Nest"
 	},
 	'ama_in01.rsw': {
-		displayName: 'Inside Amatsu'
+		displayName: '樱花城 内部'
 	},
 	'lasa_dun03.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2547,7 +2547,7 @@ const MapInfo = {
 			mainTitle: 'Dragon Nest F3'
 		},
 		notifyEnter: true,
-		displayName: 'Dragon Nest'
+		displayName: '龙巢穴'
 	},
 	'prontera.rsw': {
 		backgroundBmp: 'village',
@@ -2556,7 +2556,7 @@ const MapInfo = {
 			subTitle: 'Capital of the Rune-Midgarts Kingdom'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera, Capital of Rune Midgard'
+		displayName: '卢恩 米德加兹王国 首都 普隆德拉'
 	},
 	'ra_pol01.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -2582,7 +2582,7 @@ const MapInfo = {
 			subTitle: 'Sanctuary Herosria'
 		},
 		notifyEnter: true,
-		displayName: 'Sanctuary Herosria PvP Dungeon'
+		displayName: '圣域希罗斯里亚PvP密穴'
 	},
 	'jor_nest.rsw': {
 		backgroundBmp: 'noname',
@@ -2600,10 +2600,10 @@ const MapInfo = {
 			subTitle: 'Assassin Guild'
 		},
 		notifyEnter: true,
-		displayName: 'Assassin Guild'
+		displayName: '刺客 公会'
 	},
 	've_in02.rsw': {
-		displayName: 'Inside Veins'
+		displayName: '伯仁斯 内部'
 	},
 	'gef_dun03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2612,10 +2612,10 @@ const MapInfo = {
 			subTitle: 'Geffen'
 		},
 		notifyEnter: true,
-		displayName: 'Geffenia Dungeon'
+		displayName: '吉芬 地下密穴 3层'
 	},
 	'job3_rang02.rsw': {
-		displayName: 'Test room for Ranger Job Change'
+		displayName: '游侠转职考场'
 	},
 	'1@jorlab.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2623,7 +2623,7 @@ const MapInfo = {
 			mainTitle: 'Bagot Lab'
 		},
 		notifyEnter: true,
-		displayName: 'Bagot Lab'
+		displayName: '巴格的研究室'
 	},
 	'bossnia_02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2631,7 +2631,7 @@ const MapInfo = {
 			mainTitle: 'Bossnia'
 		},
 		notifyEnter: true,
-		displayName: 'Bossnia'
+		displayName: '波斯尼亚'
 	},
 	'verus04.rsw': {
 		backgroundBmp: 'noname',
@@ -2640,10 +2640,10 @@ const MapInfo = {
 			subTitle: 'Verus - Excavation Site'
 		},
 		notifyEnter: true,
-		displayName: 'Verus - Excavation Site'
+		displayName: '贝鲁兹考古地'
 	},
 	'job3_arch03.rsw': {
-		displayName: 'Waiting room for Archbishop Job Change'
+		displayName: '大主教转职等候室'
 	},
 	'ra_fild13.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2651,7 +2651,7 @@ const MapInfo = {
 			mainTitle: 'Shore of Tears'
 		},
 		notifyEnter: true,
-		displayName: 'Shore of Tears'
+		displayName: '拉赫 眼泪海岸'
 	},
 	'gefg_cas02.rsw': {
 		backgroundBmp: 'siege',
@@ -2660,10 +2660,10 @@ const MapInfo = {
 			subTitle: 'Britoniah'
 		},
 		notifyEnter: true,
-		displayName: 'Eeyorbriggar Castle'
+		displayName: '咘哩妥利亚 公会'
 	},
 	'job3_gen01.rsw': {
-		displayName: 'Geneticist Lab'
+		displayName: '基因学者研究所'
 	},
 	'izlude_b.rsw': {
 		backgroundBmp: 'village',
@@ -2672,7 +2672,7 @@ const MapInfo = {
 			subTitle: 'Rune-Midgarts Kingdom'
 		},
 		notifyEnter: true,
-		displayName: 'Izlude, the Satellite City'
+		displayName: '卫星都市 依斯鲁得'
 	},
 	'herosria.rsw': {
 		backgroundBmp: 'siege',
@@ -2681,10 +2681,10 @@ const MapInfo = {
 			subTitle: 'Sanctuary Herosria'
 		},
 		notifyEnter: true,
-		displayName: 'Sanctuary Herosria Jewel Room'
+		displayName: '圣域希罗斯里亚宝石之室'
 	},
 	'man_in01.rsw': {
-		displayName: 'Inside Manuk'
+		displayName: '马努克 内部'
 	},
 	'mosk_dun02.rsw': {
 		backgroundBmp: 'field',
@@ -2693,7 +2693,7 @@ const MapInfo = {
 			subTitle: 'Moscovia'
 		},
 		notifyEnter: true,
-		displayName: 'Temny Forest'
+		displayName: '莫斯科比亚 森林深处'
 	},
 	'xmas_dun02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2702,7 +2702,7 @@ const MapInfo = {
 			subTitle: 'Lutie'
 		},
 		notifyEnter: true,
-		displayName: 'Toy Monitoring Room'
+		displayName: '姜饼城 玩具分类场'
 	},
 	'vis_h01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2718,7 +2718,7 @@ const MapInfo = {
 			mainTitle: 'South Field of Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'te_prtcas01.rsw': {
 		backgroundBmp: 'siege',
@@ -2735,7 +2735,7 @@ const MapInfo = {
 			mainTitle: 'Octopus Cave'
 		},
 		notifyEnter: true,
-		displayName: 'Octopus Cave'
+		displayName: '章鱼洞穴'
 	},
 	'cave.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2743,7 +2743,7 @@ const MapInfo = {
 			mainTitle: 'Cave Village'
 		},
 		notifyEnter: true,
-		displayName: 'Cave Village'
+		displayName: '洞穴村'
 	},
 	'1@vrac2.rsw': {
 		backgroundBmp: 'village',
@@ -2760,7 +2760,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Field'
+		displayName: '吉芬 旷野'
 	},
 	'silk_lair.rsw': {
 		notifyEnter: true,
@@ -2772,7 +2772,7 @@ const MapInfo = {
 			mainTitle: 'Lutie Field'
 		},
 		notifyEnter: true,
-		displayName: 'Lutie Field'
+		displayName: '姜饼城 旷野'
 	},
 	'1@ma_h.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2780,7 +2780,7 @@ const MapInfo = {
 			mainTitle: 'Bangungot Hospital F2'
 		},
 		notifyEnter: true,
-		displayName: 'Bangungot Hospital F2'
+		displayName: '噩梦医院 2层'
 	},
 	'c_tower2_.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2789,7 +2789,7 @@ const MapInfo = {
 			subTitle: 'The Twisted Time'
 		},
 		notifyEnter: true,
-		displayName: 'Twisted Clock Tower F2'
+		displayName: '梦魇钟塔 2层'
 	},
 	'que_qaru01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2797,7 +2797,7 @@ const MapInfo = {
 			mainTitle: 'Fallacious Okolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Fallacious Okolnir'
+		displayName: '虚幻的奥克尼尔'
 	},
 	'1@drdo.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2814,7 +2814,7 @@ const MapInfo = {
 			subTitle: 'Aldebaran'
 		},
 		notifyEnter: true,
-		displayName: 'Clock Tower B1'
+		displayName: '艾尔帕兰钟塔 地下1层'
 	},
 	'new_2-4.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2822,7 +2822,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'1@slw.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2831,7 +2831,7 @@ const MapInfo = {
 			subTitle: 'Werner Research Institute'
 		},
 		notifyEnter: true,
-		displayName: 'Werner Research Institute'
+		displayName: '维尔纳研究所中枢室'
 	},
 	'hero_out3.rsw': {
 		backgroundBmp: 'siege',
@@ -2840,10 +2840,10 @@ const MapInfo = {
 			subTitle: 'Herosria'
 		},
 		notifyEnter: true,
-		displayName: 'Herosria Bastitarium'
+		displayName: '希罗斯里亚沙漠之域'
 	},
 	'dic_in01.rsw': {
-		displayName: 'Inside of El Dicastes'
+		displayName: '迪卡斯特内部'
 	},
 	'gl_knt02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2852,10 +2852,10 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Inside Glastheim Chivalry F2'
+		displayName: '克雷斯特汉姆古城 骑士团2层'
 	},
 	'alb_ship.rsw': {
-		displayName: 'Alberta Ship'
+		displayName: '艾尔贝塔 船舶内部'
 	},
 	'gefg_cas05.rsw': {
 		backgroundBmp: 'siege',
@@ -2864,7 +2864,7 @@ const MapInfo = {
 			subTitle: 'Britoniah'
 		},
 		notifyEnter: true,
-		displayName: 'Mersetzdeitz Castle'
+		displayName: '咘哩妥利亚 公会'
 	},
 	'mag_dun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2872,7 +2872,7 @@ const MapInfo = {
 			mainTitle: 'Nogg Road F2'
 		},
 		notifyEnter: true,
-		displayName: 'Nogg Road F2'
+		displayName: '朱诺 诺可罗德2层'
 	},
 	'arug_que01.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2880,10 +2880,10 @@ const MapInfo = {
 			mainTitle: 'Morestone Prairie'
 		},
 		notifyEnter: true,
-		displayName: 'Morestone Prairie'
+		displayName: '莫尔斯敦草地'
 	},
 	'turbo_n_1.rsw': {
-		displayName: 'Turbo Track Stadium'
+		displayName: '竞速场地 竞赛场'
 	},
 	'schg_cas02.rsw': {
 		backgroundBmp: 'siege',
@@ -2892,7 +2892,7 @@ const MapInfo = {
 			subTitle: 'Nidhoggur '
 		},
 		notifyEnter: true,
-		displayName: 'Andlangr Castle'
+		displayName: '尼它堆公会'
 	},
 	'pvp_y_5-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2900,7 +2900,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Morocc'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Morocc'
+		displayName: 'PvP : 梦罗克'
 	},
 	'schg_cas05.rsw': {
 		backgroundBmp: 'siege',
@@ -2909,7 +2909,7 @@ const MapInfo = {
 			subTitle: 'Nidhoggur'
 		},
 		notifyEnter: true,
-		displayName: 'Skidbladnir Castle'
+		displayName: '尼它堆公会'
 	},
 	'treasure02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2918,7 +2918,7 @@ const MapInfo = {
 			subTitle: 'Alberta'
 		},
 		notifyEnter: true,
-		displayName: 'Sunken Ship B2'
+		displayName: '艾尔贝塔沉船 2层'
 	},
 	'bl_depth1.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2935,7 +2935,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Magic Tournament'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Magic Tournament'
+		displayName: '吉芬魔法大赛'
 	},
 	'airport.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -2943,7 +2943,7 @@ const MapInfo = {
 			mainTitle: 'Airport'
 		},
 		notifyEnter: true,
-		displayName: 'Airport'
+		displayName: '艾音布罗克机场'
 	},
 	'lasa_dun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2951,7 +2951,7 @@ const MapInfo = {
 			mainTitle: 'Dragon Nest F2'
 		},
 		notifyEnter: true,
-		displayName: 'Dragon Nest'
+		displayName: '龙巢穴'
 	},
 	'gld_dun03_2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2960,7 +2960,7 @@ const MapInfo = {
 			subTitle: 'Valkyrie Realm'
 		},
 		notifyEnter: true,
-		displayName: 'Valkyrie Realm Dungeon 2F'
+		displayName: '公会地下密穴 2层'
 	},
 	'schg_dun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -2969,10 +2969,10 @@ const MapInfo = {
 			subTitle: 'Schwartzwald'
 		},
 		notifyEnter: true,
-		displayName: 'Schwartzwald Guild Dungeon'
+		displayName: '公会地下密穴'
 	},
 	'ordeal_1-3.rsw': {
-		displayName: 'Battle Ordeal Mode'
+		displayName: '团体战斗模式'
 	},
 	'hu_fild04.rsw': {
 		backgroundBmp: 'field_s2',
@@ -2980,7 +2980,7 @@ const MapInfo = {
 			mainTitle: 'Hugel Field'
 		},
 		notifyEnter: true,
-		displayName: 'Hugel Field'
+		displayName: '毁葛 旷野'
 	},
 	'thor_v03.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -2988,7 +2988,7 @@ const MapInfo = {
 			mainTitle: 'Thor Volcano Dungeon 3F'
 		},
 		notifyEnter: true,
-		displayName: 'Thor Volcano Dungeon 3F'
+		displayName: '伯仁斯托尔火山 洞穴3层'
 	},
 	'1@4win.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -2996,7 +2996,7 @@ const MapInfo = {
 			mainTitle: 'Luluca Deep Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Luluca Deep Forest'
+		displayName: '噜噜卡森林'
 	},
 	'mjo_dun03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3005,7 +3005,7 @@ const MapInfo = {
 			subTitle: 'North of Mt. Mjolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Mjolnir Dead Pit F3'
+		displayName: '妙勒尼废弃矿场 3层'
 	},
 	'pvp_n_2-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3013,7 +3013,7 @@ const MapInfo = {
 			mainTitle: 'PvP Four Room'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Four Room'
+		displayName: 'PvP : 4通道 房间'
 	},
 	'pvp_y_2-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3021,7 +3021,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Prontera'
+		displayName: 'PvP : 普隆德拉'
 	},
 	'1@ge_st.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3029,7 +3029,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Magic Tournament'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Magic Tournament'
+		displayName: '吉芬魔法大赛'
 	},
 	'1@nyd.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3054,7 +3054,7 @@ const MapInfo = {
 			subTitle: 'Payon'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Archer Village'
+		displayName: '山岳之都 斐扬'
 	},
 	'ra_fild09.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3062,7 +3062,7 @@ const MapInfo = {
 			mainTitle: 'Audumla Grassland'
 		},
 		notifyEnter: true,
-		displayName: 'Audumla Grassland'
+		displayName: '拉赫 奥顿拉草原'
 	},
 	'new_3-3.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3070,7 +3070,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'tha_t03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3079,7 +3079,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Tower'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Abandoned Place'
+		displayName: '达纳托斯之塔 下层 废弃空间'
 	},
 	'1@mcd.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3087,10 +3087,10 @@ const MapInfo = {
 			mainTitle: 'Charleston Factory'
 		},
 		notifyEnter: true,
-		displayName: 'Charleston Factory'
+		displayName: '查尔斯顿工厂'
 	},
 	'star_in.rsw': {
-		displayName: 'Inside Yu Seong Lim'
+		displayName: '流星林 室内'
 	},
 	'pvp_y_4-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3098,7 +3098,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Alberta'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Alberta'
+		displayName: 'PvP : 艾尔贝塔'
 	},
 	'arug_cas03.rsw': {
 		backgroundBmp: 'siege',
@@ -3107,7 +3107,7 @@ const MapInfo = {
 			subTitle: 'Valfreyja'
 		},
 		notifyEnter: true,
-		displayName: 'Horn Castle'
+		displayName: '发菲依雅公会'
 	},
 	'manuk.rsw': {
 		backgroundBmp: 'village',
@@ -3116,7 +3116,7 @@ const MapInfo = {
 			subTitle: "Yotunheim Sapha's Mining Village"
 		},
 		notifyEnter: true,
-		displayName: 'Manuk Mining Camp'
+		displayName: '矿山村庄 马努克'
 	},
 	'que_hugel.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3132,7 +3132,7 @@ const MapInfo = {
 			mainTitle: 'Izlude Shipwreck B2'
 		},
 		notifyEnter: true,
-		displayName: 'Izlude Shipwreck B2'
+		displayName: '依斯鲁得遇难船 2层'
 	},
 	'ma_zif05.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3140,7 +3140,7 @@ const MapInfo = {
 			mainTitle: 'Jeepney'
 		},
 		notifyEnter: true,
-		displayName: 'Inside of Jeepney'
+		displayName: '吉普尼车 内部'
 	},
 	'jor_root2.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3156,7 +3156,7 @@ const MapInfo = {
 			mainTitle: 'Rachel Ice Cave 2F'
 		},
 		notifyEnter: true,
-		displayName: 'Rachel Ice Cave 2F'
+		displayName: '拉赫冰洞穴 2层'
 	},
 	'mosk_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3164,10 +3164,10 @@ const MapInfo = {
 			mainTitle: 'Moscovia Field'
 		},
 		notifyEnter: true,
-		displayName: 'Moscovia Field'
+		displayName: '莫斯科比亚 旷野'
 	},
 	'itemmall.rsw': {
-		displayName: 'Kafra Shop'
+		displayName: '道具商店'
 	},
 	'new_2-3.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3175,7 +3175,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'pay_dun03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3184,10 +3184,10 @@ const MapInfo = {
 			subTitle: 'Payon Archer Village'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Cave F4'
+		displayName: '斐扬洞穴 4层（废弃村落）'
 	},
 	'lhz_cube.rsw': {
-		displayName: 'Cube Room'
+		displayName: '正立方体房间'
 	},
 	'prt_q.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3195,7 +3195,7 @@ const MapInfo = {
 			mainTitle: 'Invaded Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'Invaded Prontera'
+		displayName: '被侵略的普隆德拉'
 	},
 	've_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3203,7 +3203,7 @@ const MapInfo = {
 			mainTitle: 'Veins Field'
 		},
 		notifyEnter: true,
-		displayName: 'Veins Field'
+		displayName: '伯仁斯 旷野'
 	},
 	'un_bk_q.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3211,7 +3211,7 @@ const MapInfo = {
 			mainTitle: 'Underground Bunker'
 		},
 		notifyEnter: true,
-		displayName: 'Underground Bunker'
+		displayName: '地下碉堡'
 	},
 	'1@jtb.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3219,7 +3219,7 @@ const MapInfo = {
 			mainTitle: 'Dream and Shadow'
 		},
 		notifyEnter: true,
-		displayName: 'Dream and Shadow'
+		displayName: '梦与影子'
 	},
 	'prt_arena01.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3227,7 +3227,7 @@ const MapInfo = {
 			mainTitle: 'Arena'
 		},
 		notifyEnter: true,
-		displayName: 'Arena'
+		displayName: '竞技场'
 	},
 	'gefg_cas03.rsw': {
 		backgroundBmp: 'siege',
@@ -3236,7 +3236,7 @@ const MapInfo = {
 			subTitle: 'Britoniah'
 		},
 		notifyEnter: true,
-		displayName: 'Yesnelph Castle'
+		displayName: '咘哩妥利亚 公会'
 	},
 	'gef_fild13.rsw': {
 		backgroundBmp: 'noname',
@@ -3245,7 +3245,7 @@ const MapInfo = {
 			subTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Britoniah'
+		displayName: '怖立特离亚'
 	},
 	'iz_ac01_d.rsw': {
 		backgroundBmp: 'noname_s1',
@@ -3253,7 +3253,7 @@ const MapInfo = {
 			subTitle: 'Criatura Academy F1'
 		},
 		notifyEnter: true,
-		displayName: 'Criatura Academy F1'
+		displayName: '魔法学院 1层'
 	},
 	'oz_dun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3270,10 +3270,10 @@ const MapInfo = {
 			subTitle: 'Baylan Island'
 		},
 		notifyEnter: true,
-		displayName: 'Undersea Tunnel B3'
+		displayName: '依斯鲁得海底洞穴 3层'
 	},
 	'ecl_in01.rsw': {
-		displayName: 'Eclage Indoor'
+		displayName: '埃克拉珠 内部'
 	},
 	'que_qaru05.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3281,7 +3281,7 @@ const MapInfo = {
 			mainTitle: 'Fallacious Okolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Fallacious Okolnir'
+		displayName: '虚幻的奥克尼尔'
 	},
 	'sp_rudus2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3290,7 +3290,7 @@ const MapInfo = {
 			subTitle: 'Experiment Waste Disposal'
 		},
 		notifyEnter: true,
-		displayName: 'Rudus, Experiment Waste Disposal F2'
+		displayName: '实验体废弃场 鲁杜斯 2层'
 	},
 	'new_1-2.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3298,7 +3298,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'vis_h04.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3314,7 +3314,7 @@ const MapInfo = {
 			mainTitle: 'Payon Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Forest'
+		displayName: '斐扬树林'
 	},
 	'hu_fild03.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3322,7 +3322,7 @@ const MapInfo = {
 			mainTitle: 'Royal Hunting Grounds'
 		},
 		notifyEnter: true,
-		displayName: 'Royal Hunting Grounds'
+		displayName: '狩猎场'
 	},
 	'pvp_n_7-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3330,7 +3330,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Rock On'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Rock On'
+		displayName: 'PvP : 雷达锁定 房间'
 	},
 	'nameless_n.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3338,7 +3338,7 @@ const MapInfo = {
 			mainTitle: 'Nameless Island Entrance'
 		},
 		notifyEnter: true,
-		displayName: 'Nameless Island Entrance'
+		displayName: '无名岛'
 	},
 	'1@4mst.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -3346,7 +3346,7 @@ const MapInfo = {
 			mainTitle: 'Euperos Central VT'
 		},
 		notifyEnter: true,
-		displayName: 'Euperos Central VT'
+		displayName: '优配擂斯中心部VT'
 	},
 	'prt_fild07.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3354,7 +3354,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'mid_camp.rsw': {
 		backgroundBmp: 'village',
@@ -3363,7 +3363,7 @@ const MapInfo = {
 			subTitle: 'Yotunheim'
 		},
 		notifyEnter: true,
-		displayName: 'Midgard Expedition Camp'
+		displayName: '米德加尔特联合驻地'
 	},
 	'te_alde_gld.rsw': {
 		backgroundBmp: 'siege',
@@ -3381,7 +3381,7 @@ const MapInfo = {
 			subTitle: 'Port Town Lasagne'
 		},
 		notifyEnter: true,
-		displayName: 'Inside Conch'
+		displayName: '康-奇丽娜号内部'
 	},
 	'new_5-2.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3389,16 +3389,16 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'turbo_e_4.rsw': {
-		displayName: 'Turbo Track Stadium'
+		displayName: '竞速场地 竞赛场'
 	},
 	'job3_guil01.rsw': {
-		displayName: 'Secret Tavern'
+		displayName: '秘密酒店'
 	},
 	'paramk.rsw': {
-		displayName: 'Para Market'
+		displayName: '乐园团集市'
 	},
 	'gef_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3406,7 +3406,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Field'
+		displayName: '吉芬 旷野'
 	},
 	'moc_pryd05.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3415,7 +3415,7 @@ const MapInfo = {
 			subTitle: 'Morroc'
 		},
 		notifyEnter: true,
-		displayName: 'Inside Pyramid B1'
+		displayName: '梦罗克金字塔 地下1层'
 	},
 	'un_bunker.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3423,7 +3423,7 @@ const MapInfo = {
 			mainTitle: 'Underground Bunker'
 		},
 		notifyEnter: true,
-		displayName: 'Underground Bunker'
+		displayName: '地下碉堡'
 	},
 	'1@air1.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3431,7 +3431,7 @@ const MapInfo = {
 			mainTitle: 'Airship'
 		},
 		notifyEnter: true,
-		displayName: 'Airship'
+		displayName: '飞空艇'
 	},
 	'sp_rudus3.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3440,10 +3440,10 @@ const MapInfo = {
 			subTitle: 'Experiment Waste Disposal'
 		},
 		notifyEnter: true,
-		displayName: 'Rudus, Experiment Waste Disposal F3'
+		displayName: '实验体废弃场 鲁杜斯 3层'
 	},
 	'mal_in01.rsw': {
-		displayName: 'Inside Malangdo'
+		displayName: '绵绵岛 内部'
 	},
 	'2@mir.rsw': {
 		backgroundBmp: 'noname',
@@ -3451,7 +3451,7 @@ const MapInfo = {
 			mainTitle: 'Ritual Room'
 		},
 		notifyEnter: true,
-		displayName: 'Ritual Room'
+		displayName: '仪式的房间'
 	},
 	'1@mir.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3459,7 +3459,7 @@ const MapInfo = {
 			mainTitle: 'Ritual Room'
 		},
 		notifyEnter: true,
-		displayName: 'Ritual Room'
+		displayName: '仪式的房间'
 	},
 	'ma_zif03.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3467,7 +3467,7 @@ const MapInfo = {
 			mainTitle: 'Jeepney'
 		},
 		notifyEnter: true,
-		displayName: 'Inside of Jeepney'
+		displayName: '吉普尼车 内部'
 	},
 	'dicastes02.rsw': {
 		backgroundBmp: 'village',
@@ -3476,7 +3476,7 @@ const MapInfo = {
 			subTitle: 'El Dicastes'
 		},
 		notifyEnter: true,
-		displayName: 'Broomeveld Forest'
+		displayName: '布伦贝德·约尔希森林'
 	},
 	'rag_fes.rsw': {
 		backgroundBmp: 'village',
@@ -3494,7 +3494,7 @@ const MapInfo = {
 			subTitle: 'Valkyrie Realm'
 		},
 		notifyEnter: true,
-		displayName: 'Fadhgridh Castle'
+		displayName: '瓦尔基里雷恩 公会'
 	},
 	'izlude_d.rsw': {
 		backgroundBmp: 'village',
@@ -3503,7 +3503,7 @@ const MapInfo = {
 			subTitle: 'Rune-Midgarts Kingdom'
 		},
 		notifyEnter: true,
-		displayName: 'Izlude, the Satellite City'
+		displayName: '卫星都市 依斯鲁得'
 	},
 	'in_sphinx1.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3512,7 +3512,7 @@ const MapInfo = {
 			subTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Morocc Sphinx B1'
+		displayName: '梦罗克史芬克斯 地下1层'
 	},
 	'lhz_in01.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3520,7 +3520,7 @@ const MapInfo = {
 			mainTitle: 'Rekenber Corporation Headquarters'
 		},
 		notifyEnter: true,
-		displayName: 'Rekenber Corporation Headquarters'
+		displayName: '雷根贝勒总部'
 	},
 	'lasa_fild02.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -3528,7 +3528,7 @@ const MapInfo = {
 			mainTitle: 'Ravioli Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Ravioli Forest'
+		displayName: '罗比奥森林'
 	},
 	'1@spa.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3536,7 +3536,7 @@ const MapInfo = {
 			mainTitle: 'Ghost Palace'
 		},
 		notifyEnter: true,
-		displayName: 'Ghost Palace'
+		displayName: '幽灵皇宫'
 	},
 	'yuno_fild04.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3544,10 +3544,10 @@ const MapInfo = {
 			mainTitle: 'El Mes Plateau'
 		},
 		notifyEnter: true,
-		displayName: 'El Mes Plateau'
+		displayName: '尔迈斯 瀑雷德'
 	},
 	'ordeal_2-3.rsw': {
-		displayName: 'Battle Ordeal Mode'
+		displayName: '团体战斗模式'
 	},
 	'jawaii.rsw': {
 		backgroundBmp: 'village',
@@ -3556,7 +3556,7 @@ const MapInfo = {
 			subTitle: 'Honeymoon Island'
 		},
 		notifyEnter: true,
-		displayName: 'Jawaii, the Honeymoon Island'
+		displayName: '蜜月岛 爪哇咿'
 	},
 	'iz_ac01_a.rsw': {
 		backgroundBmp: 'noname_s1',
@@ -3564,7 +3564,7 @@ const MapInfo = {
 			subTitle: 'Criatura Academy F1'
 		},
 		notifyEnter: true,
-		displayName: 'Criatura Academy F1'
+		displayName: '魔法学院 1层'
 	},
 	'new_4-3.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3572,7 +3572,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'pvp_y_5-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3580,7 +3580,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Prontera'
+		displayName: 'PvP : 普隆德拉'
 	},
 	'gl_cas02_.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3597,7 +3597,7 @@ const MapInfo = {
 			mainTitle: 'Dewata'
 		},
 		notifyEnter: true,
-		displayName: 'Dewata'
+		displayName: '德瓦他'
 	},
 	'1@4igd.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -3605,7 +3605,7 @@ const MapInfo = {
 			mainTitle: 'The Battlefield of Justice'
 		},
 		notifyEnter: true,
-		displayName: 'The Battlefield of Justice'
+		displayName: '正义擂台'
 	},
 	'iz_int01.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3613,10 +3613,10 @@ const MapInfo = {
 			mainTitle: 'Stranded Passenger Ship'
 		},
 		notifyEnter: true,
-		displayName: 'Stranded Passenger Ship'
+		displayName: '新手地图'
 	},
 	'force_2-3.rsw': {
-		displayName: 'Time Limit Fight'
+		displayName: '限时激斗模式'
 	},
 	'ein_dun03.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3624,10 +3624,10 @@ const MapInfo = {
 			mainTitle: 'Einbech Mine 3F'
 		},
 		notifyEnter: true,
-		displayName: 'Einbech Mine 3F'
+		displayName: '艾音贝赫矿山 3层'
 	},
 	'prt_evt_in.rsw': {
-		displayName: 'Hunting Lodge'
+		displayName: '狩猎场小木屋'
 	},
 	'tha_t06.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3635,7 +3635,7 @@ const MapInfo = {
 			mainTitle: 'Thanatos Tower Upper Level'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Upper Level'
+		displayName: '达纳托斯之塔 上层'
 	},
 	'1@dth3.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3643,7 +3643,7 @@ const MapInfo = {
 			mainTitle: 'Bios Island'
 		},
 		notifyEnter: true,
-		displayName: 'Bios Island'
+		displayName: '拜欧斯岛'
 	},
 	'monk_in.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3651,13 +3651,13 @@ const MapInfo = {
 			mainTitle: 'Inside St. Abbey'
 		},
 		notifyEnter: true,
-		displayName: 'Inside St. Abbey'
+		displayName: '圣●卡毕利那修道院 内部'
 	},
 	'turbo_e_8.rsw': {
-		displayName: 'Turbo Track Stadium'
+		displayName: '竞速场地 竞赛场'
 	},
 	'cmd_in01.rsw': {
-		displayName: 'Inside Comodo'
+		displayName: '克魔岛 内部'
 	},
 	'ein_fild06.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3665,7 +3665,7 @@ const MapInfo = {
 			mainTitle: 'Einbroch Field'
 		},
 		notifyEnter: true,
-		displayName: 'Einbroch Field'
+		displayName: '艾音布罗克 旷野'
 	},
 	'arug_cas05.rsw': {
 		backgroundBmp: 'siege',
@@ -3674,7 +3674,7 @@ const MapInfo = {
 			subTitle: 'Valfreyja'
 		},
 		notifyEnter: true,
-		displayName: 'Banadis Castle'
+		displayName: '发菲依雅公会'
 	},
 	'gl_chyard.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3683,7 +3683,7 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Glastheim Underground Churchyard'
+		displayName: '克雷斯特汉姆古城 地下公墓'
 	},
 	'pvp_y_7-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3691,7 +3691,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Izlude'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Izlude'
+		displayName: 'PvP : 依斯鲁得'
 	},
 	'pvp_n_7-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3699,7 +3699,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Copass'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Copass'
+		displayName: 'PvP : 罗盘 房间'
 	},
 	'ba_pw01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3707,7 +3707,7 @@ const MapInfo = {
 			mainTitle: '1st Power Plant'
 		},
 		notifyEnter: true,
-		displayName: '1st Power Plant'
+		displayName: '第一魔力发电厂'
 	},
 	'lhz_airport.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3715,7 +3715,7 @@ const MapInfo = {
 			mainTitle: 'Lighthalzen Airport'
 		},
 		notifyEnter: true,
-		displayName: 'Lighthalzen Airport'
+		displayName: '里希塔乐镇机场'
 	},
 	'ein_d02_i.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3724,7 +3724,7 @@ const MapInfo = {
 			subTitle: 'Illusion'
 		},
 		notifyEnter: true,
-		displayName: 'Nasarin Empire'
+		displayName: '罗斯里安帝国'
 	},
 	'arena_room.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3732,7 +3732,7 @@ const MapInfo = {
 			mainTitle: 'Waiting room'
 		},
 		notifyEnter: true,
-		displayName: 'Waiting room'
+		displayName: '竞技场 等候室'
 	},
 	'job4_bio.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -3740,7 +3740,7 @@ const MapInfo = {
 			mainTitle: 'Secret Garden'
 		},
 		notifyEnter: true,
-		displayName: 'Secret Garden'
+		displayName: '秘密花园'
 	},
 	'pvp_y_3-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3748,7 +3748,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Payon'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Payon'
+		displayName: 'PvP : 斐扬'
 	},
 	'yggdrasil01.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3759,7 +3759,7 @@ const MapInfo = {
 		displayName: "Hvergelmir's Fountain (Trunk of Yggdrasil)"
 	},
 	'ama_in02.rsw': {
-		displayName: 'Inside Himezi Castle'
+		displayName: '天水阁 内部'
 	},
 	'jor_ab01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3767,7 +3767,7 @@ const MapInfo = {
 			mainTitle: 'Abandoned Pit 1st Floor'
 		},
 		notifyEnter: true,
-		displayName: 'Abandoned Pit 1st Floor'
+		displayName: '废弃坑洞1层'
 	},
 	'mjolnir_05.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3775,10 +3775,10 @@ const MapInfo = {
 			mainTitle: 'Mt.Mjolnir North Area'
 		},
 		notifyEnter: true,
-		displayName: 'Mt.Mjolnir North Area'
+		displayName: '妙勒尼山脉 北边地区'
 	},
 	'que_bingo.rsw': {
-		displayName: 'Bingo Game Room'
+		displayName: '冰窟竞赛场'
 	},
 	'1@4drk.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -3795,7 +3795,7 @@ const MapInfo = {
 			subTitle: 'Luina'
 		},
 		notifyEnter: true,
-		displayName: 'Luina Guild Dungeon'
+		displayName: '公会地下密穴'
 	},
 	'vr_bob.rsw': {
 		backgroundBmp: 'noname',
@@ -3812,7 +3812,7 @@ const MapInfo = {
 			mainTitle: 'Frozen Scale Glacier'
 		},
 		notifyEnter: true,
-		displayName: 'Frozen Scale Glacier'
+		displayName: '冰鳞冰川'
 	},
 	'louyang.rsw': {
 		backgroundBmp: 'village',
@@ -3821,7 +3821,7 @@ const MapInfo = {
 			subTitle: 'Highland'
 		},
 		notifyEnter: true,
-		displayName: 'Louyang, the Highland'
+		displayName: '古都 龙之城'
 	},
 	'iz_ac02_c.rsw': {
 		backgroundBmp: 'noname_s1',
@@ -3829,7 +3829,7 @@ const MapInfo = {
 			subTitle: 'Criatura Academy F2'
 		},
 		notifyEnter: true,
-		displayName: 'Criatura Academy F2'
+		displayName: '魔法学院 2层'
 	},
 	'ra_san04.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3838,7 +3838,7 @@ const MapInfo = {
 			subTitle: 'Rachel Temple'
 		},
 		notifyEnter: true,
-		displayName: 'Rachel Temple Sanctuary South Area 1F'
+		displayName: '拉赫 神殿圣域1层 南边地区'
 	},
 	'beach_dun3.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3847,7 +3847,7 @@ const MapInfo = {
 			subTitle: 'Comodo'
 		},
 		notifyEnter: true,
-		displayName: 'Mao, the East Cave'
+		displayName: '克魔岛 东边洞穴 马吾'
 	},
 	'pub_cat.rsw': {
 		backgroundBmp: 'village',
@@ -3856,7 +3856,7 @@ const MapInfo = {
 			subTitle: 'Einbroch Rebellion Pub'
 		},
 		notifyEnter: true,
-		displayName: 'Cat on a Bullet'
+		displayName: '喵星人子弹酒吧'
 	},
 	'1@herbs.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3864,10 +3864,10 @@ const MapInfo = {
 			mainTitle: 'Hidden Flower Garden'
 		},
 		notifyEnter: true,
-		displayName: 'Hidden Flower Garden'
+		displayName: '秘密花园'
 	},
 	'prt_lib_q.rsw': {
-		displayName: 'Memorial of Past Royal Family'
+		displayName: '过去王室的记忆'
 	},
 	'ma_fild02.rsw': {
 		backgroundBmp: 'field',
@@ -3876,7 +3876,7 @@ const MapInfo = {
 			subTitle: 'Port Malaya'
 		},
 		notifyEnter: true,
-		displayName: 'Forest'
+		displayName: '普勒斯特'
 	},
 	'pvp_y_3-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -3884,7 +3884,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Prontera'
+		displayName: 'PvP : 普隆德拉'
 	},
 	'1@exse.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -3892,7 +3892,7 @@ const MapInfo = {
 			mainTitle: 'Galactic Celestial Branch'
 		},
 		notifyEnter: true,
-		displayName: 'Galactic Celestial Branch'
+		displayName: '银河天界分所'
 	},
 	'bat_b01.rsw': {
 		backgroundBmp: 'noname',
@@ -3901,7 +3901,7 @@ const MapInfo = {
 			subTitle: 'Battleground'
 		},
 		notifyEnter: true,
-		displayName: 'Flavian'
+		displayName: '普拉比乌斯'
 	},
 	'ein_fild04.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3909,7 +3909,7 @@ const MapInfo = {
 			mainTitle: 'Einbroch Field'
 		},
 		notifyEnter: true,
-		displayName: 'Einbroch Field'
+		displayName: '艾音布罗克 旷野'
 	},
 	'sp_os.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3918,10 +3918,10 @@ const MapInfo = {
 			subTitle: 'Special Border Area'
 		},
 		notifyEnter: true,
-		displayName: 'Special Border Area OS'
+		displayName: '特殊警戒区欧斯'
 	},
 	'prt_in.rsw': {
-		displayName: 'Inside Prontera'
+		displayName: '卢恩米德加兹王国 首都 普隆德拉'
 	},
 	'moc_ruins.rsw': {
 		backgroundBmp: 'village_s2',
@@ -3929,7 +3929,7 @@ const MapInfo = {
 			mainTitle: 'Morocc Ruins'
 		},
 		notifyEnter: true,
-		displayName: 'Morocc Ruins'
+		displayName: '沙漠之都 梦罗克'
 	},
 	'arug_cas04.rsw': {
 		backgroundBmp: 'siege',
@@ -3938,7 +3938,7 @@ const MapInfo = {
 			subTitle: 'Valfreyja'
 		},
 		notifyEnter: true,
-		displayName: 'Gefn Castle'
+		displayName: '发菲依雅公会'
 	},
 	'ama_dun03.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -3946,7 +3946,7 @@ const MapInfo = {
 			mainTitle: 'Amatsu Underground Shrine'
 		},
 		notifyEnter: true,
-		displayName: 'Amatsu Underground Shrine'
+		displayName: '樱花城 地下神社'
 	},
 	'yuno_fild06.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3954,7 +3954,7 @@ const MapInfo = {
 			mainTitle: 'El Mes Plateau'
 		},
 		notifyEnter: true,
-		displayName: 'El Mes Plateau'
+		displayName: '尔迈斯 瀑雷德'
 	},
 	'moc_fild22b.rsw': {
 		backgroundBmp: 'field2',
@@ -3963,7 +3963,7 @@ const MapInfo = {
 			subTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Dimension Crack in Sograt Desert'
+		displayName: '苏克拉特沙漠 次元裂缝'
 	},
 	'hu_fild05.rsw': {
 		backgroundBmp: 'field_s2',
@@ -3971,7 +3971,7 @@ const MapInfo = {
 			mainTitle: 'Hugel Abyss Lake'
 		},
 		notifyEnter: true,
-		displayName: 'Hugel Abyss Lake'
+		displayName: '毁葛 深渊湖水'
 	},
 	'gl_sew03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -3980,7 +3980,7 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Glastheim Underground Waterway B3'
+		displayName: '克雷斯特汉姆古城 地下水道3层'
 	},
 	'hero_ent1.rsw': {
 		backgroundBmp: 'siege',
@@ -3998,7 +3998,7 @@ const MapInfo = {
 			subTitle: 'Greenwood Lake'
 		},
 		notifyEnter: true,
-		displayName: 'Bamboo Grove Hill Castle'
+		displayName: '青林湖泊 公会'
 	},
 	'prt_fild11.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4006,7 +4006,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'1@adv.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4014,7 +4014,7 @@ const MapInfo = {
 			mainTitle: 'High Priest Villa'
 		},
 		notifyEnter: true,
-		displayName: 'High Priest Villa'
+		displayName: '大神官的别墅'
 	},
 	'ein_fild09.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4022,7 +4022,7 @@ const MapInfo = {
 			mainTitle: 'Einbroch Field'
 		},
 		notifyEnter: true,
-		displayName: 'Einbroch Field'
+		displayName: '艾音布罗克 旷野'
 	},
 	'jor_safty1.rsw': {
 		backgroundBmp: 'field2_s1',
@@ -4039,7 +4039,7 @@ const MapInfo = {
 			subTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Culvert F3'
+		displayName: '普隆德拉地下水道 3层'
 	},
 	'tha_t07.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4048,7 +4048,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Tower Upper Level'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Upper Level - Room of Angel'
+		displayName: '达纳托斯之塔 上层 天使之房'
 	},
 	'tha_t05.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4056,10 +4056,10 @@ const MapInfo = {
 			mainTitle: 'Thanatos Tower Upper Level'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Upper Level'
+		displayName: '达纳托斯之塔 上层'
 	},
 	'turbo_n_16.rsw': {
-		displayName: 'Turbo Track Stadium'
+		displayName: '竞速场地 竞赛场'
 	},
 	'alde_dun02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4068,7 +4068,7 @@ const MapInfo = {
 			subTitle: 'Aldebaran'
 		},
 		notifyEnter: true,
-		displayName: 'Clock Tower B2'
+		displayName: '艾尔帕兰钟塔 地下2层'
 	},
 	'1@pop3.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4077,10 +4077,10 @@ const MapInfo = {
 			subTitle: 'Half Moon in the Daylight'
 		},
 		notifyEnter: true,
-		displayName: 'Sky Garden'
+		displayName: '天空庭院'
 	},
 	'har_in01.rsw': {
-		displayName: 'Rockridge'
+		displayName: '洛克里奇'
 	},
 	'new_2-1.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4088,7 +4088,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'prt_castle.rsw': {
 		backgroundBmp: 'village_s2',
@@ -4096,7 +4096,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Castle'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Castle'
+		displayName: '普隆德拉城 内部'
 	},
 	'gl_cas02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4105,7 +4105,7 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Glastheim Castle F2'
+		displayName: '克雷斯特汉姆古城 地上2层'
 	},
 	'que_swat.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4113,7 +4113,7 @@ const MapInfo = {
 			mainTitle: 'Heart Hunter Military Base'
 		},
 		notifyEnter: true,
-		displayName: 'Heart Hunter Military Base'
+		displayName: '邪心猎人军事基地'
 	},
 	'1@4cdn.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -4121,7 +4121,7 @@ const MapInfo = {
 			mainTitle: 'Cave of the Last Ordeal Vision'
 		},
 		notifyEnter: true,
-		displayName: 'Cave of the Last Ordeal Vision'
+		displayName: '最后试炼之幻影洞穴'
 	},
 	'tra_fild.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4129,7 +4129,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Outer Training Grounds'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Outer Training Grounds'
+		displayName: '普隆德拉郊外训练场'
 	},
 	'tha_t04.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4138,7 +4138,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Tower'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Abandoned Place'
+		displayName: '达纳托斯之塔 下层 废弃空间'
 	},
 	'iz_ac02_b.rsw': {
 		backgroundBmp: 'noname_s1',
@@ -4146,7 +4146,7 @@ const MapInfo = {
 			subTitle: 'Criatura Academy F2'
 		},
 		notifyEnter: true,
-		displayName: 'Criatura Academy F2'
+		displayName: '魔法学院 2层'
 	},
 	'abbey02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4155,10 +4155,10 @@ const MapInfo = {
 			subTitle: 'Nameless Island'
 		},
 		notifyEnter: true,
-		displayName: 'Cursed Abbey Dungeon B2'
+		displayName: '无名岛修道院 地下1层'
 	},
 	'turbo_n_8.rsw': {
-		displayName: 'Turbo Track Stadium'
+		displayName: '竞速场地 竞赛场'
 	},
 	'vis_h03.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4174,7 +4174,7 @@ const MapInfo = {
 			mainTitle: 'Friday Memorial'
 		},
 		notifyEnter: true,
-		displayName: 'Friday Memorial'
+		displayName: '周五副本'
 	},
 	'lasa_sea.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4193,7 +4193,7 @@ const MapInfo = {
 		displayName: "Odin's Temple North Area"
 	},
 	'quiz_test.rsw': {
-		displayName: 'Quiz Hall'
+		displayName: '益智考场'
 	},
 	'c_tower2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4202,7 +4202,7 @@ const MapInfo = {
 			subTitle: 'Aldebaran'
 		},
 		notifyEnter: true,
-		displayName: 'Clock Tower F2'
+		displayName: '艾尔帕兰钟塔 地上3层'
 	},
 	'2@gl_k.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4226,7 +4226,7 @@ const MapInfo = {
 		displayName: 'Old Glastheim Chivalry F1'
 	},
 	'1@gef_in.rsw': {
-		displayName: 'Geffen Magic Tournament'
+		displayName: '吉芬魔法大赛'
 	},
 	'lasa_dun_q.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4234,7 +4234,7 @@ const MapInfo = {
 			mainTitle: 'Dragon Nest'
 		},
 		notifyEnter: true,
-		displayName: 'Dragon Nest'
+		displayName: '龙巢穴'
 	},
 	'schg_cas03.rsw': {
 		backgroundBmp: 'siege',
@@ -4243,7 +4243,7 @@ const MapInfo = {
 			subTitle: 'Nidhoggur'
 		},
 		notifyEnter: true,
-		displayName: 'Vidblainn Castle'
+		displayName: '尼它堆公会'
 	},
 	'hero_out4.rsw': {
 		backgroundBmp: 'siege',
@@ -4252,7 +4252,7 @@ const MapInfo = {
 			subTitle: 'Herosria'
 		},
 		notifyEnter: true,
-		displayName: 'Herosria Labinarium'
+		displayName: '希罗斯里亚冰雪之域'
 	},
 	'alde_gld.rsw': {
 		backgroundBmp: 'siege',
@@ -4261,7 +4261,7 @@ const MapInfo = {
 			subTitle: 'Satellite of Aldebaran'
 		},
 		notifyEnter: true,
-		displayName: 'Luina, the satellite of Aldebaran'
+		displayName: '艾尔帕兰 卫星都市 露依纳'
 	},
 	'prt_fild08b.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4269,7 +4269,7 @@ const MapInfo = {
 			mainTitle: 'South Field of Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'yuno_fild12.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4277,7 +4277,7 @@ const MapInfo = {
 			mainTitle: 'Border Checkpoint'
 		},
 		notifyEnter: true,
-		displayName: 'Border Checkpoint'
+		displayName: '秀发兹发德 国境检查站'
 	},
 	'lhz_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4285,7 +4285,7 @@ const MapInfo = {
 			mainTitle: 'Lighthalzen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Lighthalzen Field'
+		displayName: '里希塔乐镇 旷野'
 	},
 	'pvp_n_7-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4293,7 +4293,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Sandwich'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Sandwich'
+		displayName: 'PvP : 3明治 房间'
 	},
 	'yuno_fild03.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4301,7 +4301,7 @@ const MapInfo = {
 			mainTitle: 'El Mes Plateau'
 		},
 		notifyEnter: true,
-		displayName: 'El Mes Plateau'
+		displayName: '尔迈斯 瀑雷德'
 	},
 	'pvp_n_5-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4309,10 +4309,10 @@ const MapInfo = {
 			mainTitle: 'PvP Room Undercross'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Undercross'
+		displayName: 'PvP : 反十字 房间'
 	},
 	'job_wiz.rsw': {
-		displayName: 'Wizard Realm'
+		displayName: '巫师转职考场'
 	},
 	'gon_dun02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4332,10 +4332,10 @@ const MapInfo = {
 		displayName: 'Remote Island'
 	},
 	'aldeba_in.rsw': {
-		displayName: 'Inside Aldebaran'
+		displayName: '运河之都 艾尔帕兰'
 	},
 	've_in.rsw': {
-		displayName: 'Inside Veins'
+		displayName: '伯仁斯 内部'
 	},
 	'que_qsch05.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4343,7 +4343,7 @@ const MapInfo = {
 			mainTitle: 'Fallacious Okolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Fallacious Okolnir'
+		displayName: '虚幻的奥克尼尔'
 	},
 	'ma_zif07.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4351,7 +4351,7 @@ const MapInfo = {
 			mainTitle: 'Jeepney'
 		},
 		notifyEnter: true,
-		displayName: 'Inside of Jeepney'
+		displayName: '吉普尼车 内部'
 	},
 	'1@tcamp.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4359,7 +4359,7 @@ const MapInfo = {
 			mainTitle: 'Thor Volcano Military Base'
 		},
 		notifyEnter: true,
-		displayName: 'Thor Volcano Military Base'
+		displayName: '托尔火山军事基地'
 	},
 	'prt_fild08d.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4367,10 +4367,10 @@ const MapInfo = {
 			mainTitle: 'South Field of Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'job_prist.rsw': {
-		displayName: 'Priest Realm'
+		displayName: '牧师转职考场'
 	},
 	'nyd_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4378,7 +4378,7 @@ const MapInfo = {
 			mainTitle: 'Yggdrasil Root F1'
 		},
 		notifyEnter: true,
-		displayName: 'Yggdrasil Root F1'
+		displayName: '辉煌残暴者的伤口 1层'
 	},
 	'kh_kiehl02.rsw': {
 		displayName: "Kiel's Room"
@@ -4390,7 +4390,7 @@ const MapInfo = {
 			subTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Morocc Sphinx B2'
+		displayName: '梦罗克史芬克斯 地下2层'
 	},
 	'icas_in.rsw': {
 		backgroundBmp: 'village_s2',
@@ -4398,7 +4398,7 @@ const MapInfo = {
 			mainTitle: 'Inside the Ice Castle'
 		},
 		notifyEnter: true,
-		displayName: 'Inside the Ice Castle'
+		displayName: '冰封之城内部'
 	},
 	'iz_ac02.rsw': {
 		backgroundBmp: 'noname_s1',
@@ -4406,7 +4406,7 @@ const MapInfo = {
 			subTitle: 'Criatura Academy F2'
 		},
 		notifyEnter: true,
-		displayName: 'Criatura Academy F2'
+		displayName: '魔法学院 2层'
 	},
 	'bl_soul.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4423,10 +4423,10 @@ const MapInfo = {
 			mainTitle: 'Mt.Mjolnir North Foothills'
 		},
 		notifyEnter: true,
-		displayName: 'Mt.Mjolnir North Foothills'
+		displayName: '妙勒尼山脉 北边山麓'
 	},
 	'alde_alche.rsw': {
-		displayName: 'Alchemist Realm'
+		displayName: '炼金术师转职所'
 	},
 	'payg_cas02.rsw': {
 		backgroundBmp: 'siege',
@@ -4435,7 +4435,7 @@ const MapInfo = {
 			subTitle: 'Greenwood Lake'
 		},
 		notifyEnter: true,
-		displayName: 'Scarlet Palace Castle'
+		displayName: '青林湖泊 公会'
 	},
 	'gefenia02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4443,10 +4443,10 @@ const MapInfo = {
 			mainTitle: 'Geffenia'
 		},
 		notifyEnter: true,
-		displayName: 'Geffenia'
+		displayName: '葛帔尼亚'
 	},
 	'force_3-2.rsw': {
-		displayName: 'Time Limit Fight'
+		displayName: '限时激斗模式'
 	},
 	'izlude_c.rsw': {
 		backgroundBmp: 'village',
@@ -4455,10 +4455,10 @@ const MapInfo = {
 			subTitle: 'Rune-Midgarts Kingdom'
 		},
 		notifyEnter: true,
-		displayName: 'Izlude, the Satellite City'
+		displayName: '卫星都市 依斯鲁得'
 	},
 	's_atelier.rsw': {
-		displayName: 'Shadow Workshop'
+		displayName: '影子工坊'
 	},
 	'1@20cn2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4474,10 +4474,10 @@ const MapInfo = {
 			mainTitle: 'PvP Room Izlude'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Izlude'
+		displayName: 'PvP : 依斯鲁得'
 	},
 	'spl_in02.rsw': {
-		displayName: 'Inside Splendide'
+		displayName: '辉煌领域 内部'
 	},
 	'1@4mag.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -4485,7 +4485,7 @@ const MapInfo = {
 			mainTitle: 'Magic Fountain'
 		},
 		notifyEnter: true,
-		displayName: 'Magic Fountain'
+		displayName: '魔力之泉'
 	},
 	'quiz_00.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4493,7 +4493,7 @@ const MapInfo = {
 			mainTitle: 'Quiz Revolution'
 		},
 		notifyEnter: true,
-		displayName: 'Quiz Revolution'
+		displayName: 'OX益智游戏竞赛场'
 	},
 	'1@vrclo.rsw': {
 		backgroundBmp: 'noname',
@@ -4511,7 +4511,7 @@ const MapInfo = {
 			subTitle: 'Rockridge'
 		},
 		notifyEnter: true,
-		displayName: 'Kiwawa Desert'
+		displayName: '契瓦瓦沙漠'
 	},
 	'2@vrclo.rsw': {
 		backgroundBmp: 'noname',
@@ -4528,7 +4528,7 @@ const MapInfo = {
 			mainTitle: 'Stranded Passenger Ship'
 		},
 		notifyEnter: true,
-		displayName: 'Stranded Passenger Ship'
+		displayName: '新手地图'
 	},
 	'yuno_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4536,7 +4536,7 @@ const MapInfo = {
 			mainTitle: 'Border Posts'
 		},
 		notifyEnter: true,
-		displayName: 'Border Posts'
+		displayName: '秀发兹发德国境检查站'
 	},
 	'1@spa2.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4553,7 +4553,7 @@ const MapInfo = {
 			subTitle: 'Port Malaya'
 		},
 		notifyEnter: true,
-		displayName: 'Baryo Mahiwaga'
+		displayName: '巴尔尤 马西瓦加'
 	},
 	'poring_w01.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4561,7 +4561,7 @@ const MapInfo = {
 			mainTitle: 'Poring War Waiting Room'
 		},
 		notifyEnter: true,
-		displayName: 'Poring War Waiting Room'
+		displayName: '波利大战 等待室'
 	},
 	'ecl_tdun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4569,7 +4569,7 @@ const MapInfo = {
 			mainTitle: 'Bifrost Tower 1F'
 		},
 		notifyEnter: true,
-		displayName: 'Bifrost Tower 1F'
+		displayName: '彩虹桥高塔 1层'
 	},
 	'jupe_area2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4577,7 +4577,7 @@ const MapInfo = {
 			mainTitle: 'Juperos, Restricted Zone'
 		},
 		notifyEnter: true,
-		displayName: 'Juperos, Restricted Zone'
+		displayName: '优配擂斯保安旷野'
 	},
 	'gef_fild05.rsw': {
 		backgroundBmp: 'field',
@@ -4586,7 +4586,7 @@ const MapInfo = {
 			subTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Gypsy Village'
+		displayName: '吉芬 旷野'
 	},
 	'ra_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4594,7 +4594,7 @@ const MapInfo = {
 			mainTitle: 'Audumla Grassland'
 		},
 		notifyEnter: true,
-		displayName: 'Audumla Grassland'
+		displayName: '拉赫 奥顿拉草原'
 	},
 	'izlude_a.rsw': {
 		backgroundBmp: 'village',
@@ -4603,7 +4603,7 @@ const MapInfo = {
 			subTitle: 'Rune-Midgarts Kingdom'
 		},
 		notifyEnter: true,
-		displayName: 'Izlude, the Satellite City'
+		displayName: '卫星都市 依斯鲁得'
 	},
 	'jupe_core2.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4611,13 +4611,13 @@ const MapInfo = {
 			mainTitle: 'Center of Juperos'
 		},
 		notifyEnter: true,
-		displayName: 'Center of Juperos'
+		displayName: '优配擂斯中央'
 	},
 	'force_1-2.rsw': {
-		displayName: 'Time Limit Fight'
+		displayName: '限时激斗模式'
 	},
 	'lasa_in01.rsw': {
-		displayName: 'Inside Lasagna'
+		displayName: '罗札纳内部'
 	},
 	'jor_que.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4628,7 +4628,7 @@ const MapInfo = {
 		displayName: "Abandoned Snake God's Warmth"
 	},
 	'ordeal_3-4.rsw': {
-		displayName: 'Battle Ordeal Mode'
+		displayName: '团体战斗模式'
 	},
 	'sch_gld.rsw': {
 		backgroundBmp: 'siege',
@@ -4637,7 +4637,7 @@ const MapInfo = {
 			subTitle: 'Yuno'
 		},
 		notifyEnter: true,
-		displayName: 'Nidhoggur'
+		displayName: '尼它堆'
 	},
 	'oz_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4654,7 +4654,7 @@ const MapInfo = {
 			subTitle: 'Baylan Island'
 		},
 		notifyEnter: true,
-		displayName: 'Undersea Tunnel B2'
+		displayName: '依斯鲁得海底洞穴 2层'
 	},
 	'prt_cas.rsw': {
 		backgroundBmp: 'village',
@@ -4663,7 +4663,7 @@ const MapInfo = {
 			subTitle: 'Prontera Castle'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Central Palace'
+		displayName: '普隆德拉中央宫'
 	},
 	'jupe_core.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4671,7 +4671,7 @@ const MapInfo = {
 			mainTitle: 'Center of Juperos'
 		},
 		notifyEnter: true,
-		displayName: 'Center of Juperos'
+		displayName: '优配擂斯中心部'
 	},
 	'rockmi2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4679,7 +4679,7 @@ const MapInfo = {
 			mainTitle: 'Rockridge Mine F2'
 		},
 		notifyEnter: true,
-		displayName: 'Rockridge Mine'
+		displayName: '洛克里奇矿山'
 	},
 	'prt_gld.rsw': {
 		backgroundBmp: 'siege',
@@ -4688,7 +4688,7 @@ const MapInfo = {
 			subTitle: 'Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'Valkyrie Realm'
+		displayName: '瓦尔基里雷恩'
 	},
 	'iz_d04_i.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4696,7 +4696,7 @@ const MapInfo = {
 			mainTitle: 'Deep Sea Cave'
 		},
 		notifyEnter: true,
-		displayName: 'Deep Sea Cave'
+		displayName: '深渊海底洞穴上层'
 	},
 	'amatsu.rsw': {
 		backgroundBmp: 'village',
@@ -4705,7 +4705,7 @@ const MapInfo = {
 			subTitle: 'Land of Destiny'
 		},
 		notifyEnter: true,
-		displayName: 'Amatsu, the Land of Destiny'
+		displayName: '天水之国 樱花城'
 	},
 	'pay_dun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4714,7 +4714,7 @@ const MapInfo = {
 			subTitle: 'Payon Archer Village'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Cave F2'
+		displayName: '斐扬洞穴 2层'
 	},
 	'gl_cas01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4723,7 +4723,7 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Glastheim Castle F1'
+		displayName: '克雷斯特汉姆古城 地上1层'
 	},
 	'te_prtcas04.rsw': {
 		backgroundBmp: 'siege',
@@ -4749,7 +4749,7 @@ const MapInfo = {
 			mainTitle: 'Ida Plains'
 		},
 		notifyEnter: true,
-		displayName: 'Ida Plains'
+		displayName: '拉赫 伊达平原'
 	},
 	'2@tower.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4757,7 +4757,7 @@ const MapInfo = {
 			mainTitle: 'Endless Tower'
 		},
 		notifyEnter: true,
-		displayName: 'Endless Tower'
+		displayName: '无尽塔'
 	},
 	'3@tower.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4765,7 +4765,7 @@ const MapInfo = {
 			mainTitle: 'Endless Tower'
 		},
 		notifyEnter: true,
-		displayName: 'Endless Tower'
+		displayName: '无尽塔'
 	},
 	'4@tower.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4773,7 +4773,7 @@ const MapInfo = {
 			mainTitle: 'Endless Tower'
 		},
 		notifyEnter: true,
-		displayName: 'Endless Tower'
+		displayName: '无尽塔'
 	},
 	'prt_cas_q.rsw': {
 		backgroundBmp: 'village',
@@ -4782,10 +4782,10 @@ const MapInfo = {
 			subTitle: 'Prontera Castle'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Star Palace'
+		displayName: '普隆德拉别宫'
 	},
 	'6@tower.rsw': {
-		displayName: 'Endless Tower (Unknown Area)'
+		displayName: '无尽塔'
 	},
 	'yuno_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4801,7 +4801,7 @@ const MapInfo = {
 			mainTitle: 'Inside the Juperos Ruins'
 		},
 		notifyEnter: true,
-		displayName: 'Inside the Juperos Ruins'
+		displayName: '优配擂斯废墟 内部'
 	},
 	'prt_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4809,7 +4809,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'1@tower.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4817,7 +4817,7 @@ const MapInfo = {
 			mainTitle: 'Endless Tower'
 		},
 		notifyEnter: true,
-		displayName: 'Endless Tower'
+		displayName: '无尽塔'
 	},
 	'lhz_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4825,7 +4825,7 @@ const MapInfo = {
 			mainTitle: 'Somatology Laboratory F1'
 		},
 		notifyEnter: true,
-		displayName: 'Somatology Laboratory F1'
+		displayName: '生物体试验研究所 地下1层'
 	},
 	'ma_zif01.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4833,7 +4833,7 @@ const MapInfo = {
 			mainTitle: 'Jeepney'
 		},
 		notifyEnter: true,
-		displayName: 'Inside of Jeepney'
+		displayName: '吉普尼车 内部'
 	},
 	'bif_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4841,7 +4841,7 @@ const MapInfo = {
 			mainTitle: 'Northern Bifrost'
 		},
 		notifyEnter: true,
-		displayName: 'Northern Bifrost'
+		displayName: '彩虹桥北部'
 	},
 	'jor_dun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4861,7 +4861,7 @@ const MapInfo = {
 		displayName: 'Monastery Churchyard'
 	},
 	'ecl_in04.rsw': {
-		displayName: 'Eclage Indoor'
+		displayName: '埃克拉珠 内部'
 	},
 	've_fild04.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4869,13 +4869,13 @@ const MapInfo = {
 			mainTitle: 'Veins Field'
 		},
 		notifyEnter: true,
-		displayName: 'Veins Field'
+		displayName: '伯仁斯 旷野'
 	},
 	'sec_in02.rsw': {
-		displayName: 'Inside Valhalla'
+		displayName: '巴哈拉宫 内部'
 	},
 	'hunter_1-1.rsw': {
-		displayName: 'Hunter Guild'
+		displayName: '猎人转职所'
 	},
 	'nif_fild01.rsw': {
 		backgroundBmp: 'field',
@@ -4884,10 +4884,10 @@ const MapInfo = {
 			subTitle: 'Niflheim'
 		},
 		notifyEnter: true,
-		displayName: 'Skellington, a Solitary Village in Niflheim'
+		displayName: '尼芙菲姆 偏远村落 斯凯领顿'
 	},
 	'que_god02.rsw': {
-		displayName: 'Quest Map'
+		displayName: '任务地图'
 	},
 	'ecl_tdun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4895,7 +4895,7 @@ const MapInfo = {
 			mainTitle: 'Bifrost Tower 2F'
 		},
 		notifyEnter: true,
-		displayName: 'Bifrost Tower 2F'
+		displayName: '彩虹桥高塔 2层'
 	},
 	'thor_v02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4903,7 +4903,7 @@ const MapInfo = {
 			mainTitle: 'Thor Volcano Dungeon 2F'
 		},
 		notifyEnter: true,
-		displayName: 'Thor Volcano Dungeon 2F'
+		displayName: '伯仁斯托尔火山 洞穴2层'
 	},
 	'bif_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4911,7 +4911,7 @@ const MapInfo = {
 			mainTitle: 'Southern Bifrost'
 		},
 		notifyEnter: true,
-		displayName: 'Southern Bifrost'
+		displayName: '彩虹桥南部'
 	},
 	'1@advs.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -4919,7 +4919,7 @@ const MapInfo = {
 			mainTitle: 'Deception Villa'
 		},
 		notifyEnter: true,
-		displayName: 'Deception Villa'
+		displayName: '欺瞒别墅'
 	},
 	'dicastes01.rsw': {
 		backgroundBmp: 'village',
@@ -4928,7 +4928,7 @@ const MapInfo = {
 			subTitle: 'Jotunheim Sapha Capital'
 		},
 		notifyEnter: true,
-		displayName: 'El Dicastes, the Sapha Capital'
+		displayName: '沙帕首都 埃迪斯特斯'
 	},
 	'brasilis.rsw': {
 		backgroundBmp: 'village_s2',
@@ -4936,7 +4936,7 @@ const MapInfo = {
 			mainTitle: 'Brasilis'
 		},
 		notifyEnter: true,
-		displayName: 'Brasilis'
+		displayName: '巴西'
 	},
 	'1@oz.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -4953,7 +4953,7 @@ const MapInfo = {
 			subTitle: 'Abyss Lake'
 		},
 		notifyEnter: true,
-		displayName: 'Abyss Lake Underground Cave 4F'
+		displayName: '毁葛深渊湖水 地下洞穴 4层'
 	},
 	'c_tower3.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4962,7 +4962,7 @@ const MapInfo = {
 			subTitle: 'Aldebaran'
 		},
 		notifyEnter: true,
-		displayName: 'Clock Tower F3'
+		displayName: '艾尔帕兰 钟塔上层 3层'
 	},
 	'bl_temple.rsw': {
 		backgroundBmp: 'dungeon',
@@ -4979,7 +4979,7 @@ const MapInfo = {
 			mainTitle: 'Payon Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Forest'
+		displayName: '斐扬树林'
 	},
 	'hu_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -4987,7 +4987,7 @@ const MapInfo = {
 			mainTitle: 'In front of Thanatos Tower'
 		},
 		notifyEnter: true,
-		displayName: 'In front of Thanatos Tower'
+		displayName: '达纳托斯之塔'
 	},
 	'int_land03.rsw': {
 		backgroundBmp: 'field_s2',
@@ -5003,7 +5003,7 @@ const MapInfo = {
 			mainTitle: 'The Last room'
 		},
 		notifyEnter: true,
-		displayName: 'The Last room'
+		displayName: '最后房间'
 	},
 	'1@20cn1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5014,7 +5014,7 @@ const MapInfo = {
 		displayName: 'Canyon Exploration'
 	},
 	'quiz_02.rsw': {
-		displayName: 'Quiz Arena'
+		displayName: 'OX益智游戏竞赛场'
 	},
 	'int_land04.rsw': {
 		backgroundBmp: 'field_s2',
@@ -5030,7 +5030,7 @@ const MapInfo = {
 			mainTitle: 'Rachel Ice Cave 1F'
 		},
 		notifyEnter: true,
-		displayName: 'Rachel Ice Cave 1F'
+		displayName: '拉赫冰洞穴 1层'
 	},
 	'2@nyr.rsw': {
 		backgroundBmp: 'noname',
@@ -5039,7 +5039,7 @@ const MapInfo = {
 			subTitle: 'Sanctuary Sesrumnir'
 		},
 		notifyEnter: true,
-		displayName: 'Sanctuary Sesrumnir Heart Storage'
+		displayName: '圣域瑟斯隆尼勒 心脏保管所'
 	},
 	'1@nyr.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5047,7 +5047,7 @@ const MapInfo = {
 			mainTitle: 'Sanctuary Sesrumnir Garden'
 		},
 		notifyEnter: true,
-		displayName: 'Sanctuary Sesrumnir Garden'
+		displayName: '圣域瑟斯隆尼勒庭院'
 	},
 	'moc_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -5055,7 +5055,7 @@ const MapInfo = {
 			mainTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert'
+		displayName: '苏克拉特沙漠'
 	},
 	'pvp_n_1-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5063,7 +5063,7 @@ const MapInfo = {
 			mainTitle: 'PvP Four Room'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Four Room'
+		displayName: 'PvP : 4通道 房间'
 	},
 	'prt_fild06.rsw': {
 		backgroundBmp: 'field_s2',
@@ -5071,7 +5071,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'bl_grass.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5088,7 +5088,7 @@ const MapInfo = {
 			mainTitle: '2nd Power Plant'
 		},
 		notifyEnter: true,
-		displayName: '2nd Power Plant'
+		displayName: '第二魔力发电厂'
 	},
 	'p_track01.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5096,7 +5096,7 @@ const MapInfo = {
 			mainTitle: 'Monster Race Arena'
 		},
 		notifyEnter: true,
-		displayName: 'Monster Race Arena'
+		displayName: '魔物赛跑 竞赛场'
 	},
 	'ice_d03_i.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5105,7 +5105,7 @@ const MapInfo = {
 			subTitle: 'Illusion'
 		},
 		notifyEnter: true,
-		displayName: 'Frozen Memory'
+		displayName: '冰冻记忆'
 	},
 	'ice_dun04.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5113,7 +5113,7 @@ const MapInfo = {
 			mainTitle: 'Rachel Ice Cave - Sealed Space'
 		},
 		notifyEnter: true,
-		displayName: 'Rachel Ice Cave - Sealed Space'
+		displayName: '拉赫冰洞穴 封印的空间'
 	},
 	'x_lhz.rsw': {
 		backgroundBmp: 'noname',
@@ -5122,7 +5122,7 @@ const MapInfo = {
 			subTitle: 'Beyond Dimension'
 		},
 		notifyEnter: true,
-		displayName: 'Lighthalzen - Beyond Dimension'
+		displayName: '次元外的里希塔乐镇'
 	},
 	'jor_back1.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -5130,7 +5130,7 @@ const MapInfo = {
 			mainTitle: 'Frozen Scale Hill'
 		},
 		notifyEnter: true,
-		displayName: 'Frozen Scale Hill'
+		displayName: '冰鳞山丘'
 	},
 	'mjo_wst01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -5146,7 +5146,7 @@ const MapInfo = {
 			mainTitle: 'Veins Field'
 		},
 		notifyEnter: true,
-		displayName: 'Veins Field'
+		displayName: '伯仁斯 旷野'
 	},
 	'evt_bomb.rsw': {
 		displayName: 'Labyrinth Event'
@@ -5158,7 +5158,7 @@ const MapInfo = {
 			subTitle: 'North of Mt. Mjolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Mjolnir Dead Pit F1'
+		displayName: '妙勒尼废弃矿场 1层'
 	},
 	'te_aldecas02.rsw': {
 		backgroundBmp: 'siege',
@@ -5175,7 +5175,7 @@ const MapInfo = {
 			mainTitle: 'Reckenberg Research Institute'
 		},
 		notifyEnter: true,
-		displayName: 'Reckenberg Research Institute'
+		displayName: '雷根修芦附设研究所'
 	},
 	'1@twig.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5192,7 +5192,7 @@ const MapInfo = {
 			subTitle: 'Old Endless Tower Erosion'
 		},
 		notifyEnter: true,
-		displayName: 'Sunken Tower'
+		displayName: '沉没之塔'
 	},
 	'jor_root1.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -5209,7 +5209,7 @@ const MapInfo = {
 			subTitle: 'Greenwood Lake Abyss Corridor'
 		},
 		notifyEnter: true,
-		displayName: 'Corridor of the Abyss: Ancient Wind'
+		displayName: '深渊回廊 : 太古之风'
 	},
 	'tha_t10.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5218,7 +5218,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Tower Upper Level'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Upper Level - Room of Sorrow'
+		displayName: '达纳托斯之塔 上层 悲哀之房'
 	},
 	'veins.rsw': {
 		backgroundBmp: 'village',
@@ -5227,7 +5227,7 @@ const MapInfo = {
 			subTitle: 'Arunafeltz Canyon Village'
 		},
 		notifyEnter: true,
-		displayName: 'Veins, the Canyon Village'
+		displayName: '峡谷村落 伯仁斯'
 	},
 	'alde_dun03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5236,7 +5236,7 @@ const MapInfo = {
 			subTitle: 'Aldebaran'
 		},
 		notifyEnter: true,
-		displayName: 'Clock Tower B3'
+		displayName: '艾尔帕兰钟塔 地下3层'
 	},
 	'arug_cas02.rsw': {
 		backgroundBmp: 'siege',
@@ -5245,10 +5245,10 @@ const MapInfo = {
 			subTitle: 'Valfreyja'
 		},
 		notifyEnter: true,
-		displayName: 'Cyr Castle'
+		displayName: '发菲依雅公会'
 	},
 	'xmas_in.rsw': {
-		displayName: 'Inside Lutie'
+		displayName: '姜饼城 内部'
 	},
 	'1@face.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -5273,7 +5273,7 @@ const MapInfo = {
 			mainTitle: 'Ancient Odin Temple'
 		},
 		notifyEnter: true,
-		displayName: 'Ancient Odin Temple'
+		displayName: '古代奥丁神殿'
 	},
 	'malangdo.rsw': {
 		backgroundBmp: 'village_s2',
@@ -5281,7 +5281,7 @@ const MapInfo = {
 			mainTitle: 'Malangdo'
 		},
 		notifyEnter: true,
-		displayName: 'Malangdo'
+		displayName: '绵绵岛'
 	},
 	'ma_zif08.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5289,7 +5289,7 @@ const MapInfo = {
 			mainTitle: 'Jeepney'
 		},
 		notifyEnter: true,
-		displayName: 'Inside of Jeepney'
+		displayName: '吉普尼车 内部'
 	},
 	'in_sphinx4.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5298,7 +5298,7 @@ const MapInfo = {
 			subTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Morocc Sphinx B4'
+		displayName: '梦罗克史芬克斯 地下4层'
 	},
 	'que_thor.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5306,7 +5306,7 @@ const MapInfo = {
 			mainTitle: 'Thor Volcano Dungeon'
 		},
 		notifyEnter: true,
-		displayName: 'Thor Volcano Dungeon'
+		displayName: '伯仁斯托尔火山洞穴'
 	},
 	'pvp_y_4-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5314,7 +5314,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Prontera'
+		displayName: 'PvP : 普隆德拉'
 	},
 	'te_aldecas05.rsw': {
 		backgroundBmp: 'siege',
@@ -5332,7 +5332,7 @@ const MapInfo = {
 			subTitle: 'Brasilis'
 		},
 		notifyEnter: true,
-		displayName: 'Beyond the Waterfall'
+		displayName: '巴西瀑布里 洞穴入口'
 	},
 	'gld2_prt.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5357,7 +5357,7 @@ const MapInfo = {
 			mainTitle: 'The Sanctuary'
 		},
 		notifyEnter: true,
-		displayName: 'The Sanctuary'
+		displayName: '普隆德拉 圣堂内部'
 	},
 	'1@whl.rsw': {
 		backgroundBmp: 'noname',
@@ -5366,7 +5366,7 @@ const MapInfo = {
 			subTitle: "Varmundt's Aircraft Collection No.3"
 		},
 		notifyEnter: true,
-		displayName: 'Inside Unprocessed Wile (1)'
+		displayName: '飞空艇瓦尔(1)号内部'
 	},
 	'iz_ac01_c.rsw': {
 		backgroundBmp: 'noname_s1',
@@ -5374,7 +5374,7 @@ const MapInfo = {
 			subTitle: 'Criatura Academy F1'
 		},
 		notifyEnter: true,
-		displayName: 'Criatura Academy F1'
+		displayName: '魔法学院 1层'
 	},
 	'ama_test.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5382,7 +5382,7 @@ const MapInfo = {
 			mainTitle: 'Momotaro Experience Place'
 		},
 		notifyEnter: true,
-		displayName: 'Momotaro Experience Place'
+		displayName: '樱花城 摩摩塔乐体验所'
 	},
 	'gefenia03.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -5390,7 +5390,7 @@ const MapInfo = {
 			mainTitle: 'Geffenia'
 		},
 		notifyEnter: true,
-		displayName: 'Geffenia'
+		displayName: '葛帔尼亚'
 	},
 	'1@twas.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5406,7 +5406,7 @@ const MapInfo = {
 			mainTitle: 'Airship'
 		},
 		notifyEnter: true,
-		displayName: 'Airship'
+		displayName: '飞空艇'
 	},
 	'orcsdun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5415,7 +5415,7 @@ const MapInfo = {
 			subTitle: 'Orc Village'
 		},
 		notifyEnter: true,
-		displayName: 'Orc Dungeon F1'
+		displayName: '吉芬 兽人地下洞穴 1层'
 	},
 	'1@4tro.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -5431,7 +5431,7 @@ const MapInfo = {
 			mainTitle: 'Misty Island'
 		},
 		notifyEnter: true,
-		displayName: 'Misty Island'
+		displayName: '密斯提岛'
 	},
 	'gef_dun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -5439,10 +5439,10 @@ const MapInfo = {
 			mainTitle: 'Geffen Dungeon B3'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Dungeon B3'
+		displayName: '吉芬 地下密穴 2层'
 	},
 	'spl_in01.rsw': {
-		displayName: 'Inside Splendide Field Command'
+		displayName: '辉煌领域野战司令部 内部'
 	},
 	'ayothaya.rsw': {
 		backgroundBmp: 'village_s2',
@@ -5450,7 +5450,7 @@ const MapInfo = {
 			mainTitle: 'Ayothaya'
 		},
 		notifyEnter: true,
-		displayName: 'Ayothaya'
+		displayName: '哎哟泰雅'
 	},
 	'hero_out1.rsw': {
 		backgroundBmp: 'siege',
@@ -5459,7 +5459,7 @@ const MapInfo = {
 			subTitle: 'Herosria'
 		},
 		notifyEnter: true,
-		displayName: 'Herosria Silvarium'
+		displayName: '希罗斯里亚森林之域'
 	},
 	'pvp_y_8-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5467,7 +5467,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Morocc'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Morocc'
+		displayName: 'PvP : 梦罗克'
 	},
 	'pvp_y_7-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5475,7 +5475,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Morocc'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Morocc'
+		displayName: 'PvP : 梦罗克'
 	},
 	'pvp_y_6-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5483,7 +5483,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Morocc'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Morocc'
+		displayName: 'PvP : 梦罗克'
 	},
 	'un_myst.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5491,7 +5491,7 @@ const MapInfo = {
 			mainTitle: 'Underground Tunnel'
 		},
 		notifyEnter: true,
-		displayName: 'Underground Tunnel'
+		displayName: '地下隧道'
 	},
 	'que_job01.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5499,7 +5499,7 @@ const MapInfo = {
 			mainTitle: 'Private Pub'
 		},
 		notifyEnter: true,
-		displayName: 'Private Pub'
+		displayName: '秘密酒店'
 	},
 	'pvp_y_4-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5507,7 +5507,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Morocc'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Morocc'
+		displayName: 'PvP : 梦罗克'
 	},
 	'yuno_fild07.rsw': {
 		backgroundBmp: 'field',
@@ -5516,7 +5516,7 @@ const MapInfo = {
 			subTitle: 'Valley of Abyss'
 		},
 		notifyEnter: true,
-		displayName: 'El Mes Gorge (Valley of Abyss)'
+		displayName: '尔迈斯 峡谷(深渊的峡谷)'
 	},
 	'new_2-2.rsw': {
 		backgroundBmp: 'field_s2',
@@ -5524,7 +5524,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'pvp_y_3-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5532,7 +5532,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Morocc'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Morocc'
+		displayName: 'PvP : 梦罗克'
 	},
 	'moc_prydn1.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -5540,7 +5540,7 @@ const MapInfo = {
 			mainTitle: 'Pyramid B1'
 		},
 		notifyEnter: true,
-		displayName: 'Morocc Pyramid B1 - Nightmare'
+		displayName: '梦罗克金字塔 地下1层(梦魇)'
 	},
 	'moc_pryd06.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5549,7 +5549,7 @@ const MapInfo = {
 			subTitle: 'Morroc'
 		},
 		notifyEnter: true,
-		displayName: 'Inside Pyramid B2'
+		displayName: '梦罗克金字塔 地下2层'
 	},
 	'lou_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -5557,7 +5557,7 @@ const MapInfo = {
 			mainTitle: 'The Royal Tomb'
 		},
 		notifyEnter: true,
-		displayName: 'The Royal Tomb'
+		displayName: '龙之城王陵'
 	},
 	'pvp_y_2-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5565,7 +5565,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Morocc'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Morocc'
+		displayName: 'PvP : 梦罗克'
 	},
 	'mag_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -5573,7 +5573,7 @@ const MapInfo = {
 			mainTitle: 'Nogg Road F1'
 		},
 		notifyEnter: true,
-		displayName: 'Nogg Road F1'
+		displayName: '朱诺 诺可罗德1层'
 	},
 	'pvp_y_6-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5581,7 +5581,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Alberta'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Alberta'
+		displayName: 'PvP : 艾尔贝塔'
 	},
 	'pvp_y_5-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5589,7 +5589,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Alberta'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Alberta'
+		displayName: 'PvP : 艾尔贝塔'
 	},
 	'iz_int.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5597,7 +5597,7 @@ const MapInfo = {
 			mainTitle: 'Stranded Passenger Ship'
 		},
 		notifyEnter: true,
-		displayName: 'Stranded Passenger Ship'
+		displayName: '新手地图'
 	},
 	'aldeg_cas04.rsw': {
 		backgroundBmp: 'siege',
@@ -5606,7 +5606,7 @@ const MapInfo = {
 			subTitle: 'Luina'
 		},
 		notifyEnter: true,
-		displayName: 'Wuerzburg Castle'
+		displayName: '露依纳公会'
 	},
 	'teg_dun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5623,7 +5623,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Payon'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Payon'
+		displayName: 'PvP : 斐扬'
 	},
 	'pvp_y_7-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5631,7 +5631,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Payon'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Payon'
+		displayName: 'PvP : 斐扬'
 	},
 	'hero_in4.rsw': {
 		backgroundBmp: 'siege',
@@ -5640,7 +5640,7 @@ const MapInfo = {
 			subTitle: 'Herosria'
 		},
 		notifyEnter: true,
-		displayName: 'Herosria Winter Garden'
+		displayName: '希罗斯里亚冬季庭园'
 	},
 	'ma_scene01.rsw': {
 		backgroundBmp: 'field',
@@ -5649,7 +5649,7 @@ const MapInfo = {
 			subTitle: 'Port Malaya'
 		},
 		notifyEnter: true,
-		displayName: 'Bakonawa Lake'
+		displayName: '食月者之湖'
 	},
 	'pvp_y_6-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5657,7 +5657,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Payon'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Payon'
+		displayName: 'PvP : 斐扬'
 	},
 	'nif_dun02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5666,7 +5666,7 @@ const MapInfo = {
 			subTitle: 'Niflheim Dungeon - 2nd Floor'
 		},
 		notifyEnter: true,
-		displayName: 'Niflheim Dungeon - Collapsed Opera House'
+		displayName: '尼芙菲姆密穴二层 崩塌的歌剧院'
 	},
 	'pvp_y_5-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5674,7 +5674,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Payon'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Payon'
+		displayName: 'PvP : 斐扬'
 	},
 	'iz_int04.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5682,7 +5682,7 @@ const MapInfo = {
 			mainTitle: 'Stranded Passenger Ship'
 		},
 		notifyEnter: true,
-		displayName: 'Stranded Passenger Ship'
+		displayName: '新手地图'
 	},
 	'yuno_in04.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5690,7 +5690,7 @@ const MapInfo = {
 			mainTitle: 'Republic Library'
 		},
 		notifyEnter: true,
-		displayName: 'Republic Library'
+		displayName: '朱诺 内部'
 	},
 	'ra_san01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5699,7 +5699,7 @@ const MapInfo = {
 			subTitle: 'Rachel Temple'
 		},
 		notifyEnter: true,
-		displayName: 'Rachel Temple Sanctuary North Area 1F'
+		displayName: '拉赫 神殿圣域1层 北边地区'
 	},
 	'pvp_n_3-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5707,7 +5707,7 @@ const MapInfo = {
 			mainTitle: 'PvP Four Room'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Four Room'
+		displayName: 'PvP : 4通道 房间'
 	},
 	'dali.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5715,7 +5715,7 @@ const MapInfo = {
 			mainTitle: 'Dimensional Rift'
 		},
 		notifyEnter: true,
-		displayName: 'Dimensional Rift'
+		displayName: '次元裂缝'
 	},
 	'pvp_y_1-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5723,7 +5723,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Payon'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Payon'
+		displayName: 'PvP : 斐扬'
 	},
 	'new_1-4.rsw': {
 		backgroundBmp: 'field_s2',
@@ -5731,7 +5731,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'pvp_y_3-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5739,7 +5739,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Izlude'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Izlude'
+		displayName: 'PvP : 依斯鲁得'
 	},
 	'pvp_y_8-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5747,7 +5747,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Prontera'
+		displayName: 'PvP : 普隆德拉'
 	},
 	'pvp_y_7-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5755,7 +5755,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Prontera'
+		displayName: 'PvP : 普隆德拉'
 	},
 	'ice_dun03.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -5763,7 +5763,7 @@ const MapInfo = {
 			mainTitle: 'Rachel Ice Cave 3F'
 		},
 		notifyEnter: true,
-		displayName: 'Rachel Ice Cave 3F'
+		displayName: '拉赫冰洞穴 3层'
 	},
 	'moc_pryd01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5772,7 +5772,7 @@ const MapInfo = {
 			subTitle: 'Morroc'
 		},
 		notifyEnter: true,
-		displayName: 'Inside Pyramid F1'
+		displayName: '梦罗克金字塔 1层'
 	},
 	'beach_dun.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5781,7 +5781,7 @@ const MapInfo = {
 			subTitle: 'Comodo'
 		},
 		notifyEnter: true,
-		displayName: 'Karu, the West Cave'
+		displayName: '克魔岛 西边洞穴 加露'
 	},
 	'pvp_n_6-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5789,7 +5789,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Copass'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Copass'
+		displayName: 'PvP : 罗盘 房间'
 	},
 	'pvp_n_5-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5797,7 +5797,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Copass'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Copass'
+		displayName: 'PvP : 罗盘 房间'
 	},
 	'ba_go.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -5805,7 +5805,7 @@ const MapInfo = {
 			mainTitle: 'Water Map (Palmist battlefield)'
 		},
 		notifyEnter: true,
-		displayName: 'Water Map (Palmist battlefield)'
+		displayName: '手相战场'
 	},
 	'ba_lib.rsw': {
 		backgroundBmp: 'dungeon',
@@ -5814,7 +5814,7 @@ const MapInfo = {
 			subTitle: 'Library'
 		},
 		notifyEnter: true,
-		displayName: 'Library Memory Corridor'
+		displayName: '图书馆记忆回廊'
 	},
 	'pvp_n_4-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5822,7 +5822,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Rock On'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Rock On'
+		displayName: 'PvP : 雷达锁定 房间'
 	},
 	'pvp_n_3-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5830,7 +5830,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Copass'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Copass'
+		displayName: 'PvP : 罗盘 房间'
 	},
 	'alb2trea.rsw': {
 		backgroundBmp: 'field',
@@ -5839,7 +5839,7 @@ const MapInfo = {
 			subTitle: 'Alberta'
 		},
 		notifyEnter: true,
-		displayName: 'Alberta Island'
+		displayName: '沉船附近的岛屿'
 	},
 	'pvp_n_8-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5847,7 +5847,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Undercross'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Undercross'
+		displayName: 'PvP : 反十字 房间'
 	},
 	'pvp_n_7-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5855,7 +5855,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Undercross'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Undercross'
+		displayName: 'PvP : 反十字 房间'
 	},
 	'pvp_n_6-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5863,7 +5863,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Undercross'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Undercross'
+		displayName: 'PvP : 反十字 房间'
 	},
 	'pvp_n_4-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5871,7 +5871,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Undercross'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Undercross'
+		displayName: 'PvP : 反十字 房间'
 	},
 	'pvp_n_2-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5879,7 +5879,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Undercross'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Undercross'
+		displayName: 'PvP : 反十字 房间'
 	},
 	'cmd_fild07.rsw': {
 		backgroundBmp: 'field_s2',
@@ -5887,7 +5887,7 @@ const MapInfo = {
 			mainTitle: 'Beacon Island, Pharos'
 		},
 		notifyEnter: true,
-		displayName: 'Beacon Island, Pharos'
+		displayName: '发乐斯 灯塔岛'
 	},
 	'pvp_n_7-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5895,7 +5895,7 @@ const MapInfo = {
 			mainTitle: 'PvP Four Room'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Four Room'
+		displayName: 'PvP : 4通道 房间'
 	},
 	'um_fild04.rsw': {
 		backgroundBmp: 'field',
@@ -5904,7 +5904,7 @@ const MapInfo = {
 			subTitle: 'Umbala'
 		},
 		notifyEnter: true,
-		displayName: 'Hoomga Jungle'
+		displayName: '汶巴拉 沪家丛林'
 	},
 	'pvp_n_6-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5912,7 +5912,7 @@ const MapInfo = {
 			mainTitle: 'PvP Four Room'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Four Room'
+		displayName: 'PvP : 4通道 房间'
 	},
 	'pvp_n_5-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5920,7 +5920,7 @@ const MapInfo = {
 			mainTitle: 'PvP Four Room'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Four Room'
+		displayName: 'PvP : 4通道 房间'
 	},
 	'pvp_n_8-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5928,7 +5928,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Rock On'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Rock On'
+		displayName: 'PvP : 雷达锁定 房间'
 	},
 	'payon.rsw': {
 		backgroundBmp: 'village',
@@ -5937,7 +5937,7 @@ const MapInfo = {
 			subTitle: 'Mountain City in the Rune-Midgarts Kingdom'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Town'
+		displayName: '山岳之都 斐扬'
 	},
 	'prt_fild09.rsw': {
 		backgroundBmp: 'field_s2',
@@ -5945,10 +5945,10 @@ const MapInfo = {
 			mainTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'job3_rune01.rsw': {
-		displayName: 'Inside of Rune Knight Templar'
+		displayName: '符文骑士团 内部'
 	},
 	'pvp_n_8-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5956,7 +5956,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Sandwich'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Sandwich'
+		displayName: 'PvP : 3明治 房间'
 	},
 	'moc_fild16.rsw': {
 		backgroundBmp: 'field_s2',
@@ -5964,7 +5964,7 @@ const MapInfo = {
 			mainTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert'
+		displayName: '苏克拉特沙漠'
 	},
 	'pvp_n_4-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5972,7 +5972,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Sandwich'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Sandwich'
+		displayName: 'PvP : 3明治 房间'
 	},
 	'pvp_n_2-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -5980,7 +5980,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Sandwich'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Sandwich'
+		displayName: 'PvP : 3明治 房间'
 	},
 	'jor_back2.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -5988,7 +5988,7 @@ const MapInfo = {
 			mainTitle: 'Frozen Scale Plains'
 		},
 		notifyEnter: true,
-		displayName: 'Frozen Scale Plains'
+		displayName: '冰鳞平原'
 	},
 	'memohall.rsw': {
 		backgroundBmp: 'village_s2',
@@ -6005,10 +6005,10 @@ const MapInfo = {
 			subTitle: 'Beach Town in the Rune-Midgarts Kingdom'
 		},
 		notifyEnter: true,
-		displayName: 'Comodo, the Beach Town'
+		displayName: '海边之都 克魔岛'
 	},
 	'knight_2-1.rsw': {
-		displayName: 'The Chivalry'
+		displayName: '骑士转职所'
 	},
 	'que_qsch02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -6016,7 +6016,7 @@ const MapInfo = {
 			mainTitle: 'Fallacious Okolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Fallacious Okolnir'
+		displayName: '虚幻的奥克尼尔'
 	},
 	'pvp_y_4-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6024,10 +6024,10 @@ const MapInfo = {
 			mainTitle: 'PvP Room Payon'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Payon'
+		displayName: 'PvP : 斐扬'
 	},
 	'lhz_que01.rsw': {
-		displayName: 'Inside Lighthalzen'
+		displayName: '里希塔乐镇 内部'
 	},
 	'mjolnir_07.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6035,7 +6035,7 @@ const MapInfo = {
 			mainTitle: 'Mt.Mjolnir South Area'
 		},
 		notifyEnter: true,
-		displayName: 'Mt.Mjolnir South Area'
+		displayName: '妙勒尼山脉 南边地区'
 	},
 	'new_3-1.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6043,7 +6043,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'ein_fild03.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6051,7 +6051,7 @@ const MapInfo = {
 			mainTitle: 'Einbroch Field'
 		},
 		notifyEnter: true,
-		displayName: 'Einbroch Field'
+		displayName: '艾音布罗克 旷野'
 	},
 	'gl_step.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6060,7 +6060,7 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Glastheim Staircase Dungeon'
+		displayName: '克雷斯特汉姆古城 层梯密穴'
 	},
 	'jor_safty2.rsw': {
 		backgroundBmp: 'dungeon_s1',
@@ -6077,13 +6077,13 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Glastheim Underground Waterway B4'
+		displayName: '克雷斯特汉姆古城 地下水道4层'
 	},
 	'ordeal_2-4.rsw': {
-		displayName: 'Battle Ordeal Mode'
+		displayName: '团体战斗模式'
 	},
 	'um_in.rsw': {
-		displayName: 'Inside Umbala'
+		displayName: '汶巴拉内部'
 	},
 	'kh_rossi.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6099,7 +6099,7 @@ const MapInfo = {
 			mainTitle: 'Einbroch Field'
 		},
 		notifyEnter: true,
-		displayName: 'Einbroch Field'
+		displayName: '艾音布罗克 旷野'
 	},
 	'moc_fild22.rsw': {
 		backgroundBmp: 'field',
@@ -6108,13 +6108,13 @@ const MapInfo = {
 			subTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert - Dimensional Rift'
+		displayName: '苏克拉特沙漠 次元裂缝'
 	},
 	'ordeal_3-1.rsw': {
-		displayName: 'Battle Ordeal Mode'
+		displayName: '团体战斗模式'
 	},
 	'force_2-2.rsw': {
-		displayName: 'Time Limit Fight'
+		displayName: '限时激斗模式'
 	},
 	'gl_church.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6123,7 +6123,7 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Glastheim Monastery'
+		displayName: '克雷斯特汉姆古城 修道院'
 	},
 	'gef_fild11.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6131,7 +6131,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Field'
+		displayName: '吉芬 旷野'
 	},
 	'1@pump.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -6139,7 +6139,7 @@ const MapInfo = {
 			mainTitle: 'Culvert'
 		},
 		notifyEnter: true,
-		displayName: 'Culvert'
+		displayName: '排水沟'
 	},
 	'2@pump.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -6147,10 +6147,10 @@ const MapInfo = {
 			mainTitle: 'Culvert'
 		},
 		notifyEnter: true,
-		displayName: 'Culvert'
+		displayName: '排水沟'
 	},
 	'job3_guil02.rsw': {
-		displayName: 'Inside the Old Warehouse'
+		displayName: '破旧的仓库 内部'
 	},
 	'umbala.rsw': {
 		backgroundBmp: 'village',
@@ -6167,14 +6167,14 @@ const MapInfo = {
 			mainTitle: 'Waiting room'
 		},
 		notifyEnter: true,
-		displayName: 'Waiting room'
+		displayName: '竞技场 等候室'
 	},
 	'thana_step.rsw': {
 		signName: {
 			mainTitle: 'Thanatos Tower Upper Level - Stairs'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Upper Level - Stairs'
+		displayName: '达纳托斯之塔 上层层梯'
 	},
 	'izlu2dun.rsw': {
 		backgroundBmp: 'field',
@@ -6183,7 +6183,7 @@ const MapInfo = {
 			subTitle: 'Izlude'
 		},
 		notifyEnter: true,
-		displayName: 'Baylan Island'
+		displayName: '卫星都市 依斯鲁得'
 	},
 	'izlude.rsw': {
 		backgroundBmp: 'village',
@@ -6192,13 +6192,13 @@ const MapInfo = {
 			subTitle: 'Rune-Midgarts Kingdom'
 		},
 		notifyEnter: true,
-		displayName: 'Izlude, the Satellite City'
+		displayName: '卫星都市 依斯鲁得'
 	},
 	'payon_in02.rsw': {
-		displayName: 'Inside Payon'
+		displayName: '山岳之都 斐扬'
 	},
 	'payon_in01.rsw': {
-		displayName: 'Inside Payon'
+		displayName: '山岳之都 斐扬'
 	},
 	'pvp_n_3-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6206,7 +6206,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Rock On'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Rock On'
+		displayName: 'PvP : 雷达锁定 房间'
 	},
 	'1@twbs.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6223,7 +6223,7 @@ const MapInfo = {
 			subTitle: 'Capital of Schwartzwald Republic'
 		},
 		notifyEnter: true,
-		displayName: 'Yuno, Capital of Schwartzwald Republic'
+		displayName: '秀发兹发德 共和国 首都 朱诺'
 	},
 	'morocc.rsw': {
 		backgroundBmp: 'village',
@@ -6232,10 +6232,10 @@ const MapInfo = {
 			subTitle: 'Desert City in the Rune-Midgarts Kingdom'
 		},
 		notifyEnter: true,
-		displayName: 'Morroc Town'
+		displayName: '沙漠之都 梦罗克'
 	},
 	'geffen_in.rsw': {
-		displayName: 'Inside Geffen'
+		displayName: '吉芬 内部'
 	},
 	'gef_tower.rsw': {
 		backgroundBmp: 'village',
@@ -6244,7 +6244,7 @@ const MapInfo = {
 			subTitle: 'Geffen'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Tower'
+		displayName: '吉芬 中央塔'
 	},
 	'pvp_n_1-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6252,7 +6252,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Copass'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Copass'
+		displayName: 'PvP : 罗盘 房间'
 	},
 	'gl_prison1.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6261,7 +6261,7 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Glastheim Underground Prison B2'
+		displayName: '克雷斯特汉姆古城 地下监狱2层'
 	},
 	'1@sara.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -6272,16 +6272,16 @@ const MapInfo = {
 		displayName: "Sara's Memory"
 	},
 	'yuno_in02.rsw': {
-		displayName: 'Inside the Sage Castle'
+		displayName: '贤者 城堡内部'
 	},
 	'ordeal_1-4.rsw': {
-		displayName: 'Battle Ordeal Mode'
+		displayName: '团体战斗模式'
 	},
 	'hu_in01.rsw': {
-		displayName: 'Inside Hugel'
+		displayName: '毁葛 内部'
 	},
 	'ordeal_3-3.rsw': {
-		displayName: 'Battle Ordeal Mode'
+		displayName: '团体战斗模式'
 	},
 	'gef_fild06.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6289,7 +6289,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Field'
+		displayName: '吉芬 旷野'
 	},
 	'abbey03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6298,7 +6298,7 @@ const MapInfo = {
 			subTitle: 'Nameless Island'
 		},
 		notifyEnter: true,
-		displayName: 'Cursed Abbey Dungeon B3'
+		displayName: '无名岛修道院 地下2层'
 	},
 	'abbey01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6307,10 +6307,10 @@ const MapInfo = {
 			subTitle: 'Nameless Island'
 		},
 		notifyEnter: true,
-		displayName: 'Cursed Abbey Dungeon B1'
+		displayName: '无名岛修道院 1层'
 	},
 	'ordeal_3-2.rsw': {
-		displayName: 'Battle Ordeal Mode'
+		displayName: '团体战斗模式'
 	},
 	'gl_dun02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6319,13 +6319,13 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'The Lowest Cave in Glastheim B2'
+		displayName: '克雷斯特汉姆古城 最下层 地下洞穴2层 '
 	},
 	'ordeal_2-1.rsw': {
-		displayName: 'Battle Ordeal Mode'
+		displayName: '团体战斗模式'
 	},
 	'ordeal_1-1.rsw': {
-		displayName: 'Battle Ordeal Mode'
+		displayName: '团体战斗模式'
 	},
 	'pvp_y_8-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6333,7 +6333,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Izlude'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Izlude'
+		displayName: 'PvP : 依斯鲁得'
 	},
 	'lhz_dun04.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -6341,10 +6341,10 @@ const MapInfo = {
 			mainTitle: 'Somatology Laboratory 4th Basement'
 		},
 		notifyEnter: true,
-		displayName: 'Somatology Laboratory 4th Basement'
+		displayName: '生物体试验研究所 地下4层'
 	},
 	'force_1-3.rsw': {
-		displayName: 'Time Limit Fight'
+		displayName: '限时激斗模式'
 	},
 	'um_fild01.rsw': {
 		backgroundBmp: 'field',
@@ -6353,7 +6353,7 @@ const MapInfo = {
 			subTitle: 'Umbala'
 		},
 		notifyEnter: true,
-		displayName: 'Luluka Forest'
+		displayName: '汶巴拉 噜噜卡森林'
 	},
 	'gl_dun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6362,19 +6362,19 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'The Lowest Cave in Glastheim B1'
+		displayName: '克雷斯特汉姆古城 最下层 地下洞穴1层 '
 	},
 	'force_3-1.rsw': {
-		displayName: 'Time Limit Fight'
+		displayName: '限时激斗模式'
 	},
 	'force_2-1.rsw': {
-		displayName: 'Time Limit Fight'
+		displayName: '限时激斗模式'
 	},
 	'force_1-1.rsw': {
-		displayName: 'Time Limit Fight'
+		displayName: '限时激斗模式'
 	},
 	'wizard_3-1.rsw': {
-		displayName: 'Wizard Academy'
+		displayName: '巫师转职所'
 	},
 	'prt_mz03_i.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6383,7 +6383,7 @@ const MapInfo = {
 			subTitle: 'Illusion'
 		},
 		notifyEnter: true,
-		displayName: 'Twisted Labyrinth Forest'
+		displayName: '扭曲的迷藏森林'
 	},
 	'ba_pw02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -6391,10 +6391,10 @@ const MapInfo = {
 			mainTitle: 'Sewage Treatment Plant'
 		},
 		notifyEnter: true,
-		displayName: 'Sewage Treatment Plant'
+		displayName: '污水处理厂'
 	},
 	'wizard_1-1.rsw': {
-		displayName: 'Wizard Academy'
+		displayName: '巫师转职所'
 	},
 	'kh_mansion.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6405,10 +6405,10 @@ const MapInfo = {
 		displayName: "Kiel Hyre's Mansion"
 	},
 	'sword_3-1.rsw': {
-		displayName: 'Swordman Test Hall'
+		displayName: '剑士转职所'
 	},
 	'in_orcs01.rsw': {
-		displayName: 'Inside Orc Village'
+		displayName: '兽人村落 室内'
 	},
 	'int_land02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6419,7 +6419,7 @@ const MapInfo = {
 		displayName: 'Remote Island'
 	},
 	'knight_1-1.rsw': {
-		displayName: 'The Chivalry'
+		displayName: '骑士转职所'
 	},
 	'in_hunter.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6427,10 +6427,10 @@ const MapInfo = {
 			mainTitle: 'Hunter Guild'
 		},
 		notifyEnter: true,
-		displayName: 'Hunter Guild'
+		displayName: '猎人转职所'
 	},
 	'hunter_3-1.rsw': {
-		displayName: 'Hunter Guild'
+		displayName: '猎人转职所'
 	},
 	'1@slug.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6441,7 +6441,7 @@ const MapInfo = {
 		displayName: 'Sticky Sea'
 	},
 	'hunter_2-1.rsw': {
-		displayName: 'Hunter Guild'
+		displayName: '猎人转职所'
 	},
 	'um_dun02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6450,10 +6450,10 @@ const MapInfo = {
 			subTitle: 'Umbala'
 		},
 		notifyEnter: true,
-		displayName: 'Passage to a Foreign World'
+		displayName: '汶巴拉 树木里的异界通路'
 	},
 	'nameless_in.rsw': {
-		displayName: 'Inside Nameless Island'
+		displayName: '无名岛 内部'
 	},
 	'prt_sewb1.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6462,7 +6462,7 @@ const MapInfo = {
 			subTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Culvert F1'
+		displayName: '普隆德拉地下水道 1层'
 	},
 	'prt_maze01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6471,7 +6471,7 @@ const MapInfo = {
 			subTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Labyrinth Forest F1'
+		displayName: '普隆德拉北部森林 密穴1层'
 	},
 	'lhz_d_n2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6488,7 +6488,7 @@ const MapInfo = {
 			subTitle: 'Payon Archer Village'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Cave F5'
+		displayName: '斐扬洞穴 5层（废弃村落）'
 	},
 	'pay_dun02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6497,7 +6497,7 @@ const MapInfo = {
 			subTitle: 'Payon Archer Village'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Cave F3'
+		displayName: '斐扬洞穴 3层'
 	},
 	'mjo_dun02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6506,7 +6506,7 @@ const MapInfo = {
 			subTitle: 'North of Mt. Mjolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Mjolnir Dead Pit F2'
+		displayName: '妙勒尼废弃矿场 2层'
 	},
 	'moc_prydb1.rsw': {
 		backgroundBmp: 'noname',
@@ -6515,7 +6515,7 @@ const MapInfo = {
 			subTitle: 'Morroc'
 		},
 		notifyEnter: true,
-		displayName: 'Thief Guild'
+		displayName: '盗贼公会'
 	},
 	'moc_pryd02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6524,10 +6524,10 @@ const MapInfo = {
 			subTitle: 'Morroc'
 		},
 		notifyEnter: true,
-		displayName: 'Inside Pyramid F2'
+		displayName: '梦罗克金字塔 2层'
 	},
 	'job_duncer.rsw': {
-		displayName: 'Comodo Theatre'
+		displayName: '克魔岛 小剧场'
 	},
 	'sp_cor.rsw': {
 		backgroundBmp: 'field',
@@ -6536,11 +6536,11 @@ const MapInfo = {
 			subTitle: 'Special Border Area'
 		},
 		notifyEnter: true,
-		displayName: 'Special Border Area Cor'
+		displayName: '特殊警戒区柯尔'
 	},
 	'bat_c03.rsw': {
 		notifyEnter: true,
-		displayName: 'Krieger von Midgard'
+		displayName: '克里格·冯·米德加尔特'
 	},
 	'in_sphinx3.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6549,7 +6549,7 @@ const MapInfo = {
 			subTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Morocc Sphinx B3'
+		displayName: '梦罗克史芬克斯 地下3层'
 	},
 	'iz_dun03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6558,7 +6558,7 @@ const MapInfo = {
 			subTitle: 'Baylan Island'
 		},
 		notifyEnter: true,
-		displayName: 'Undersea Tunnel B4'
+		displayName: '依斯鲁得海底洞穴 4层'
 	},
 	'moc_fild03.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6566,7 +6566,7 @@ const MapInfo = {
 			mainTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert'
+		displayName: '苏克拉特沙漠'
 	},
 	'p_track02.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6574,7 +6574,7 @@ const MapInfo = {
 			mainTitle: 'Monster Race Arena'
 		},
 		notifyEnter: true,
-		displayName: 'Monster Race Arena'
+		displayName: '魔物赛跑 竞赛场'
 	},
 	'1@air2.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -6582,10 +6582,10 @@ const MapInfo = {
 			mainTitle: 'Airship'
 		},
 		notifyEnter: true,
-		displayName: 'Airship'
+		displayName: '飞空艇'
 	},
 	'yuno_in01.rsw': {
-		displayName: 'Inside Yuno'
+		displayName: '朱诺 内部'
 	},
 	'gef_dun00.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -6593,7 +6593,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Dungeon B1'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Dungeon B1'
+		displayName: '吉芬 地下密穴'
 	},
 	'anthell02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6602,7 +6602,7 @@ const MapInfo = {
 			subTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Ant Hell Dungeon F2'
+		displayName: '蚂蚁地狱密穴 2层'
 	},
 	'new_4-4.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6610,7 +6610,7 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'1@pop2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6619,7 +6619,7 @@ const MapInfo = {
 			subTitle: 'Half Moon in the Daylight'
 		},
 		notifyEnter: true,
-		displayName: 'Way Back Home'
+		displayName: '回家的路上'
 	},
 	'dic_dun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6628,7 +6628,7 @@ const MapInfo = {
 			subTitle: 'Jotunheim'
 		},
 		notifyEnter: true,
-		displayName: 'Kamidal Tunnel'
+		displayName: '卡米达隧道'
 	},
 	'new_3-4.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6636,10 +6636,10 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'force_3-3.rsw': {
-		displayName: 'Time Limit Fight'
+		displayName: '限时激斗模式'
 	},
 	'um_fild02.rsw': {
 		backgroundBmp: 'field',
@@ -6648,7 +6648,7 @@ const MapInfo = {
 			subTitle: 'Umbala'
 		},
 		notifyEnter: true,
-		displayName: 'Hoomga Forest'
+		displayName: '汶巴拉 沪家森林'
 	},
 	'new_3-2.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6656,10 +6656,10 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'lou_in02.rsw': {
-		displayName: 'Inside Louyang'
+		displayName: '龙之城 内部'
 	},
 	'pvp_n_room.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6667,7 +6667,7 @@ const MapInfo = {
 			mainTitle: 'PvP Waiting Room'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Waiting Room'
+		displayName: 'PvP : 等候室'
 	},
 	'pay_fild10.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6675,7 +6675,7 @@ const MapInfo = {
 			mainTitle: 'Payon Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Forest'
+		displayName: '斐扬树林'
 	},
 	'cmd_fild04.rsw': {
 		backgroundBmp: 'field',
@@ -6684,7 +6684,7 @@ const MapInfo = {
 			subTitle: 'Comodo'
 		},
 		notifyEnter: true,
-		displayName: 'Kokomo Beach'
+		displayName: '克魔岛 海边'
 	},
 	'ayo_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6692,7 +6692,7 @@ const MapInfo = {
 			mainTitle: 'Ayothaya Field'
 		},
 		notifyEnter: true,
-		displayName: 'Ayothaya Field'
+		displayName: '哎哟泰雅 旷野'
 	},
 	'yuno_fild11.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6700,7 +6700,7 @@ const MapInfo = {
 			mainTitle: 'Yuno Field'
 		},
 		notifyEnter: true,
-		displayName: 'Yuno Field'
+		displayName: '朱诺 旷野'
 	},
 	'tur_d04_i.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6717,7 +6717,7 @@ const MapInfo = {
 			mainTitle: 'Payon Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Forest'
+		displayName: '斐扬树林'
 	},
 	'bat_b02.rsw': {
 		backgroundBmp: 'noname',
@@ -6726,7 +6726,7 @@ const MapInfo = {
 			subTitle: 'Battleground'
 		},
 		notifyEnter: true,
-		displayName: 'Flavian'
+		displayName: '普拉比乌斯'
 	},
 	'pvp_n_5-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6734,7 +6734,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Sandwich'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Sandwich'
+		displayName: 'PvP : 3明治 房间'
 	},
 	'aldeg_cas01.rsw': {
 		backgroundBmp: 'siege',
@@ -6743,7 +6743,7 @@ const MapInfo = {
 			subTitle: 'Luina'
 		},
 		notifyEnter: true,
-		displayName: 'Neuschwanstein Castle'
+		displayName: '露依纳公会'
 	},
 	'ba_maison.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6759,7 +6759,7 @@ const MapInfo = {
 			mainTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert'
+		displayName: '苏克拉特沙漠'
 	},
 	'cmd_fild08.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6767,7 +6767,7 @@ const MapInfo = {
 			mainTitle: 'Fortress Saint Darmain (East)'
 		},
 		notifyEnter: true,
-		displayName: 'Fortress Saint Darmain (East)'
+		displayName: '要塞都市 山特乐曼 东边地区'
 	},
 	'moc_fild11.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6775,7 +6775,7 @@ const MapInfo = {
 			mainTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert'
+		displayName: '苏克拉特沙漠'
 	},
 	'moc_fild07.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6783,7 +6783,7 @@ const MapInfo = {
 			mainTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert'
+		displayName: '苏克拉特沙漠'
 	},
 	'jupe_ele_r.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6791,7 +6791,7 @@ const MapInfo = {
 			mainTitle: 'Juperos Elevator Room'
 		},
 		notifyEnter: true,
-		displayName: 'Juperos Elevator Room'
+		displayName: '优配擂斯电梯室'
 	},
 	'moc_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6799,7 +6799,7 @@ const MapInfo = {
 			mainTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert'
+		displayName: '苏克拉特沙漠'
 	},
 	'x_prt.rsw': {
 		backgroundBmp: 'noname',
@@ -6808,7 +6808,7 @@ const MapInfo = {
 			subTitle: 'Beyond Dimension'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera - Beyond Dimension'
+		displayName: '次元外的普隆德拉'
 	},
 	'c_tower1.rsw': {
 		backgroundBmp: 'dungeon',
@@ -6817,10 +6817,10 @@ const MapInfo = {
 			subTitle: 'Aldebaran'
 		},
 		notifyEnter: true,
-		displayName: 'Clock Tower F1'
+		displayName: '艾尔帕兰钟塔 地上1层'
 	},
 	'priest_3-1.rsw': {
-		displayName: 'The Sanctum'
+		displayName: '牧师转职所'
 	},
 	'gef_fild08.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6828,7 +6828,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Field'
+		displayName: '吉芬 旷野'
 	},
 	'gef_fild07.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6836,7 +6836,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Field'
+		displayName: '吉芬 旷野'
 	},
 	'gef_fild04.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6844,7 +6844,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Field'
+		displayName: '吉芬 旷野'
 	},
 	'gef_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6852,7 +6852,7 @@ const MapInfo = {
 			mainTitle: 'Geffen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Geffen Field'
+		displayName: '吉芬 旷野'
 	},
 	'prt_fild10.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6860,7 +6860,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'pvp_n_2-2.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6868,7 +6868,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Rock On'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Rock On'
+		displayName: 'PvP : 雷达锁定 房间'
 	},
 	'prt_fild05.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6876,7 +6876,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'prt_fild04.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6884,7 +6884,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'e_hugel.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6900,7 +6900,7 @@ const MapInfo = {
 			mainTitle: 'Einbroch Mine F1'
 		},
 		notifyEnter: true,
-		displayName: 'Einbroch Mine F1'
+		displayName: '艾音贝赫矿山 1层'
 	},
 	'prt_fild00.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6908,7 +6908,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'ba_bath.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -6916,7 +6916,7 @@ const MapInfo = {
 			mainTitle: 'Large Bath Meditathio'
 		},
 		notifyEnter: true,
-		displayName: 'Large Bath Meditathio'
+		displayName: '冥想大浴池'
 	},
 	'mjolnir_02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6924,7 +6924,7 @@ const MapInfo = {
 			mainTitle: 'Mt.Mjolnir North Area'
 		},
 		notifyEnter: true,
-		displayName: 'Mt.Mjolnir North Area'
+		displayName: '妙勒尼山脉 北边地区'
 	},
 	'x_ra.rsw': {
 		backgroundBmp: 'noname',
@@ -6933,7 +6933,7 @@ const MapInfo = {
 			subTitle: 'Beyond Dimension'
 		},
 		notifyEnter: true,
-		displayName: 'Rachel - Beyond Dimension'
+		displayName: '次元外的拉赫'
 	},
 	'mjolnir_11.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6941,7 +6941,7 @@ const MapInfo = {
 			mainTitle: 'Mt.Mjolnir South Area'
 		},
 		notifyEnter: true,
-		displayName: 'Mt.Mjolnir South Area'
+		displayName: '妙勒尼山脉 南边地区'
 	},
 	'mjolnir_09.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6949,7 +6949,7 @@ const MapInfo = {
 			mainTitle: 'Mt.Mjolnir South Foothills'
 		},
 		notifyEnter: true,
-		displayName: 'Mt.Mjolnir South Foothills'
+		displayName: '妙勒尼山脉 南边山麓'
 	},
 	'mjolnir_08.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6957,7 +6957,7 @@ const MapInfo = {
 			mainTitle: 'Mt.Mjolnir South Area'
 		},
 		notifyEnter: true,
-		displayName: 'Mt.Mjolnir South Area'
+		displayName: '妙勒尼山脉 南边地区'
 	},
 	'mjolnir_03.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6965,7 +6965,7 @@ const MapInfo = {
 			mainTitle: 'Mt.Mjolnir North Area'
 		},
 		notifyEnter: true,
-		displayName: 'Mt.Mjolnir North Area'
+		displayName: '妙勒尼山脉 北边地区'
 	},
 	'pvp_n_8-3.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -6973,7 +6973,7 @@ const MapInfo = {
 			mainTitle: 'PvP Four Room'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Four Room'
+		displayName: 'PvP : 4通道 房间'
 	},
 	'cmd_fild06.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6981,7 +6981,7 @@ const MapInfo = {
 			mainTitle: 'Fortress Saint Darmain (West)'
 		},
 		notifyEnter: true,
-		displayName: 'Fortress Saint Darmain (West)'
+		displayName: '要塞都市 山特乐曼 西边地区'
 	},
 	'pay_fild09.rsw': {
 		backgroundBmp: 'field_s2',
@@ -6989,7 +6989,7 @@ const MapInfo = {
 			mainTitle: 'Payon Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Forest'
+		displayName: '斐扬树林'
 	},
 	'cmd_fild01.rsw': {
 		backgroundBmp: 'field',
@@ -6998,7 +6998,7 @@ const MapInfo = {
 			subTitle: 'Comodo'
 		},
 		notifyEnter: true,
-		displayName: 'Papuchicha Forest'
+		displayName: '克魔岛 巴不其卡森林'
 	},
 	'beach_dun2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7007,7 +7007,7 @@ const MapInfo = {
 			subTitle: 'Comodo'
 		},
 		notifyEnter: true,
-		displayName: 'Luanda, the North Cave'
+		displayName: '克魔岛 北边洞穴 卢安达'
 	},
 	'1@gl_he.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7024,10 +7024,10 @@ const MapInfo = {
 			mainTitle: 'PvP Room Prontera'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Prontera'
+		displayName: 'PvP : 普隆德拉'
 	},
 	'cmd_in02.rsw': {
-		displayName: 'Inside Comodo'
+		displayName: '克魔岛 内部'
 	},
 	'quiz_01.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7035,7 +7035,7 @@ const MapInfo = {
 			mainTitle: 'Quiz Revolution'
 		},
 		notifyEnter: true,
-		displayName: 'Quiz Revolution'
+		displayName: 'OX益智游戏竞赛场'
 	},
 	'guild_vs1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7043,7 +7043,7 @@ const MapInfo = {
 			mainTitle: 'Guild Arena'
 		},
 		notifyEnter: true,
-		displayName: 'Guild Arena'
+		displayName: '公会对抗竞技场'
 	},
 	'guild_vs4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7051,7 +7051,7 @@ const MapInfo = {
 			mainTitle: 'Guild Arena'
 		},
 		notifyEnter: true,
-		displayName: 'Guild Arena'
+		displayName: '公会对抗竞技场'
 	},
 	'guild_vs5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7059,7 +7059,7 @@ const MapInfo = {
 			mainTitle: 'Guild Arena'
 		},
 		notifyEnter: true,
-		displayName: 'Guild Arena'
+		displayName: '公会对抗竞技场'
 	},
 	'rebel_in.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7067,7 +7067,7 @@ const MapInfo = {
 			mainTitle: 'Clana Nemieri'
 		},
 		notifyEnter: true,
-		displayName: 'Clana Nemieri'
+		displayName: '克莱纳 奈米艾利'
 	},
 	'tur_dun03.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7075,7 +7075,7 @@ const MapInfo = {
 			mainTitle: 'Turtle Village'
 		},
 		notifyEnter: true,
-		displayName: 'Turtle Village'
+		displayName: '乌龟岛  密穴'
 	},
 	'tur_dun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7083,7 +7083,7 @@ const MapInfo = {
 			mainTitle: 'Turtle Island Dungeon'
 		},
 		notifyEnter: true,
-		displayName: 'Turtle Island Dungeon'
+		displayName: '乌龟岛  密穴'
 	},
 	'thor_v01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7091,7 +7091,7 @@ const MapInfo = {
 			mainTitle: 'Thor Volcano Dungeon 1F'
 		},
 		notifyEnter: true,
-		displayName: 'Thor Volcano Dungeon 1F'
+		displayName: '伯仁斯托尔火山 洞穴1层'
 	},
 	'tur_dun01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7099,7 +7099,7 @@ const MapInfo = {
 			mainTitle: 'Turtle Island'
 		},
 		notifyEnter: true,
-		displayName: 'Turtle Island'
+		displayName: '乌龟岛'
 	},
 	'lighthalzen.rsw': {
 		backgroundBmp: 'village',
@@ -7108,7 +7108,7 @@ const MapInfo = {
 			subTitle: 'City-State of Prosperity of the Schwartzwald Republic'
 		},
 		notifyEnter: true,
-		displayName: 'Lighthalzen, the City-State of Prosperity'
+		displayName: '企业之都 里希塔乐镇'
 	},
 	'bat_a02.rsw': {
 		backgroundBmp: 'noname',
@@ -7117,7 +7117,7 @@ const MapInfo = {
 			subTitle: 'Battleground'
 		},
 		notifyEnter: true,
-		displayName: 'Tierra Valley'
+		displayName: '提耶拉峡谷'
 	},
 	'prtg_cas01.rsw': {
 		backgroundBmp: 'siege',
@@ -7126,7 +7126,7 @@ const MapInfo = {
 			subTitle: 'Valkyrie Realm'
 		},
 		notifyEnter: true,
-		displayName: 'Kriemhild Castle'
+		displayName: '瓦尔基里雷恩 公会'
 	},
 	'lhz_dun_n.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7134,7 +7134,7 @@ const MapInfo = {
 			mainTitle: 'Tomb of the Fallen'
 		},
 		notifyEnter: true,
-		displayName: 'Tomb of the Fallen'
+		displayName: '战死者坟墓'
 	},
 	'1@mjo2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7152,7 +7152,7 @@ const MapInfo = {
 			subTitle: 'Luina'
 		},
 		notifyEnter: true,
-		displayName: 'Hohenschwangau Castle'
+		displayName: '露依纳公会'
 	},
 	'aldeg_cas03.rsw': {
 		backgroundBmp: 'siege',
@@ -7161,7 +7161,7 @@ const MapInfo = {
 			subTitle: 'Luina'
 		},
 		notifyEnter: true,
-		displayName: 'Nuernberg Castle'
+		displayName: '露依纳公会'
 	},
 	'pvp_y_1-4.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7169,7 +7169,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Alberta'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Alberta'
+		displayName: 'PvP : 艾尔贝塔'
 	},
 	'dew_dun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7178,7 +7178,7 @@ const MapInfo = {
 			subTitle: 'Dewata'
 		},
 		notifyEnter: true,
-		displayName: 'Volcanic Island of Krakatoa'
+		displayName: '喀拉喀托火山岛'
 	},
 	'payg_cas04.rsw': {
 		backgroundBmp: 'siege',
@@ -7187,10 +7187,10 @@ const MapInfo = {
 			subTitle: 'Greenwood Lake'
 		},
 		notifyEnter: true,
-		displayName: 'Sacred Altar Castle'
+		displayName: '青林湖泊 公会'
 	},
 	'job_hunte.rsw': {
-		displayName: 'Hunter Job Change Place'
+		displayName: '猎人转职考场'
 	},
 	'gld_dun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7199,7 +7199,7 @@ const MapInfo = {
 			subTitle: 'Baldur'
 		},
 		notifyEnter: true,
-		displayName: 'Baldur Guild Dungeon'
+		displayName: '公会地下密穴'
 	},
 	'ba_chess.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7207,7 +7207,7 @@ const MapInfo = {
 			mainTitle: 'Checkmate'
 		},
 		notifyEnter: true,
-		displayName: 'Checkmate'
+		displayName: '将死宫'
 	},
 	'gld_dun03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7216,10 +7216,10 @@ const MapInfo = {
 			subTitle: 'Valkyrie'
 		},
 		notifyEnter: true,
-		displayName: 'Valkyrie Guild Dungeon'
+		displayName: '公会地下密穴'
 	},
 	'morocc_in.rsw': {
-		displayName: 'Inside Morocc'
+		displayName: '梦罗克 内部'
 	},
 	'sp_rudus.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7228,7 +7228,7 @@ const MapInfo = {
 			subTitle: 'Experiment Waste Disposal'
 		},
 		notifyEnter: true,
-		displayName: 'Rudus, Experiment Waste Disposal F1'
+		displayName: '实验体废弃场 鲁杜斯 1层'
 	},
 	'pvp_y_1-5.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7236,13 +7236,13 @@ const MapInfo = {
 			mainTitle: 'PvP Room Morocc'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Morocc'
+		displayName: 'PvP : 梦罗克'
 	},
 	'in_rogue.rsw': {
-		displayName: 'Inside the Rogue Guild'
+		displayName: '流氓公会 内部'
 	},
 	'monk_test.rsw': {
-		displayName: 'Saint Capitolina Abbey'
+		displayName: '圣●卡毕利那修道院'
 	},
 	'moro_cav.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7250,7 +7250,7 @@ const MapInfo = {
 			mainTitle: 'Flame Cave'
 		},
 		notifyEnter: true,
-		displayName: 'Flame Cave'
+		displayName: '火焰洞穴'
 	},
 	'in_sphinx5.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7259,7 +7259,7 @@ const MapInfo = {
 			subTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Morocc Sphinx B5'
+		displayName: '梦罗克史芬克斯 地下5层'
 	},
 	'pvp_n_1-1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7267,7 +7267,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Sandwich'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Sandwich'
+		displayName: 'PvP : 3明治 房间'
 	},
 	'gl_in01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7276,10 +7276,10 @@ const MapInfo = {
 			subTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Inside Glastheim'
+		displayName: '克雷斯特汉姆古城 室内'
 	},
 	'sec_pri.rsw': {
-		displayName: 'Room of Meditation (Valhalla Prison)'
+		displayName: '巴哈拉宫 反省的房间(监狱)'
 	},
 	'tha_t02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7288,10 +7288,10 @@ const MapInfo = {
 			subTitle: 'Thanatos Tower'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Museum'
+		displayName: '达纳托斯之塔 下层 博物馆'
 	},
 	'ecl_in02.rsw': {
-		displayName: 'Eclage Indoor'
+		displayName: '埃克拉珠 内部'
 	},
 	'ama_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7299,10 +7299,10 @@ const MapInfo = {
 			mainTitle: 'Tatami Maze'
 		},
 		notifyEnter: true,
-		displayName: 'Tatami Maze'
+		displayName: '樱花城 榻榻米迷宫'
 	},
 	'gon_in.rsw': {
-		displayName: 'Inside Gonryun'
+		displayName: '昆仑内部'
 	},
 	'gon_fild01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7310,7 +7310,7 @@ const MapInfo = {
 			mainTitle: 'Gonryun Field'
 		},
 		notifyEnter: true,
-		displayName: 'Gonryun Field'
+		displayName: '昆仑旷野'
 	},
 	'gon_dun03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7319,7 +7319,7 @@ const MapInfo = {
 			subTitle: 'Gonryun'
 		},
 		notifyEnter: true,
-		displayName: 'The Peach Blossom Land'
+		displayName: '昆仑 武陵道院'
 	},
 	'gon_dun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7328,7 +7328,7 @@ const MapInfo = {
 			subTitle: 'Gonryun'
 		},
 		notifyEnter: true,
-		displayName: 'Temple of the Western Queen'
+		displayName: '昆仑 西王母神殿'
 	},
 	'prt_are01.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7336,7 +7336,7 @@ const MapInfo = {
 			mainTitle: 'Arena'
 		},
 		notifyEnter: true,
-		displayName: 'Arena'
+		displayName: '竞技场'
 	},
 	'um_fild03.rsw': {
 		backgroundBmp: 'field',
@@ -7345,7 +7345,7 @@ const MapInfo = {
 			subTitle: 'Umbala'
 		},
 		notifyEnter: true,
-		displayName: 'Kalala Swamp'
+		displayName: '汶巴拉 卡拉拉森林'
 	},
 	'thana_scene01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7353,7 +7353,7 @@ const MapInfo = {
 			mainTitle: 'Thanatos Tower Entrance'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Entrance'
+		displayName: '达纳托斯之塔 前部旷野'
 	},
 	'ama_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7361,7 +7361,7 @@ const MapInfo = {
 			mainTitle: 'Amatsu Field'
 		},
 		notifyEnter: true,
-		displayName: 'Amatsu Field'
+		displayName: '樱花城 旷野'
 	},
 	'prt_sewb2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7370,7 +7370,7 @@ const MapInfo = {
 			subTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Culvert F2'
+		displayName: '普隆德拉地下水道 2层'
 	},
 	'nif_fild02.rsw': {
 		backgroundBmp: 'field',
@@ -7379,10 +7379,10 @@ const MapInfo = {
 			subTitle: 'Niflheim'
 		},
 		notifyEnter: true,
-		displayName: 'Valley of Niflheim'
+		displayName: '尼芙菲姆 鬼之峡谷'
 	},
 	'nif_in.rsw': {
-		displayName: 'Inside Niflheim'
+		displayName: '尼芙菲姆 内部'
 	},
 	'valkyrie.rsw': {
 		backgroundBmp: 'noname',
@@ -7391,7 +7391,7 @@ const MapInfo = {
 			subTitle: 'Hall of Honor'
 		},
 		notifyEnter: true,
-		displayName: 'Valkyrie Hall, the Hall of Honor'
+		displayName: '瓦尔基里神殿(伟大战士们的殿堂)'
 	},
 	'y_airport.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7399,7 +7399,7 @@ const MapInfo = {
 			mainTitle: 'Yuno Airport'
 		},
 		notifyEnter: true,
-		displayName: 'Yuno Airport'
+		displayName: '朱诺机场'
 	},
 	'lou_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7407,7 +7407,7 @@ const MapInfo = {
 			mainTitle: 'Louyang Field'
 		},
 		notifyEnter: true,
-		displayName: 'Louyang Field'
+		displayName: '龙之城 旷野'
 	},
 	'hu_fild06.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7415,10 +7415,10 @@ const MapInfo = {
 			mainTitle: 'Hugel Field'
 		},
 		notifyEnter: true,
-		displayName: 'Hugel Field'
+		displayName: '毁葛 旷野'
 	},
 	'lou_in01.rsw': {
-		displayName: 'Inside Louyang'
+		displayName: '龙之城 内部'
 	},
 	'new_4-1.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7426,10 +7426,10 @@ const MapInfo = {
 			mainTitle: 'Training Ground'
 		},
 		notifyEnter: true,
-		displayName: 'Training Ground'
+		displayName: '初学者修练场'
 	},
 	'jawaii_in.rsw': {
-		displayName: 'Inside Jawaii'
+		displayName: '爪哇咿 内部'
 	},
 	'gefenia01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7437,7 +7437,7 @@ const MapInfo = {
 			mainTitle: 'Geffenia'
 		},
 		notifyEnter: true,
-		displayName: 'Geffenia'
+		displayName: '葛帔尼亚'
 	},
 	'gefenia04.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7445,10 +7445,10 @@ const MapInfo = {
 			mainTitle: 'Geffenia'
 		},
 		notifyEnter: true,
-		displayName: 'Geffenia'
+		displayName: '葛帔尼亚'
 	},
 	'que_god01.rsw': {
-		displayName: 'Quest Map'
+		displayName: '任务地图'
 	},
 	'ayo_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7456,7 +7456,7 @@ const MapInfo = {
 			mainTitle: 'Ayothaya Field'
 		},
 		notifyEnter: true,
-		displayName: 'Ayothaya Field'
+		displayName: '哎哟泰雅 旷野'
 	},
 	'ayo_dun01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7464,7 +7464,7 @@ const MapInfo = {
 			mainTitle: 'Ancient Shrine Maze'
 		},
 		notifyEnter: true,
-		displayName: 'Ancient Shrine Maze'
+		displayName: '哎哟泰雅 古代神殿密穴'
 	},
 	'pay_d03_i.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7473,7 +7473,7 @@ const MapInfo = {
 			subTitle: 'Illusion'
 		},
 		notifyEnter: true,
-		displayName: 'Nightmare of Moonlight'
+		displayName: '月夜猫的噩梦'
 	},
 	'yuno_fild08.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7489,7 +7489,7 @@ const MapInfo = {
 			mainTitle: 'Payon Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Forest'
+		displayName: '斐扬树林'
 	},
 	'um_dun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7501,7 +7501,7 @@ const MapInfo = {
 		displayName: "Carpenter's Shop in the Tree"
 	},
 	'turbo_n_4.rsw': {
-		displayName: 'Turbo Track Stadium'
+		displayName: '竞速场地 竞赛场'
 	},
 	'einbroch.rsw': {
 		backgroundBmp: 'village',
@@ -7510,10 +7510,10 @@ const MapInfo = {
 			subTitle: 'City of Steel in the Schwartzwald Republic'
 		},
 		notifyEnter: true,
-		displayName: 'Einbroch, the City of Steel'
+		displayName: '钢铁之都 艾音布罗克'
 	},
 	'ein_in01.rsw': {
-		displayName: 'Inside Einbroch'
+		displayName: '室内'
 	},
 	'airplane.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7521,10 +7521,10 @@ const MapInfo = {
 			mainTitle: 'Airship'
 		},
 		notifyEnter: true,
-		displayName: 'Airship'
+		displayName: '飞空艇'
 	},
 	'job_star.rsw': {
-		displayName: 'The Sun, the Moon and the Stars'
+		displayName: '太阳和月亮和星辰之地'
 	},
 	'ein_fild07.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7532,7 +7532,7 @@ const MapInfo = {
 			mainTitle: 'Einbroch Field'
 		},
 		notifyEnter: true,
-		displayName: 'Einbroch Field'
+		displayName: '艾音布罗克 旷野'
 	},
 	'prt_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7540,7 +7540,7 @@ const MapInfo = {
 			mainTitle: 'Prontera Field'
 		},
 		notifyEnter: true,
-		displayName: 'Prontera Field'
+		displayName: '普隆德拉 旷野'
 	},
 	'ba_lost.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7548,7 +7548,7 @@ const MapInfo = {
 			mainTitle: 'Lost Farm Valley'
 		},
 		notifyEnter: true,
-		displayName: 'Lost Farm Valley'
+		displayName: '失落的山谷饲养场'
 	},
 	'pvp_y_room.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7556,11 +7556,11 @@ const MapInfo = {
 			mainTitle: 'PvP Waiting Room'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Waiting Room'
+		displayName: 'PvP : 等待室'
 	},
 	'bat_c01.rsw': {
 		notifyEnter: true,
-		displayName: 'Krieger von Midgard'
+		displayName: '克里格·冯·米德加尔特'
 	},
 	'lhz_fild03.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7568,7 +7568,7 @@ const MapInfo = {
 			mainTitle: 'Lighthalzen Field'
 		},
 		notifyEnter: true,
-		displayName: 'Lighthalzen Field'
+		displayName: '里希塔乐镇 旷野'
 	},
 	'hero_ent2.rsw': {
 		backgroundBmp: 'siege',
@@ -7580,7 +7580,7 @@ const MapInfo = {
 		displayName: "Herosria 2nd Hero's Gateway"
 	},
 	'job3_guil03.rsw': {
-		displayName: 'Isolated mansion'
+		displayName: '偏僻的住宅'
 	},
 	'yuno_pre.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7588,7 +7588,7 @@ const MapInfo = {
 			mainTitle: 'Schwartzwald Government Buildings'
 		},
 		notifyEnter: true,
-		displayName: 'Schwartzwald Government Buildings'
+		displayName: '秀发兹发德 政府厅舍'
 	},
 	'lhz_dun03.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7596,7 +7596,7 @@ const MapInfo = {
 			mainTitle: 'Somatology Laboratory F3'
 		},
 		notifyEnter: true,
-		displayName: 'Somatology Laboratory F3'
+		displayName: '生物体试验研究所 地下3层'
 	},
 	'lhz_dun02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7604,7 +7604,7 @@ const MapInfo = {
 			mainTitle: 'Somatology Laboratory F2'
 		},
 		notifyEnter: true,
-		displayName: 'Somatology Laboratory F2'
+		displayName: '生物体试验研究所 地下2层'
 	},
 	'jupe_ele.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7612,7 +7612,7 @@ const MapInfo = {
 			mainTitle: 'Juperos Elevator'
 		},
 		notifyEnter: true,
-		displayName: 'Juperos Elevator'
+		displayName: '优配擂斯电梯'
 	},
 	'ver_tunn.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7621,7 +7621,7 @@ const MapInfo = {
 			subTitle: 'Verus'
 		},
 		notifyEnter: true,
-		displayName: 'Verus - Tunnel Outskirts'
+		displayName: '贝鲁兹外围隧道'
 	},
 	'jupe_area1.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7629,7 +7629,7 @@ const MapInfo = {
 			mainTitle: 'Juperos, Restricted Zone'
 		},
 		notifyEnter: true,
-		displayName: 'Juperos, Restricted Zone'
+		displayName: '优配擂斯保安旷野'
 	},
 	'juperos_01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7637,7 +7637,7 @@ const MapInfo = {
 			mainTitle: 'Outside of the Juperos Ruins'
 		},
 		notifyEnter: true,
-		displayName: 'Outside of the Juperos Ruins'
+		displayName: '优配擂斯废墟 外部'
 	},
 	'odin_tem01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7654,7 +7654,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Tower Upper Level'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Upper Level - Room of Hatred'
+		displayName: '达纳托斯之塔 上层 憎恨之房'
 	},
 	'gld2_ald.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7663,7 +7663,7 @@ const MapInfo = {
 			subTitle: 'Louis Abyss Corridor'
 		},
 		notifyEnter: true,
-		displayName: 'Corridor of the Abyss: Tears of Hero'
+		displayName: '深渊回廊 : 英雄之泪'
 	},
 	'1@pop1.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7681,7 +7681,7 @@ const MapInfo = {
 			subTitle: 'Thanatos Tower'
 		},
 		notifyEnter: true,
-		displayName: 'Thanatos Tower Museum Entrance'
+		displayName: '达纳托斯之塔 下层 博物馆入口'
 	},
 	'abyss_03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7690,7 +7690,7 @@ const MapInfo = {
 			subTitle: 'Abyss Lake'
 		},
 		notifyEnter: true,
-		displayName: 'Abyss Lake Underground Cave 3F'
+		displayName: '毁葛深渊湖水 地下洞穴3层'
 	},
 	'abyss_01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7699,7 +7699,7 @@ const MapInfo = {
 			subTitle: 'Abyss Lake'
 		},
 		notifyEnter: true,
-		displayName: 'Abyss Lake Underground Cave 1F'
+		displayName: '毀葛深渊湖水 地下洞穴1层'
 	},
 	'ba_2whs01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7707,7 +7707,7 @@ const MapInfo = {
 			mainTitle: 'Upper Floor of Tartaros Storage'
 		},
 		notifyEnter: true,
-		displayName: 'Upper Floor of Tartaros Storage'
+		displayName: '塔尔塔罗斯储藏室上层'
 	},
 	'mal_in02.rsw': {
 		backgroundBmp: 'village',
@@ -7716,10 +7716,10 @@ const MapInfo = {
 			subTitle: 'Malangdo'
 		},
 		notifyEnter: true,
-		displayName: 'Inside the Ship'
+		displayName: '船 内部'
 	},
 	'auction_01.rsw': {
-		displayName: 'Auction Hall'
+		displayName: '拍卖场'
 	},
 	'hero_out2.rsw': {
 		backgroundBmp: 'siege',
@@ -7728,7 +7728,7 @@ const MapInfo = {
 			subTitle: 'Herosria'
 		},
 		notifyEnter: true,
-		displayName: 'Herosria Lacusarium'
+		displayName: '希罗斯里亚海城之域'
 	},
 	'1@crd.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7755,7 +7755,7 @@ const MapInfo = {
 			mainTitle: 'Einbroch Field'
 		},
 		notifyEnter: true,
-		displayName: 'Einbroch Field'
+		displayName: '艾音布罗克 旷野'
 	},
 	'ein_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7763,7 +7763,7 @@ const MapInfo = {
 			mainTitle: 'Einbroch Field'
 		},
 		notifyEnter: true,
-		displayName: 'Einbroch Field'
+		displayName: '艾音布罗克 旷野'
 	},
 	'jupe_cave.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -7771,7 +7771,7 @@ const MapInfo = {
 			mainTitle: 'Juperos Dungeon Entrance'
 		},
 		notifyEnter: true,
-		displayName: 'Juperos Dungeon Entrance'
+		displayName: '优配擂斯洞穴入口'
 	},
 	'arug_dun01.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7780,7 +7780,7 @@ const MapInfo = {
 			subTitle: 'Arunafeltz'
 		},
 		notifyEnter: true,
-		displayName: 'Arunafeltz Guild Dungeon'
+		displayName: '公会地下密穴'
 	},
 	'iz_dun00.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7789,7 +7789,7 @@ const MapInfo = {
 			subTitle: 'Baylan Island'
 		},
 		notifyEnter: true,
-		displayName: 'Undersea Tunnel B1'
+		displayName: '依斯鲁得海底洞穴 1层'
 	},
 	'prt_lib.rsw': {
 		backgroundBmp: 'noname',
@@ -7798,7 +7798,7 @@ const MapInfo = {
 			subTitle: 'Prontera Royal Palace'
 		},
 		notifyEnter: true,
-		displayName: 'Memorial of Royal Family'
+		displayName: '王室的记忆'
 	},
 	'hugel.rsw': {
 		backgroundBmp: 'village',
@@ -7807,7 +7807,7 @@ const MapInfo = {
 			subTitle: 'Quaint Garden Village'
 		},
 		notifyEnter: true,
-		displayName: 'Hugel, the Quaint Garden Village'
+		displayName: '田园都市 毁葛'
 	},
 	'ra_san03.rsw': {
 		backgroundBmp: 'dungeon',
@@ -7816,7 +7816,7 @@ const MapInfo = {
 			subTitle: 'Rachel Temple'
 		},
 		notifyEnter: true,
-		displayName: 'Rachel Temple Sanctuary East Area 1F'
+		displayName: '拉赫 神殿圣域1层 东边地区'
 	},
 	'1@glast.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7824,7 +7824,7 @@ const MapInfo = {
 			mainTitle: 'Past Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Past Glastheim'
+		displayName: '过去的克雷斯特汉姆古城'
 	},
 	'ra_fild04.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7832,7 +7832,7 @@ const MapInfo = {
 			mainTitle: 'Audumla Grassland'
 		},
 		notifyEnter: true,
-		displayName: 'Audumla Grassland'
+		displayName: '拉赫 奥顿拉草原'
 	},
 	'ra_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7840,7 +7840,7 @@ const MapInfo = {
 			mainTitle: 'Od Canyon'
 		},
 		notifyEnter: true,
-		displayName: 'Od Canyon'
+		displayName: '拉赫欧兹峡谷'
 	},
 	'bossnia_01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7848,7 +7848,7 @@ const MapInfo = {
 			mainTitle: 'Bossnia'
 		},
 		notifyEnter: true,
-		displayName: 'Bossnia'
+		displayName: '波斯尼亚'
 	},
 	'1@iwp.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -7856,7 +7856,7 @@ const MapInfo = {
 			mainTitle: 'Frozen Scale Hill'
 		},
 		notifyEnter: true,
-		displayName: 'Frozen Scale Hill'
+		displayName: '冰鳞山丘'
 	},
 	'ra_temple.rsw': {
 		backgroundBmp: 'village',
@@ -7876,7 +7876,7 @@ const MapInfo = {
 		displayName: 'Remote Island'
 	},
 	'ra_in01.rsw': {
-		displayName: 'Inside Rachel'
+		displayName: '拉赫 内部'
 	},
 	'grademk.rsw': {
 		backgroundBmp: 'village_s1',
@@ -7884,7 +7884,7 @@ const MapInfo = {
 			subTitle: 'Grade Enhancer'
 		},
 		notifyEnter: true,
-		displayName: 'Grade Enhancer'
+		displayName: '阶级强化所'
 	},
 	'1@tnm2.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7900,7 +7900,7 @@ const MapInfo = {
 			mainTitle: 'Waiting Room'
 		},
 		notifyEnter: true,
-		displayName: 'Waiting Room'
+		displayName: '竞速场地 等待室'
 	},
 	'bossnia_03.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7908,7 +7908,7 @@ const MapInfo = {
 			mainTitle: 'Bossnia'
 		},
 		notifyEnter: true,
-		displayName: 'Bossnia'
+		displayName: '波斯尼亚'
 	},
 	'1@ma_c.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7916,7 +7916,7 @@ const MapInfo = {
 			mainTitle: 'Buwaya Cave'
 		},
 		notifyEnter: true,
-		displayName: 'Buwaya Cave'
+		displayName: '宝箱巨鳄洞穴'
 	},
 	'schg_cas01.rsw': {
 		backgroundBmp: 'siege',
@@ -7925,7 +7925,7 @@ const MapInfo = {
 			subTitle: 'Nidhoggur'
 		},
 		notifyEnter: true,
-		displayName: 'Himinn Castle'
+		displayName: '尼它堆公会'
 	},
 	'mosk_dun03.rsw': {
 		backgroundBmp: 'field',
@@ -7934,7 +7934,7 @@ const MapInfo = {
 			subTitle: 'Moscovia'
 		},
 		notifyEnter: true,
-		displayName: 'Dremuci Forest'
+		displayName: '莫斯科比亚 深渊森林'
 	},
 	'mosk_dun01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -7942,7 +7942,7 @@ const MapInfo = {
 			mainTitle: 'Les Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Les Forest'
+		displayName: '莫斯科比亚 森林'
 	},
 	'te_prt_gld.rsw': {
 		backgroundBmp: 'siege',
@@ -7959,7 +7959,7 @@ const MapInfo = {
 			mainTitle: 'Fallacious Okolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Fallacious Okolnir'
+		displayName: '虚幻的奥克尼尔'
 	},
 	'que_qsch04.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -7967,7 +7967,7 @@ const MapInfo = {
 			mainTitle: 'Fallacious Okolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Fallacious Okolnir'
+		displayName: '虚幻的奥克尼尔'
 	},
 	'dic_fild02.rsw': {
 		backgroundBmp: 'field',
@@ -7976,7 +7976,7 @@ const MapInfo = {
 			subTitle: 'Jotunheim'
 		},
 		notifyEnter: true,
-		displayName: 'Bottom of Kamidal Mountain'
+		displayName: '卡米达山麓'
 	},
 	'te_aldecas03.rsw': {
 		backgroundBmp: 'siege',
@@ -7993,7 +7993,7 @@ const MapInfo = {
 			mainTitle: 'Fallacious Okolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Fallacious Okolnir'
+		displayName: '虚幻的奥克尼尔'
 	},
 	'te_aldecas04.rsw': {
 		backgroundBmp: 'siege',
@@ -8010,7 +8010,7 @@ const MapInfo = {
 			mainTitle: 'Sograt Desert'
 		},
 		notifyEnter: true,
-		displayName: 'Sograt Desert'
+		displayName: '苏克拉特沙漠'
 	},
 	'5@tower.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -8018,10 +8018,10 @@ const MapInfo = {
 			mainTitle: 'Endless Tower'
 		},
 		notifyEnter: true,
-		displayName: 'Endless Tower'
+		displayName: '无尽塔'
 	},
 	'que_dan02.rsw': {
-		displayName: 'Inside of the Abandoned House in Yuno'
+		displayName: '朱诺 废弃屋内部'
 	},
 	'jor_dun03.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -8037,7 +8037,7 @@ const MapInfo = {
 			mainTitle: 'Splendide Field'
 		},
 		notifyEnter: true,
-		displayName: 'Splendide Field'
+		displayName: '辉煌领域'
 	},
 	'spl_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -8045,10 +8045,10 @@ const MapInfo = {
 			mainTitle: 'Splendide Field'
 		},
 		notifyEnter: true,
-		displayName: 'Splendide Field'
+		displayName: '辉煌领域'
 	},
 	'mid_campin.rsw': {
-		displayName: 'Inside Midgard Expedition Camp'
+		displayName: '米德加尔特联合驻地 内部'
 	},
 	'spl_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -8056,7 +8056,7 @@ const MapInfo = {
 			mainTitle: 'Splendide Field'
 		},
 		notifyEnter: true,
-		displayName: 'Splendide Field'
+		displayName: '辉煌领域'
 	},
 	'splendide.rsw': {
 		backgroundBmp: 'village',
@@ -8065,13 +8065,13 @@ const MapInfo = {
 			subTitle: 'Yotunheim Lapine Base'
 		},
 		notifyEnter: true,
-		displayName: 'Splendide, Lapine Base'
+		displayName: '守护精灵前线阵地辉煌领域'
 	},
 	'job3_war02.rsw': {
-		displayName: 'Test room for Warlock Job Change'
+		displayName: '大法师转职考场'
 	},
 	'job3_war01.rsw': {
-		displayName: 'Test room for Warlock Job Change'
+		displayName: '大法师转职考场'
 	},
 	'1@def02.rsw': {
 		backgroundBmp: 'dungeon',
@@ -8088,7 +8088,7 @@ const MapInfo = {
 			mainTitle: 'Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'Glastheim'
+		displayName: '克雷斯特汉姆古城'
 	},
 	'jor_ab02.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -8096,7 +8096,7 @@ const MapInfo = {
 			mainTitle: 'Abandoned Pit 2nd Floor'
 		},
 		notifyEnter: true,
-		displayName: 'Abandoned Pit 2nd Floor'
+		displayName: '废弃坑洞2层'
 	},
 	'gld_dun02_2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -8105,7 +8105,7 @@ const MapInfo = {
 			subTitle: 'Louisa'
 		},
 		notifyEnter: true,
-		displayName: 'Louisa Dungeon 2F'
+		displayName: '公会地下密穴 2层'
 	},
 	'mora.rsw': {
 		backgroundBmp: 'village',
@@ -8114,7 +8114,7 @@ const MapInfo = {
 			subTitle: 'Bifrost Raffle Village'
 		},
 		notifyEnter: true,
-		displayName: 'Raffle Village Mora'
+		displayName: '草精族 穆拉村'
 	},
 	'payg_cas03.rsw': {
 		backgroundBmp: 'siege',
@@ -8123,10 +8123,10 @@ const MapInfo = {
 			subTitle: 'Greenwood Lake'
 		},
 		notifyEnter: true,
-		displayName: 'Holy Shadow Castle'
+		displayName: '青林湖泊 公会'
 	},
 	'que_house_s.rsw': {
-		displayName: 'Strange House'
+		displayName: '诡异的屋'
 	},
 	'iz_dun05.rsw': {
 		backgroundBmp: 'dungeon',
@@ -8135,7 +8135,7 @@ const MapInfo = {
 			subTitle: 'Izlude'
 		},
 		notifyEnter: true,
-		displayName: 'Undersea Tunnel B6'
+		displayName: '依斯鲁得海底洞穴 6层'
 	},
 	'que_ng.rsw': {
 		displayName: 'Unknown Place'
@@ -8146,7 +8146,7 @@ const MapInfo = {
 			mainTitle: 'Somatology Laboratory 4th Basement'
 		},
 		notifyEnter: true,
-		displayName: 'Somatology Laboratory 4th Basement'
+		displayName: '生物体试验研究所 地下4层'
 	},
 	'gld2_gef.rsw': {
 		backgroundBmp: 'dungeon',
@@ -8155,7 +8155,7 @@ const MapInfo = {
 			subTitle: 'Brittoria Abyss Corridor'
 		},
 		notifyEnter: true,
-		displayName: 'Corridor of the Abyss: Dead Man Hill'
+		displayName: '深渊回廊 : 亡者之丘'
 	},
 	'bra_fild01.rsw': {
 		backgroundBmp: 'field_s2',
@@ -8163,10 +8163,10 @@ const MapInfo = {
 			mainTitle: 'Brasilis Field'
 		},
 		notifyEnter: true,
-		displayName: 'Brasilis Field'
+		displayName: '巴西平原'
 	},
 	'job_ko.rsw': {
-		displayName: 'Hidden Place'
+		displayName: '隐蔽居所'
 	},
 	'ma_zif04.rsw': {
 		backgroundBmp: 'noname_s2',
@@ -8174,7 +8174,7 @@ const MapInfo = {
 			mainTitle: 'Jeepney'
 		},
 		notifyEnter: true,
-		displayName: 'Inside of Jeepney'
+		displayName: '吉普尼车 内部'
 	},
 	'que_avan01.rsw': {
 		displayName: "Avant's Laboratory"
@@ -8185,7 +8185,7 @@ const MapInfo = {
 			mainTitle: 'Bifrost Tower 4F'
 		},
 		notifyEnter: true,
-		displayName: 'Bifrost Tower 4F'
+		displayName: '彩虹桥高塔 4层'
 	},
 	'rachel.rsw': {
 		backgroundBmp: 'village',
@@ -8194,10 +8194,10 @@ const MapInfo = {
 			subTitle: 'Capital of Arunafelz, the Study Nation'
 		},
 		notifyEnter: true,
-		displayName: 'Rachel, Capital of Arunafelz, the Study Nation'
+		displayName: '阿卢纳贝兹 教国首都 拉赫'
 	},
 	'job3_rang01.rsw': {
-		displayName: 'Waiting room for Ranger Job Change'
+		displayName: '游侠转职等候室'
 	},
 	'moc_prydn2.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -8205,10 +8205,10 @@ const MapInfo = {
 			mainTitle: 'Pyramid B2'
 		},
 		notifyEnter: true,
-		displayName: 'Morocc Pyramid B2 - Nightmare'
+		displayName: '梦罗克金字塔 地下2层(梦魇)'
 	},
 	'iz_ng01.rsw': {
-		displayName: 'Ninja Tutorial Map'
+		displayName: '忍者新手教学地图'
 	},
 	'que_qsch01.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -8216,7 +8216,7 @@ const MapInfo = {
 			mainTitle: 'Fallacious Okolnir'
 		},
 		notifyEnter: true,
-		displayName: 'Fallacious Okolnir'
+		displayName: '虚幻的奥克尼尔'
 	},
 	'te_aldecas01.rsw': {
 		backgroundBmp: 'siege',
@@ -8234,13 +8234,13 @@ const MapInfo = {
 			subTitle: 'Moscovia'
 		},
 		notifyEnter: true,
-		displayName: 'Whale Island'
+		displayName: '鲸鱼岛'
 	},
 	'ecl_in03.rsw': {
-		displayName: 'Eclage Indoor'
+		displayName: '埃克拉珠 内部'
 	},
 	'1@ecl.rsw': {
-		displayName: 'Eclage Interior'
+		displayName: '埃克拉珠内部'
 	},
 	'1@xm_d.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -8248,7 +8248,7 @@ const MapInfo = {
 			mainTitle: 'Horror Toy Factory'
 		},
 		notifyEnter: true,
-		displayName: 'Horror Toy Factory'
+		displayName: '恐怖玩具工厂'
 	},
 	'1@dth2.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -8256,7 +8256,7 @@ const MapInfo = {
 			mainTitle: 'Bios Island'
 		},
 		notifyEnter: true,
-		displayName: 'Bios Island'
+		displayName: '拜欧斯岛'
 	},
 	'moro_vol.rsw': {
 		backgroundBmp: 'field_s2',
@@ -8264,7 +8264,7 @@ const MapInfo = {
 			mainTitle: 'Flame Basin'
 		},
 		notifyEnter: true,
-		displayName: 'Flame Basin'
+		displayName: '火焰盆地'
 	},
 	'ver_eju.rsw': {
 		backgroundBmp: 'dungeon',
@@ -8273,7 +8273,7 @@ const MapInfo = {
 			subTitle: 'Juperos'
 		},
 		notifyEnter: true,
-		displayName: 'Eastern Ruins of Juperos'
+		displayName: '优配擂斯 东边废墟'
 	},
 	'1@lab.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -8281,10 +8281,10 @@ const MapInfo = {
 			mainTitle: 'Central Laboratory'
 		},
 		notifyEnter: true,
-		displayName: 'Central Laboratory'
+		displayName: '中央实验室'
 	},
 	'prt_pri00.rsw': {
-		displayName: 'Prontera Prison'
+		displayName: '普隆德拉监狱'
 	},
 	'job4_tro.rsw': {
 		backgroundBmp: 'field2_s2',
@@ -8300,7 +8300,7 @@ const MapInfo = {
 			mainTitle: 'PvP Room Alberta'
 		},
 		notifyEnter: true,
-		displayName: 'PvP : Room Alberta'
+		displayName: 'PvP : 艾尔贝塔'
 	},
 	'tur_dun06.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -8308,7 +8308,7 @@ const MapInfo = {
 			mainTitle: 'Underground Swamp Zone'
 		},
 		notifyEnter: true,
-		displayName: 'Underground Swamp Zone'
+		displayName: '地下沼泽区'
 	},
 	'1@gl_k2.rsw': {
 		backgroundBmp: 'dungeon',
@@ -8325,7 +8325,7 @@ const MapInfo = {
 			mainTitle: 'The Fall of Glastheim'
 		},
 		notifyEnter: true,
-		displayName: 'The Fall of Glastheim'
+		displayName: '克雷斯特汉姆的没落'
 	},
 	'pay_fild02.rsw': {
 		backgroundBmp: 'field_s2',
@@ -8333,7 +8333,7 @@ const MapInfo = {
 			mainTitle: 'Payon Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Payon Forest'
+		displayName: '斐扬树林'
 	},
 	'1@gl_kh.rsw': {
 		backgroundBmp: 'dungeon',
@@ -8359,7 +8359,7 @@ const MapInfo = {
 			mainTitle: 'Air Fortress - Inside'
 		},
 		notifyEnter: true,
-		displayName: 'Air Fortress - Inside'
+		displayName: '空中要塞内部'
 	},
 	'sp_rudus4.rsw': {
 		backgroundBmp: 'dungeon',
@@ -8368,7 +8368,7 @@ const MapInfo = {
 			subTitle: 'Experiment Waste Disposal'
 		},
 		notifyEnter: true,
-		displayName: 'Rudus, Experiment Waste Disposal F4'
+		displayName: '实验体废弃场 鲁杜斯 4层'
 	},
 	'1@ge_sn.rsw': {
 		backgroundBmp: 'dungeon_s2',
@@ -8384,7 +8384,7 @@ const MapInfo = {
 			mainTitle: 'Gray Wolf Forest'
 		},
 		notifyEnter: true,
-		displayName: 'Gray Wolf Forest'
+		displayName: '灰狼森林'
 	},
 	'moc_para01.rsw': {
 		backgroundBmp: 'village_s2',
@@ -8392,10 +8392,10 @@ const MapInfo = {
 			mainTitle: 'Paradise'
 		},
 		notifyEnter: true,
-		displayName: 'Inside of Morocc Eden Group'
+		displayName: '梦罗克乐园团 内部'
 	},
 	'que_dan01.rsw': {
-		displayName: 'Hugel Field'
+		displayName: '毁葛 旷野'
 	}
 };
 
