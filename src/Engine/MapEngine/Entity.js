@@ -998,7 +998,8 @@ function onEntityIdentity(pkt) {
 			entity.objecttype === Entity.TYPE_NPC2 ||
 			entity.objecttype === Entity.TYPE_NPC_ABR ||
 			entity.objecttype === Entity.TYPE_NPC_BIONIC) {
-			pkt.CName = getTranslation(pkt.CName);
+			const translated = getTranslation(pkt.CName);
+			pkt.CName = translated;
 		}
 
 		if (entity.display.name) {
