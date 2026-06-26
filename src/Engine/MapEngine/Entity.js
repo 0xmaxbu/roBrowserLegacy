@@ -15,7 +15,7 @@ import SkillInfo from 'DB/Skills/SkillInfo.js';
 import StatusConst from 'DB/Status/StatusConst.js';
 import StatusState from 'DB/Status/StatusState.js';
 import Emotions from 'DB/Emotions.js';
-import NpcTranslateTable from 'DB/NpcTranslateTable.js';
+import { getTranslation } from 'DB/NpcTranslateTable.js';
 import SkillEffect from 'DB/Skills/SkillEffect.js';
 import SkillActionTable from 'DB/Skills/SkillAction.js';
 import EffectConst from 'DB/Effects/EffectConst.js';
@@ -998,7 +998,7 @@ function onEntityIdentity(pkt) {
 			entity.objecttype === Entity.TYPE_NPC2 ||
 			entity.objecttype === Entity.TYPE_NPC_ABR ||
 			entity.objecttype === Entity.TYPE_NPC_BIONIC) {
-			pkt.CName = NpcTranslateTable.getTranslation(pkt.CName);
+			pkt.CName = getTranslation(pkt.CName);
 		}
 
 		if (entity.display.name) {
