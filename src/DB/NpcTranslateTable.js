@@ -333,9 +333,10 @@ const NpcTranslateTable = {
 // 翻译函数 — 处理带 #后缀 的 NPC 名称
 // ============================================================
 export function getTranslation(fullName) {
-  // Try exact match first (with #suffix)
-  if (Object.prototype.hasOwnProperty.call(NpcTranslateTable, fullName)) {
-    return NpcTranslateTable[fullName];
+  const result = NpcTranslateTable[fullName];
+  if (result) {
+    console.log('[NpcTrans] exact:', fullName, '→', result);
+    return result;
   }
 
   // Try base name (strip #suffix, but keep original if no #)
@@ -343,14 +344,12 @@ export function getTranslation(fullName) {
   if (hashIdx > 0) {
     const baseName = fullName.substring(0, hashIdx);
     if (Object.prototype.hasOwnProperty.call(NpcTranslateTable, baseName)) {
+      console.log('[NpcTrans] base:', fullName, '→', NpcTranslateTable[baseName]);
       return NpcTranslateTable[baseName];
     }
-    // Also try with the full suffix as key
-    const withHash = NpcTranslateTable[fullName];
-    if (withHash) return withHash;
   }
 
-  // No translation found — return original
+  console.log('[NpcTrans] UNTRANSLATED:', fullName);
   return fullName;
 }
 
