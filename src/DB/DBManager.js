@@ -4408,8 +4408,8 @@ function loadWorldMapInfo(basePath, onEnd) {
 
 			// Function to add a World Category (e.g., Midgard)
 			ctx.AddWorldMapCategory = (id, name, tableKey) => {
-				const decodedName = userStringDecoder.decode(name);
-				const decodedId = userStringDecoder.decode(id);
+			const decodedName = userStringDecoder.decode(name, 'gbk');
+			const decodedId = userStringDecoder.decode(id);
 				const decodedTableKey = userStringDecoder.decode(tableKey);
 
 				WorldMap.push({
@@ -4438,7 +4438,7 @@ function loadWorldMapInfo(basePath, onEnd) {
 			) => {
 				const decodedTableKey = userStringDecoder.decode(worldTableKey);
 				let decodedRsw = userStringDecoder.decode(rswName);
-				const decodedName = userStringDecoder.decode(nameDisplay, userCharpage);
+				const decodedName = userStringDecoder.decode(nameDisplay, 'gbk');
 				const decodedLevel = level ? userStringDecoder.decode(level) : '';
 
 				// Find the world this map belongs to
