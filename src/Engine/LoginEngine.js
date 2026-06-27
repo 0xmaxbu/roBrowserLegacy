@@ -74,6 +74,16 @@ class LoginEngine {
 		UIManager.removeComponents();
 		Session.LangType = 'langtype' in server ? parseInt(server.langtype, 10) : 1; // default to SERVICETYPE_AMERICA
 
+		// 恢复本地语言偏好（Phase 14）：登录时从 localStorage 读取归一化语言码
+		try {
+			const savedLang = localStorage.getItem('ro_player_lang');
+			if (savedLang === 'zh' || savedLang === 'en') {
+				Session.PlayerLang = savedLang;
+			}
+		} catch (e) {
+			// localStorage 可能不可用（隐私模式 / 非 DOM 环境）
+		}
+
 		// Renewal switch
 		Session.isRenewal = Configs.get('renewal', false);
 		console.log('%c[LOGIN] Game Mode: ', 'color:#007000', Session.isRenewal ? 'RENEWAL' : 'PRE-RENEWAL');
@@ -218,6 +228,30 @@ class LoginEngine {
 	 */
 	static setLoadedServer(server) {
 		_server = server;
+	}
+
+	/**
+	 * 切换客户端语言（Phase 14）。
+	 * 本地设置 Session.PlayerLang，并同步发送 @langtype 指令给服务端。
+	 * @param {string} lang 归一化语言码 'zh' | 'en'
+	 */
+	static setPlayerLang(lang) {
+		// lang: 'zh' | 'en'
+		Session.PlayerLang = lang;
+		// 同步到服务端 @langtype：通过普通聊天封包 CZ_REQUEST_CHAT (0x008c) 发送 @xxx 字符串
+		// 注：聊天封包仅在 map-server 阶段可发送（需要 Session.Entity 名字前缀）
+		if (Session.Entity && Session.Entity.display) {
+			const atcmd = (lang === 'zh') ? '@langtype chn' : '@langtype english';
+			const pkt = new PACKET.CZ.REQUEST_CHAT();
+			pkt.msg = Session.Entity.display.name + ' : ' + atcmd;
+			Network.sendPacket(pkt);
+		}
+		// 可选：持久化到 localStorage
+		try {
+			localStorage.setItem('ro_player_lang', lang);
+		} catch (e) {
+			// localStorage 可能不可用
+		}
 	}
 }
 

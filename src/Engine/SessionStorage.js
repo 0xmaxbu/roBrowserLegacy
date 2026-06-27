@@ -21,6 +21,7 @@ export default {
 	UserLevel: 0,
 	Sex: 0,
 	LangType: 0,
+	PlayerLang: 'en',  // 归一化语言码 'zh'|'en'，本地管理（Phase 14）
 	ServerName: null,
 	ratesInfo: null,
 
