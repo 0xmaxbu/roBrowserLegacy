@@ -32,6 +32,7 @@ import WeaponTypeExpansion from './Items/WeaponTypeExpansion.js';
 import WeaponSoundTable from './Items/WeaponSoundTable.js';
 import WeaponHitSoundTable from './Items/WeaponHitSoundTable.js';
 import RobeTable from './Items/RobeTable.js';
+import LangOverlay from 'DB/LangOverlay.js';
 import RandomOption from 'DB/Items/ItemRandomOptionTable.js';
 import WorldMap from './Map/WorldMap.js';
 import SKID from './Skills/SkillConst.js';
@@ -2107,6 +2108,9 @@ class DB {
 			item._decoded = true;
 		}
 
+		// Phase 14: 覆盖层下发前覆盖物品名（PlayerLang!=='zh' 时 LangOverlay 直接回退 fallback，无副作用）
+		item.identifiedDisplayName = LangOverlay.getItemName(itemid, item.identifiedDisplayName);
+
 		return item;
 	}
 
@@ -2322,11 +2326,9 @@ class DB {
 	 * @return {string} message
 	 */
 	static getMessage(id, defaultText) {
-		if (!(id in MsgStringTable)) {
-			return defaultText !== undefined ? defaultText : 'NO MSG ' + id;
-		}
-
-		return MsgStringTable[id];
+		// Phase 14: 覆盖层优先（zh 命中翻译），未命中回退 MsgStringTable，再回退 defaultText / NO MSG
+		const overlaid = LangOverlay.getMessage(id, MsgStringTable[id]);
+		return overlaid ?? (defaultText !== undefined ? defaultText : 'NO MSG ' + id);
 	}
 
 	/**
@@ -2352,7 +2354,8 @@ class DB {
 	 * @param {number} skill id
 	 */
 	static getSkillDescription(id) {
-		return SkillDescription[id] || '...';
+		// Phase 14: 技能描述复用 message 覆盖表，未命中回退 SkillDescription 原值（D-11）
+		return LangOverlay.getMessage(id, SkillDescription[id]) ?? SkillDescription[id] ?? '...';
 	}
 
 	/**
@@ -2391,7 +2394,8 @@ class DB {
 	 * @param {number} job id
 	 */
 	static getMonsterName(job) {
-		return MonsterNameTable[job] ?? 'Unknown';
+		// Phase 14: 覆盖层优先（zh 命中中文），未命中回退 MonsterNameTable（D-11）
+		return LangOverlay.getMonsterName(job, MonsterNameTable[job]) ?? 'Unknown';
 	}
 
 	/**
