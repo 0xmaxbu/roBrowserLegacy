@@ -16,6 +16,7 @@ import StatusConst from 'DB/Status/StatusConst.js';
 import StatusState from 'DB/Status/StatusState.js';
 import Emotions from 'DB/Emotions.js';
 import { getTranslation } from 'DB/NpcTranslateTable.js';
+import LangOverlay from 'DB/LangOverlay.js'; // 顶部 import 区新增
 import SkillEffect from 'DB/Skills/SkillEffect.js';
 import SkillActionTable from 'DB/Skills/SkillAction.js';
 import EffectConst from 'DB/Effects/EffectConst.js';
@@ -998,8 +999,11 @@ function onEntityIdentity(pkt) {
 			entity.objecttype === Entity.TYPE_NPC2 ||
 			entity.objecttype === Entity.TYPE_NPC_ABR ||
 			entity.objecttype === Entity.TYPE_NPC_BIONIC) {
-			const translated = getTranslation(pkt.CName);
-			pkt.CName = translated;
+			pkt.CName = getTranslation(pkt.CName); // NPC 名：沿用 NpcTranslateTable（D-05）
+		} else if (entity.objecttype === Entity.TYPE_MOB) {
+			// 怪物头顶名：走覆盖层按 job id 查表（D-07）
+			const overlaid = LangOverlay.getMonsterName(entity.job, pkt.CName);
+			pkt.CName = overlaid;
 		}
 
 		if (entity.display.name) {
