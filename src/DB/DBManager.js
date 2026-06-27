@@ -6316,8 +6316,15 @@ function loadSkillInfoList(filename, callback, onEnd) {
 							end
 						main_skillInfoList()  
 					`);
-			} catch (error) {
-				console.error('[loadSkillInfoList] Error: ', error);
+			// D-08: 技能名访问点分散（Entity.js/Skill.js/ShortCut.js 等直接读 SkillName），
+			// 故在加载后原地改写 SkillInfo[].SkillName，统一覆盖（Phase 14）
+			for (const id in SkillInfo) {
+				if (SkillInfo[id] && SkillInfo[id].SkillName) {
+					SkillInfo[id].SkillName = LangOverlay.getSkillName(parseInt(id, 10), SkillInfo[id].SkillName);
+				}
+			}
+		} catch (error) {
+			console.error('[loadSkillInfoList] Error: ', error);
 			} finally {
 				// release file from memory
 				lua.unmountFile('skillinfolist.lub');

@@ -26,7 +26,6 @@ import WinPopup from 'UI/Components/WinPopup/WinPopup.js';
 import MiniMap from 'UI/Components/MiniMap/MiniMap.js';
 import ChatBox from 'UI/Components/ChatBox/ChatBox.js';
 import GUIComponent from 'UI/GUIComponent.js';
-import { translateDialog, translateMenu } from 'DB/NpcDialogTranslateTable.js';
 
 /**
  * NPC write a message
@@ -35,7 +34,7 @@ import { translateDialog, translateMenu } from 'DB/NpcDialogTranslateTable.js';
  */
 function onMessage(pkt) {
 	NpcBox.append();
-	NpcBox.setText(translateDialog(pkt.msg), pkt.NAID);
+	NpcBox.setText(pkt.msg, pkt.NAID);
 }
 
 /**
@@ -109,7 +108,7 @@ function onDynamicNPCCreateRequest(pkt) {
  */
 function onMenuAppear(pkt) {
 	NpcMenu.append();
-	NpcMenu.setMenu(translateMenu(pkt.msg), pkt.NAID);
+	NpcMenu.setMenu(pkt.msg, pkt.NAID);
 
 	NpcMenu.onSelectMenu = function onSelectMenu(NAID, index) {
 		NpcMenu.remove();
