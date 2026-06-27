@@ -28,7 +28,6 @@ import Commands from 'Controls/ProcessCommand.js';
 import ChatBoxSettings from 'UI/Components/ChatBoxSettings/ChatBoxSettings.js';
 import Configs from 'Core/Configs.js';
 import EntityManager from 'Renderer/EntityManager.js';
-import LoginEngine from 'Engine/LoginEngine.js';
 
 /**
  * @var {number} max message in the chatbox
@@ -1106,16 +1105,9 @@ ChatBox.submit = function Submit() {
 		return;
 	}
 
-	// @langtype 同步客户端语言偏好（Phase 14）
-	if (/^@langtype\s+/i.test(trimmedText)) {
-		const arg = trimmedText.replace(/^@langtype\s+/i, '').trim().toLowerCase();
-		if (arg === 'chn') {
-			LoginEngine.setPlayerLang('zh');
-			return;
-		} else if (arg === 'english') {
-			LoginEngine.setPlayerLang('en');
-			return;
-		}
+	// @command 客户端拦截（Phase 14）
+	if (trimmedText[0] === '@' && Commands.processAtCommand.call(this, trimmedText)) {
+		return;
 	}
 
 	this.onRequestTalk(user, trimmedText, ChatBox.sendTo);

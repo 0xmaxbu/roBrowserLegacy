@@ -45,6 +45,7 @@ import CloudWeatherEffect from 'Renderer/Effects/CloudWeatherEffect.js';
 import ChatBox from 'UI/Components/ChatBox/ChatBox.js';
 import Navigation from 'UI/Components/Navigation/Navigation.js';
 import RankingTypes from 'DB/Jobs/RankingTypes.js';
+import LoginEngine from 'Engine/LoginEngine.js';
 
 let aliases = {};
 
@@ -1056,10 +1057,49 @@ function reloadAliases() {
 }
 
 /**
+ * @command 客户端拦截表（Phase 14）
+ *
+ * 与 /command（纯客户端）不同，@command 默认发往服务端 atcommand。
+ * 此表注册需要在客户端额外处理的 @command：
+ *   - callback 返回 true  → 已处理，ChatBox 不再发送到服务端
+ *   - callback 返回 false → 未处理（或需服务端兜底），ChatBox 照常发送
+ */
+const AtCommandStore = {
+	langtype: {
+		description: '切换客户端/服务端语言偏好（zh/en）',
+		callback: function (text) {
+			const arg = text.split(' ')[1] && text.split(' ')[1].trim().toLowerCase();
+			if (arg === 'chn') {
+				LoginEngine.setPlayerLang('zh');
+				return true;
+			} else if (arg === 'english') {
+				LoginEngine.setPlayerLang('en');
+				return true;
+			}
+			return false;
+		}
+	}
+};
+
+/**
+ * 处理 @command 客户端拦截
+ * @param {string} text 完整输入（含 @ 前缀）
+ * @returns {boolean} true = 已处理（不发服务端），false = 未处理（照常发送）
+ */
+function processAtCommand(text) {
+	const cmd = text.replace(/^@/, '').split(' ')[0].toLowerCase();
+	if (AtCommandStore[cmd]) {
+		return AtCommandStore[cmd].callback.call(this, text) === true;
+	}
+	return false;
+}
+
+/**
  * Export Methods
  */
 export default {
 	processCommand: processCommand,
+	processAtCommand: processAtCommand,
 	add: addCommand,
 	remove: removeCommand,
 	isEnabled: name => name in CommandStore,
