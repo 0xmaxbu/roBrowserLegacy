@@ -11,6 +11,7 @@ class LangOverlay {
     }
     static getItemName(id, fallback) { return this._get('itemName', id) ?? fallback; }
     static getSkillName(id, fallback) { return this._get('skillName', id) ?? fallback; }
+    static getSkillDescription(id, fallback) { return this._get('skillDescription', id) ?? fallback; }
     static getMonsterName(id, fallback) { return this._get('monsterName', id) ?? fallback; }
     static getMessage(id, fallback) { return this._get('message', id) ?? fallback; }
 }

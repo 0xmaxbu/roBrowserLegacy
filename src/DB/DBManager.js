@@ -2354,8 +2354,8 @@ class DB {
 	 * @param {number} skill id
 	 */
 	static getSkillDescription(id) {
-		// Phase 14: 技能描述复用 message 覆盖表，未命中回退 SkillDescription 原值（D-11）
-		return LangOverlay.getMessage(id, SkillDescription[id]) ?? SkillDescription[id] ?? '...';
+		// Phase 14: 技能描述用独立的 skillDescription 覆盖表（技能ID空间），不复用 message 表（msgstringtable ID 空间，避免 ID 撞车）
+		return LangOverlay.getSkillDescription(id, SkillDescription[id]) ?? SkillDescription[id] ?? '...';
 	}
 
 	/**
@@ -6320,7 +6320,10 @@ function loadSkillInfoList(filename, callback, onEnd) {
 			// 故在加载后原地改写 SkillInfo[].SkillName，统一覆盖（Phase 14）
 			for (const id in SkillInfo) {
 				if (SkillInfo[id] && SkillInfo[id].SkillName) {
-					SkillInfo[id].SkillName = LangOverlay.getSkillName(parseInt(id, 10), SkillInfo[id].SkillName);
+					if (SkillInfo[id]._origSkillName === undefined) {
+						SkillInfo[id]._origSkillName = SkillInfo[id].SkillName;
+					}
+					SkillInfo[id].SkillName = LangOverlay.getSkillName(parseInt(id, 10), SkillInfo[id]._origSkillName);
 				}
 			}
 		} catch (error) {
