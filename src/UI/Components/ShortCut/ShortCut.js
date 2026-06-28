@@ -550,7 +550,6 @@ ShortCut.addElement = function addElement(index, isSkill, ID, count) {
 	let file, name;
 	const root = _getRoot();
 	const ui = root.querySelector(`.container[data-index="${index}"]`);
-	ui.innerHTML = '';
 
 	if (!_list[index]) {
 		_list[index] = {};
@@ -558,6 +557,10 @@ ShortCut.addElement = function addElement(index, isSkill, ID, count) {
 
 	_list[index].isSkill = isSkill;
 	_list[index].ID = ID;
+
+	// UI 容器未就绪（封包竞态），保留数据跳过渲染
+	if (!ui) return;
+	ui.innerHTML = '';
 
 	if (isSkill) {
 		// Do not display if no level.
