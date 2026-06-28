@@ -85,7 +85,7 @@ const NpcTranslateTable = {
   'Illusion Enchanter': '幻影附魔师',
   'Packs Trader': '礼包商人',
   'Event Ring Maker': '活动戒指制作师',
-  'Universal Rental NPC': '通用租赁 NPC',
+  'Universal Rental NPC': '租赁工作人员',
   'Rental NPC': '租赁 NPC',
   'Banker': '银行家',
   'Stock Market': '股票市场',
@@ -138,8 +138,8 @@ const NpcTranslateTable = {
   Healer: '治疗师',
   Doctor: '医生',
   Nurse: '护士',
-  'Reset Girl': '重置少女',
-  'Reset NPC': '重置 NPC',
+  'Reset Girl': '重置小姐',
+  'Reset NPC': '重置工作人员',
   'Stat Reset': '属性重置',
   'Skill Reset': '技能重置',
 
@@ -148,7 +148,7 @@ const NpcTranslateTable = {
   // ==========================================================
   'Job Master': '职业大师',
   'Grand Master': '大宗师',
-  'Platinum Skill NPC': '白金技能教官',
+  'Platinum Skill NPC': '铂金技能教官',
   'Training Instructor': '训练教官',
   'Novice Castles': '新手城堡',
   'Knight#drake': '骑士',
