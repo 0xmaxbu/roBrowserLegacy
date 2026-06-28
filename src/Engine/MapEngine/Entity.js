@@ -140,10 +140,28 @@ function onEntitySpam(pkt) {
 			if (cachedLife.sp_max !== undefined) entity.life.sp_max = cachedLife.sp_max;
 			if (cachedLife.hunger !== undefined) entity.life.hunger = cachedLife.hunger;
 			if (cachedLife.hunger_max !== undefined) entity.life.hunger_max = cachedLife.hunger_max;
-			if (entity.life.hp > -1 && entity.life.hp_max > -1) {
+		if (entity.life.hp > -1 && entity.life.hp_max > -1) {
 				entity.life.update();
 				entity.life.display = true;
 			}
+		}
+	}
+
+	// Phase 14: 实体头顶名语言覆盖层（spawn 时立即生效，确保 _origName 已存）
+	if (entity.display.name) {
+		if (entity.objecttype === Entity.TYPE_MOB && entity.job) {
+			if (entity.display._origName === undefined) {
+				entity.display._origName = entity.display.name;
+			}
+			entity.display.name = LangOverlay.getMonsterName(entity.job, entity.display._origName);
+		} else if (entity.objecttype === Entity.TYPE_NPC ||
+			entity.objecttype === Entity.TYPE_NPC2 ||
+			entity.objecttype === Entity.TYPE_NPC_ABR ||
+			entity.objecttype === Entity.TYPE_NPC_BIONIC) {
+			if (entity.display._origName === undefined) {
+				entity.display._origName = entity.display.name;
+			}
+			entity.display.name = getTranslation(entity.display._origName);
 		}
 	}
 
@@ -999,11 +1017,18 @@ function onEntityIdentity(pkt) {
 			entity.objecttype === Entity.TYPE_NPC2 ||
 			entity.objecttype === Entity.TYPE_NPC_ABR ||
 			entity.objecttype === Entity.TYPE_NPC_BIONIC) {
+			// Phase 14: 保留原始名供 PlayerLang 切换时刷新
+			if (entity.display._origName === undefined) {
+				entity.display._origName = pkt.CName;
+			}
 			pkt.CName = getTranslation(pkt.CName); // NPC 名：沿用 NpcTranslateTable（D-05）
 		} else if (entity.objecttype === Entity.TYPE_MOB) {
 			// 怪物头顶名：走覆盖层按 job id 查表（D-07）
-			const overlaid = LangOverlay.getMonsterName(entity.job, pkt.CName);
-			pkt.CName = overlaid;
+			// 保留原始名供 PlayerLang 切换时刷新（避免覆盖后丢失原文）
+			if (entity.display._origName === undefined) {
+				entity.display._origName = pkt.CName;
+			}
+			pkt.CName = LangOverlay.getMonsterName(entity.job, pkt.CName);
 		}
 
 		if (entity.display.name) {

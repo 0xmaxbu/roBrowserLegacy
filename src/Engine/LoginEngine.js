@@ -23,7 +23,13 @@ import PACKETVER from 'Network/PacketVerManager.js';
 import PACKET from 'Network/PacketStructure.js';
 import PluginManager from 'Plugins/PluginManager.js';
 import Renderer from 'Renderer/Renderer.js';
+import EntityManager from 'Renderer/EntityManager.js';
+import Entity from 'Renderer/Entity/Entity.js';
+import LangOverlay from 'DB/LangOverlay.js';
+import { getTranslation } from 'DB/NpcTranslateTable.js';
+import SkillInfo from 'DB/Skills/SkillInfo.js';
 import UIManager from 'UI/UIManager.js';
+import ChatBox from 'UI/Components/ChatBox/ChatBox.js';
 import WinList from 'UI/Components/WinList/WinList.js';
 import WinPopup from 'UI/Components/WinPopup/WinPopup.js';
 import Queue from 'Utils/Queue.js';
@@ -232,25 +238,91 @@ class LoginEngine {
 
 	/**
 	 * 切换客户端语言（Phase 14）。
-	 * 本地设置 Session.PlayerLang，并同步发送 @langtype 指令给服务端。
+	 * 本地设置 Session.PlayerLang，刷新屏幕实体/技能名，并同步发送 @langtype 指令给服务端。
 	 * @param {string} lang 归一化语言码 'zh' | 'en'
 	 */
 	static setPlayerLang(lang) {
-		// lang: 'zh' | 'en'
 		Session.PlayerLang = lang;
-		// 同步到服务端 @langtype：通过普通聊天封包 CZ_REQUEST_CHAT (0x008c) 发送 @xxx 字符串
-		// 注：聊天封包仅在 map-server 阶段可发送（需要 Session.Entity 名字前缀）
-		if (Session.Entity && Session.Entity.display) {
-			const atcmd = (lang === 'zh') ? '@langtype chn' : '@langtype english';
-			const pkt = new PACKET.CZ.REQUEST_CHAT();
-			pkt.msg = Session.Entity.display.name + ' : ' + atcmd;
-			Network.sendPacket(pkt);
+
+		// 1. 刷新屏幕上已存在的实体头顶名（MOB + NPC）
+		EntityManager.forEach(entity => {
+			const isMob = entity.objecttype === Entity.TYPE_MOB;
+			const isNpc = entity.objecttype === Entity.TYPE_NPC ||
+				entity.objecttype === Entity.TYPE_NPC2 ||
+				entity.objecttype === Entity.TYPE_NPC_ABR ||
+				entity.objecttype === Entity.TYPE_NPC_BIONIC;
+
+			if ((isMob || isNpc) && entity.display && entity.display._origName !== undefined) {
+				let refreshed;
+				if (isMob) {
+					refreshed = LangOverlay.getMonsterName(entity.job, entity.display._origName);
+				} else {
+					refreshed = getTranslation(entity.display._origName);
+				}
+				if (entity.display.fakename) {
+					entity.display.fakename = refreshed;
+				} else {
+					entity.display.name = refreshed;
+				}
+				entity.display.refresh(entity);
+			}
+		});
+
+		// 2. 技能名：保存原始名（首次），然后应用/恢复覆盖层
+		for (const id in SkillInfo) {
+			if (SkillInfo[id] && SkillInfo[id].SkillName) {
+				if (SkillInfo[id]._origSkillName === undefined) {
+					SkillInfo[id]._origSkillName = SkillInfo[id].SkillName;
+				}
+				SkillInfo[id].SkillName = LangOverlay.getSkillName(parseInt(id, 10), SkillInfo[id]._origSkillName);
+			}
 		}
-		// 可选：持久化到 localStorage
+
+		// 3. 更新已打开的技能列表窗口中的技能名文本
+		try {
+			const ctrl = UIManager.getComponent('SkillList');
+			const ui = ctrl.ui || (ctrl.getUI && ctrl.getUI().ui);
+			const domRoot = ui ? (ui[0] || ui) : null;
+			if (domRoot) {
+				domRoot.querySelectorAll('[data-index]').forEach(el => {
+					const skid = parseInt(el.getAttribute('data-index'), 10);
+					if (!isNaN(skid) && SkillInfo[skid] && SkillInfo[skid].SkillName) {
+						const nameEl = el.querySelector('.name');
+						if (nameEl) {
+							nameEl.textContent = SkillInfo[skid].SkillName.slice(0, 7) + '...';
+						}
+					}
+				});
+			}
+		} catch (e) {
+			// SkillList 未注册/未打开
+		}
+
+		// 4. 同步到服务端 @langtype（NPC 对话语言由服务端 F_MSG 控制）
+		if (Session.Entity && Session.Entity.display) {
+			const name = Session.Entity.display.name;
+			const langCmd = (lang === 'zh') ? '@langtype chn' : '@langtype english';
+			const langPkt = new PACKET.CZ.REQUEST_CHAT();
+			langPkt.msg = name + ' : ' + langCmd;
+			Network.sendPacket(langPkt);
+		}
+
+		// 5. 持久化到 localStorage
 		try {
 			localStorage.setItem('ro_player_lang', lang);
 		} catch (e) {
 			// localStorage 可能不可用
+		}
+
+		// 6. 聊天反馈
+		try {
+			ChatBox.addText(
+				lang === 'zh' ? '语言已切换为中文' : 'Language switched to English',
+				ChatBox.TYPE.INFO,
+				ChatBox.FILTER.PUBLIC_LOG
+			);
+		} catch (e) {
+			// ChatBox 未初始化
 		}
 	}
 }
@@ -330,7 +402,7 @@ function onConnectionRequest(username, password) {
 					const count = hash.length;
 
 					for (i = 0; i < count; i += 2) {
-						str += String.fromCharCode(parseInt(hash.substr(i, 2), 16));
+						str += String.fromCharCode(parseInt(hash.slice(i, i + 2), 16));
 					}
 
 					hash = str;

@@ -1068,11 +1068,12 @@ const AtCommandStore = {
 	langtype: {
 		description: '切换客户端/服务端语言偏好（zh/en）',
 		callback: function (text) {
-			const arg = text.split(' ')[1] && text.split(' ')[1].trim().toLowerCase();
+			const parts = text.split(' ');
+			const arg = parts[1] && parts[1].trim().toLowerCase();
 			if (arg === 'chn') {
 				LoginEngine.setPlayerLang('zh');
 				return true;
-			} else if (arg === 'english') {
+			} else if (arg === 'english' || arg === 'eng') {
 				LoginEngine.setPlayerLang('en');
 				return true;
 			}

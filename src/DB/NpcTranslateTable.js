@@ -3,6 +3,8 @@
 // 基于 rAthena 脚本提取：7,442 个基础 NPC 名 / 18,486 个实例
 // ============================================================
 
+import Session from 'Engine/SessionStorage.js';
+
 const NpcTranslateTable = {
 
   // ==========================================================
@@ -358,10 +360,21 @@ const NpcTranslateTable = {
 // ============================================================
 // 翻译函数 — 处理带 #后缀 的 NPC 名称
 // ============================================================
+
+// 多语言注册表：语言码 → 翻译表
+// 新增语言：创建独立表文件（如 NpcTranslateTable_ja.js），import 后加入此 registry
+const registry = {
+  zh: NpcTranslateTable,
+};
+
 export function getTranslation(fullName) {
-  const result = NpcTranslateTable[fullName];
+  const table = registry[Session.PlayerLang];
+  if (!table) {
+    return fullName;
+  }
+
+  const result = table[fullName];
   if (result) {
-    console.log('[NpcTrans] exact:', fullName, '→', result);
     return result;
   }
 
@@ -369,13 +382,11 @@ export function getTranslation(fullName) {
   const hashIdx = fullName.lastIndexOf('#');
   if (hashIdx > 0) {
     const baseName = fullName.substring(0, hashIdx);
-    if (Object.prototype.hasOwnProperty.call(NpcTranslateTable, baseName)) {
-      console.log('[NpcTrans] base:', fullName, '→', NpcTranslateTable[baseName]);
-      return NpcTranslateTable[baseName];
+    if (Object.prototype.hasOwnProperty.call(table, baseName)) {
+      return table[baseName];
     }
   }
 
-  console.log('[NpcTrans] UNTRANSLATED:', fullName);
   return fullName;
 }
 
