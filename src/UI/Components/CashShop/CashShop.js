@@ -175,6 +175,7 @@ CashShop.onAppend = function OnAppend() {
 	this.magnet.LEFT = _preferences.magnet_left;
 	this.magnet.RIGHT = _preferences.magnet_right;
 
+	Network.sendPacket(new PACKET.CZ.PC_CASH_POINT_ITEMLIST());
 	CashShop.loadComponentCashShop();
 };
 
@@ -368,6 +369,7 @@ CashShop.setSuccessCashShopUpdate = function setSuccessCashShopUpdate(res) {
 };
 
 CashShop.readCashShopItems = function readCashShopItems(items) {
+	CashShop.cashShopListItem.length = 0;
 	CashShop.cashShopListItem.push({
 		count: items.count,
 		items: items.items,
