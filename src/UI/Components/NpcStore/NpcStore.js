@@ -10,6 +10,7 @@
 
 import jQuery from 'Utils/jquery.js';
 import DB from 'DB/DBManager.js';
+import LangOverlay from 'DB/LangOverlay.js';
 import ItemType from 'DB/Items/ItemType.js';
 import Client from 'Core/Client.js';
 import Preferences from 'Core/Preferences.js';
@@ -566,7 +567,7 @@ function addItem(content, item) {
 	// Already here, update it
 	// Note: just the amount can be updated ?
 	if (element.length) {
-		amountText = _type == NpcStore.Type.BUYING_STORE && !content.hasClass('contentAvailable') ? ' ea.' : '';
+		amountText = _type == NpcStore.Type.BUYING_STORE && !content.hasClass('contentAvailable') ? LangOverlay.getItemUnit(' ea.') : '';
 		element.find('.amount').text(isFinite(item.count) ? item.count + amountText : '');
 		return;
 	}
@@ -586,7 +587,7 @@ function addItem(content, item) {
 		}
 
 		const buyingClass = _type == NpcStore.Type.BUYING_STORE ? ' amountBuying' : '';
-		amountText = _type == NpcStore.Type.BUYING_STORE ? ' ea.' : '';
+		amountText = _type == NpcStore.Type.BUYING_STORE ? LangOverlay.getItemUnit(' ea.') : '';
 		// Create it
 		content.append(
 			'<div class="item" draggable="true" data-index="' +

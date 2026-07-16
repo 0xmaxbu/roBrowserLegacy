@@ -11,6 +11,7 @@
  */
 
 import DB from 'DB/DBManager.js';
+import LangOverlay from 'DB/LangOverlay.js';
 import ItemType from 'DB/Items/ItemType.js';
 import Network from 'Network/NetworkManager.js';
 import PACKET from 'Network/PacketStructure.js';
@@ -902,13 +903,13 @@ function onItemOver() {
 		return;
 	}
 
-	let quantity = ' ea';
+	let quantity = LangOverlay.getItemUnit();
 	if (
 		item.Options &&
 		(item.type === ItemType.WEAPON || item.type === ItemType.ARMOR || item.type === ItemType.SHADOWGEAR) &&
 		item.Options.filter(Option => Option.index !== 0).length > 0
 	) {
-		quantity = ' Quantity';
+		quantity = LangOverlay.getItemUnit(' Quantity');
 	}
 
 	// Get back data

@@ -8,6 +8,7 @@
 
 import jQuery from 'Utils/jquery.js';
 import DB from 'DB/DBManager.js';
+import LangOverlay from 'DB/LangOverlay.js';
 import ItemInfo from 'UI/Components/ItemInfo/ItemInfo.js';
 import Preferences from 'Core/Preferences.js';
 import Mouse from 'Controls/MouseEventHandler.js';
@@ -483,7 +484,7 @@ function onItemOver() {
 	// Display box
 	overlay.show();
 	overlay.css({ top: pos.top - 10, left: pos.left + 35 });
-	overlay.text(DB.getItemName(item) + ' ' + (item.count || 1) + ' ea');
+	overlay.text(DB.getItemName(item) + ' ' + (item.count || 1) + LangOverlay.getItemUnit());
 
 	if (item.IsIdentified) {
 		overlay.removeClass('grey');

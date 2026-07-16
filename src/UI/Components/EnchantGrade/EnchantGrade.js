@@ -7,6 +7,7 @@
  */
 
 import DB from 'DB/DBManager.js';
+import LangOverlay from 'DB/LangOverlay.js';
 import EffectConst from 'DB/Effects/EffectConst.js';
 import Network from 'Network/NetworkManager.js';
 import PACKET from 'Network/PacketStructure.js';
@@ -447,7 +448,7 @@ function onEnchantGradeUIUpdateMaterials(pkt) {
 			const totalBlessing = EnchantGrade_currentBlessing * bless.amount;
 			EnchantGrade.ui.find('.probability').text(EnchantGrade_current_success + addedChance + '%');
 
-			EnchantGrade.ui.find('.BED_container .additonal_mat_amount').text(totalBlessing + ' ea');
+			EnchantGrade.ui.find('.BED_container .additonal_mat_amount').text(totalBlessing + LangOverlay.getItemUnit());
 		}
 
 		/**
@@ -660,7 +661,7 @@ function onResetBlessing() {
 
 	EnchantGrade.ui.find('.probability').text(EnchantGrade_current_success + '%');
 
-	EnchantGrade.ui.find('.BED_container .additonal_mat_amount').text(EnchantGrade_currentBlessing + ' ea');
+	EnchantGrade.ui.find('.BED_container .additonal_mat_amount').text(EnchantGrade_currentBlessing + LangOverlay.getItemUnit());
 }
 
 /**

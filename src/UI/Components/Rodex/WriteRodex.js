@@ -8,6 +8,7 @@
  */
 
 import DB from 'DB/DBManager.js';
+import LangOverlay from 'DB/LangOverlay.js';
 import ChatBox from 'UI/Components/ChatBox/ChatBox.js';
 import Session from 'Engine/SessionStorage.js';
 import MonsterTable from 'DB/Monsters/MonsterTable.js';
@@ -373,7 +374,7 @@ function onItemOver() {
 	// Display box
 	overlay.show();
 	overlay.css({ top: pos.top, left: pos.left + 35 });
-	overlay.text(DB.getItemName(item) + ' ' + (item.count || 1) + ' ea');
+	overlay.text(DB.getItemName(item) + ' ' + (item.count || 1) + LangOverlay.getItemUnit());
 
 	if (item.IsIdentified) {
 		overlay.removeClass('grey');

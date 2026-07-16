@@ -8,6 +8,7 @@
  */
 
 import DB from 'DB/DBManager.js';
+import LangOverlay from 'DB/LangOverlay.js';
 import Preferences from 'Core/Preferences.js';
 import Client from 'Core/Client.js';
 import Renderer from 'Renderer/Renderer.js';
@@ -218,7 +219,7 @@ function onItemOver(event) {
 
 	// Display box
 	overlay.show();
-	overlay.text(DB.getItemName(item) + ' ' + (item.count || 1) + ' ea');
+	overlay.text(DB.getItemName(item) + ' ' + (item.count || 1) + LangOverlay.getItemUnit());
 
 	if (item.IsIdentified) {
 		overlay.removeClass('grey');
