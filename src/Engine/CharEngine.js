@@ -114,7 +114,7 @@ class CharEngine {
 		Network.hookPacket(PACKET.HC.REFUSE_DELETECHAR, onDeleteAnswer);
 		Network.hookPacket(PACKET.HC.NOTIFY_ZONESVR, onReceiveMapInfo);
 		Network.hookPacket(PACKET.HC.NOTIFY_ZONESVR2, onReceiveMapInfo);
-		Network.hookPacket(PACKET.HC.ACCEPT_ENTER_NEO_UNION_HEADER, onConnectionAccepted);
+		Network.hookPacket(PACKET.HC.ACCEPT_ENTER_NEO_UNION_HEADER, onConnectionAcceptedHeader);
 		Network.hookPacket(PACKET.HC.ACCEPT_ENTER_NEO_UNION_LIST, onCharacterListChunk);
 		Network.hookPacket(PACKET.HC.ACCEPT_ENTER_NEO_UNION_LIST2, onCharacterListChunk);
 		Network.hookPacket(PACKET.HC.NOTIFY_ACCESSIBLE_MAPNAME, onMapUnavailable);
@@ -153,6 +153,9 @@ function onCharacterListChunk(pkt) {
 	pkt.charInfo.forEach(charInfo => {
 		ChSel.addCharacter(charInfo);
 	});
+	if (typeof ChSel.refreshAfterCharacterList === 'function') {
+		ChSel.refreshAfterCharacterList();
+	}
 }
 
 /**
@@ -216,6 +219,68 @@ function onConnectionAccepted(pkt) {
 	 * Need to find out where this button is supposed to be and place it on the correct screen.
 	 */
 	//}
+}
+
+/**
+ * Connection accepted from char-server (HEADER-only variant)
+ *
+ * PACKET.HC.ACCEPT_ENTER_NEO_UNION_HEADER (0x82d) only carries slot quota info
+ * (TotalSlotNum/PremiumStartSlot/PremiumEndSlot) and does NOT include charInfo.
+ * The actual character list arrives separately via
+ * PACKET.HC.ACCEPT_ENTER_NEO_UNION_LIST (0x99d) which triggers onCharacterListChunk.
+ *
+ * To avoid setInfo() clearing the UI before characters are known, we only update
+ * slot quota here. The UI (buttons, charinfo panel) is refreshed once the list
+ * chunk arrives via refreshAfterCharacterList().
+ *
+ * @param {object} pkt - PACKET.HC.ACCEPT_ENTER_NEO_UNION_HEADER
+ */
+function onConnectionAcceptedHeader(pkt) {
+	pkt.sex = Session.Sex;
+
+	// Start sending ping
+	const ping = new PACKET.CZ.PING();
+	ping.AID = Session.AID;
+	Network.setPing(() => {
+		Network.sendPacket(ping);
+	});
+
+	Session.Playing = false;
+	Session.hasCart = false;
+
+	// Reset Announcement component
+	const Announce = UIManager.getComponent('Announce');
+	if (Announce) {
+		Announce.remove();
+	}
+
+	// Reset MapName component
+	const MapName = UIManager.getComponent('MapName');
+	if (MapName) {
+		MapName.remove();
+		MapName.resetState();
+	}
+
+	UIManager.getComponent('WinLoading').remove();
+
+	// Initialize window
+	const ChSel = CharSelect.getUI();
+	ChSel.onExitRequest = onExitRequest;
+	ChSel.onConnectRequest = onConnectRequest;
+	ChSel.onCreateRequest = onCreateRequest;
+	ChSel.onDeleteRequest = onDeleteRequest;
+	ChSel.onDeleteReqDelay = onDeleteReqDelay;
+	ChSel.onCancelDeleteRequest = onCancelDeleteRequest;
+	ChSel.append();
+
+	// V4+ UIs expose setSlotInfo() for HEADER-only packets (no charInfo).
+	// Older UIs fall back to setInfo() which expects charInfo in the same packet
+	// (they only run under PACKETVER < 20180124 where the 0x6b path is used).
+	if (typeof ChSel.setSlotInfo === 'function') {
+		ChSel.setSlotInfo(pkt);
+	} else {
+		ChSel.setInfo(pkt);
+	}
 }
 
 /**
