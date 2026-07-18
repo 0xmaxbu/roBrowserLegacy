@@ -230,6 +230,27 @@ CharSelectV4.setInfo = function setInfo(pkt) {
 };
 
 /**
+ * Set slot quota info only (for HC.ACCEPT_ENTER_NEO_UNION_HEADER / 0x82d packet).
+ * Does NOT process character list or refresh cursor — call refreshAfterCharacterList()
+ * after onCharacterListChunk completes.
+ *
+ * @param {object} pkt - PACKET.HC.ACCEPT_ENTER_NEO_UNION_HEADER
+ */
+CharSelectV4.setSlotInfo = function setSlotInfo(pkt) {
+	CharSelectV4.clearAllSlots();
+	_maxSlots = Math.floor(pkt.TotalSlotNum + pkt.PremiumStartSlot || 15);
+	_sex = pkt.sex;
+};
+
+/**
+ * Refresh UI after character list has been populated via addCharacter calls
+ * (i.e. after HC.ACCEPT_ENTER_NEO_UNION_LIST / 0x99d packet).
+ */
+CharSelectV4.refreshAfterCharacterList = function refreshAfterCharacterList() {
+	moveCursorTo(_index);
+};
+
+/**
  * Format delay duration
  */
 function formatDuration(seconds) {
