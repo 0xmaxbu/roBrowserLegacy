@@ -216,7 +216,7 @@
 #CharSelectV4 .ok,
 #CharSelectV4 .make {
 	right: 15px;
-	top: 380px;
+	bottom: 75px;
 }
 #CharSelectV4 .cancel {
 	position: absolute;
