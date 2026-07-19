@@ -175,6 +175,8 @@ CashShop.onAppend = function OnAppend() {
 	this.magnet.LEFT = _preferences.magnet_left;
 	this.magnet.RIGHT = _preferences.magnet_right;
 
+	this.ui.find('#cashshop-search').attr('placeholder', DB.getMessage(5016, 'Item Search'));
+
 	Network.sendPacket(new PACKET.CZ.PC_CASH_POINT_ITEMLIST());
 	CashShop.loadComponentCashShop();
 };
@@ -837,7 +839,10 @@ function onMouseMoveTab(event) {
 }
 
 function onMouseOverTab() {
-	const title = this.getAttribute('data-title');
+	const rawTitle = this.getAttribute('data-title');
+	const title = /^\d+$/.test(rawTitle)
+		? DB.getMessage(parseInt(rawTitle, 10), rawTitle)
+		: rawTitle;
 	const overlay = CashShop.ui.find('.overlay');
 	overlay.text(title).show();
 }
