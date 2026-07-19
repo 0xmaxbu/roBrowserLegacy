@@ -141,7 +141,17 @@ UIComponent.prototype.prepare = function prepare() {
 
 	// Prepare html
 	if (this._htmlText) {
-		this.ui.each(this.parseHTML).find('*').each(this.parseHTML);
+		// parseHTML uses _Client/_DB which are set asynchronously by _loadHeavyDeps().
+		// If this is the first UIComponent to prepare(), deps may still be loading.
+		// Run sync when ready, otherwise defer until the async import resolves.
+		const runParse = () => {
+			this.ui.each(this.parseHTML).find('*').each(this.parseHTML);
+		};
+		if (_Client && _DB) {
+			runParse();
+		} else {
+			_loadHeavyDeps().then(runParse);
+		}
 	}
 
 	// Initialize
