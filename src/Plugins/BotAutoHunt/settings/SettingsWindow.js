@@ -1,183 +1,229 @@
 /**
  * Plugins/BotAutoHunt/settings/SettingsWindow.js
  *
- * 自动战斗设置窗口 — 纯 DOM 模块（零游戏依赖）
+ * 自动战斗设置窗口 — GUIComponent 组件（官方窗口样式）
  *
  * 设计约定：
  * - 位于 settings/ 子目录：PluginManager 的 glob 只扫描 Plugins 下两层深（目录名/文件名），
  *   本文件位于第三层，不会被误当作插件自动加载，仅由 BotAutoHunt.js 显式 import。
- * - 零依赖：不 import 任何游戏模块，便于 vitest (jsdom) 直接测试。
- * - 事件阻断：所有鼠标事件在根节点 stopPropagation，防止透传到游戏的
- *   MouseEventHandler（与 BotAutoHunt 面板同一约定）。
- * - 样式：遵循插件内联样式约定（不引入外部 css 文件）。
+ * - 官方样式：标题栏使用 GRF 位图（basic_interface/titlebar_mid.bmp），系统/关闭按钮
+ *   使用官方位图（sys_base / sys_close），由 GUIComponent 的 data-background 机制加载。
+ * - 生命周期：append() 打开 / remove() 关闭，可反复开合（DOM 持久，页签状态保留）。
  *
  * 术语：用户可见名称为「自动战斗」（见仓库根 GLOSSARY.md）。
  */
 
-const WINDOW_Z_INDEX = 1000;
+import GUIComponent from 'UI/GUIComponent.js';
 
-/** 窗口默认尺寸与配色（与 BotAutoHunt 面板视觉一致） */
-const STYLE = {
-	window:
-		'position:fixed;top:120px;left:40%;z-index:' + WINDOW_Z_INDEX + ';' +
-		'width:520px;max-width:92vw;height:360px;max-height:80vh;' +
-		'background:linear-gradient(to bottom,#f7ecd3,#e8d5ae);' +
-		'border:2px solid #7a5c2e;border-radius:6px;' +
-		'box-shadow:0 6px 18px rgba(0,0,0,0.5);' +
-		'font-family:Gulim,Dotum,"Malgun Gothic",sans-serif;' +
-		'font-size:12px;color:#484848;user-select:none;display:none;',
-	titlebar:
-		'height:26px;line-height:26px;padding:0 8px;' +
-		'background:linear-gradient(to bottom,#8a6a35,#6d5228);' +
-		'color:#ffefc9;font-weight:bold;border-radius:4px 4px 0 0;' +
-		'cursor:move;display:flex;justify-content:space-between;align-items:center;',
-	tabbar:
-		'display:flex;flex-wrap:wrap;gap:2px;padding:4px 6px 0;' +
-		'background:rgba(122,92,46,0.15);border-bottom:1px solid #a58a55;',
-	tab:
-		'padding:4px 10px;cursor:pointer;border:1px solid #a58a55;' +
-		'border-bottom:none;border-radius:4px 4px 0 0;background:#d9c49a;color:#5a4423;',
-	tabActive:
-		'background:#ffefc9;color:#3a2c14;font-weight:bold;',
-	paneWrap:
-		'height:calc(100% - 62px);overflow-y:auto;padding:10px;',
-	pane:
-		'padding:16px;text-align:center;color:#7a6a4a;',
-	close:
-		'cursor:pointer;color:#ffefc9;font-size:14px;padding:0 4px;' +
-		'background:none;border:none;line-height:1;'
-};
+/** 8 页签定义（T1 占位，T2-T8 逐个填充内容） */
+export const SETTINGS_TABS = [
+	{ id: 'basic', label: '基本设定' },
+	{ id: 'monster', label: '魔物设定' },
+	{ id: 'skill', label: '技能设定' },
+	{ id: 'potion', label: '药水设定' },
+	{ id: 'loot', label: '捡拾设定' },
+	{ id: 'move', label: '移动设定' },
+	{ id: 'item', label: '道具设定' },
+	{ id: 'service', label: '挂机服务' }
+];
+
+/** 窗口 CSS（官方窗口规范：白底、圆角、标题栏位图、标准字号） */
+const CSS_TEXT = `
+:host {
+	width: 520px;
+	height: 380px;
+	top: 120px;
+	left: 35%;
+	min-width: 420px;
+}
+
+#BotAutoHuntSettings {
+	width: 100%;
+	height: 100%;
+	background-color: white;
+	border-radius: 5px;
+	border: 1px solid #4b4b4b;
+	font-family: Gulim, Dotum, "Malgun Gothic", sans-serif;
+	font-size: 12px;
+	color: #3c3c3c;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+#BotAutoHuntSettings .titlebar {
+	position: relative;
+	height: 23px;
+	flex: 0 0 auto;
+	cursor: move;
+}
+
+#BotAutoHuntSettings .titlebar .base {
+	width: 11px;
+	height: 11px;
+	position: absolute;
+	top: 4px;
+	border: none;
+	padding: 0;
+	background-color: transparent;
+	background-repeat: no-repeat;
+	cursor: pointer;
+}
+
+#BotAutoHuntSettings .titlebar .base.node { left: 3px; }
+#BotAutoHuntSettings .titlebar .base.close { right: 3px; }
+
+#BotAutoHuntSettings .titlebar .title {
+	line-height: 23px;
+	text-align: center;
+	color: #2d2d2d;
+	font-weight: bold;
+	font-size: 12px;
+	text-shadow: 0 1px 0 rgba(255,255,255,0.6);
+}
+
+#BotAutoHuntSettings .botsw-tabbar {
+	flex: 0 0 auto;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px;
+	padding: 4px 6px 0;
+	background: #e8dcc0;
+	border-bottom: 1px solid #a58a55;
+}
+
+#BotAutoHuntSettings .botsw-tab {
+	padding: 4px 10px;
+	cursor: pointer;
+	border: 1px solid #a58a55;
+	border-bottom: none;
+	border-radius: 4px 4px 0 0;
+	background: #d9c49a;
+	color: #5a4423;
+	font-size: 12px;
+	font-family: inherit;
+}
+
+#BotAutoHuntSettings .botsw-tab.active {
+	background: #fffef2;
+	color: #2d2d2d;
+	font-weight: bold;
+}
+
+#BotAutoHuntSettings .botsw-panewrap {
+	flex: 1 1 auto;
+	overflow-y: auto;
+	background: #fffef2;
+}
+
+#BotAutoHuntSettings .botsw-pane {
+	padding: 16px;
+	text-align: center;
+	color: #7a6a4a;
+	line-height: 1.8;
+}
+`;
 
 /**
- * 创建设置窗口
+ * 构建窗口内部 HTML（独立导出，便于 jsdom 测试）
  *
- * @param {Object} options
- * @param {string}   options.title 窗口标题
- * @param {Array}    options.tabs  页签定义 [{id, label}]
- * @param {string}   [options.placeholder] 页签占位文案
- * @param {Function} [options.makeDraggable] 拖拽实现 (element, handle)，由调用方注入
- * @return {Object} { root, open, close, isOpen }
+ * 官方标题栏结构对齐 CashShop/Escape：
+ *   titlebar(data-background=titlebar_mid.bmp) > node(sys_base) + title + close(sys_close)
+ *
+ * @param {Array}  tabs        页签定义 [{id, label}]
+ * @param {string} placeholder 页签占位文案
+ * @return {string} HTML 字符串
  */
-export function createSettingsWindow(options) {
-	const opts = options || {};
-	const tabs = opts.tabs || [];
-	const placeholder = opts.placeholder || '本页签建设中';
+export function buildSettingsHTML(tabs, placeholder) {
+	const list = tabs || SETTINGS_TABS;
+	const ph = placeholder || '本页签建设中';
 
-	const root = document.createElement('div');
-	root.className = 'bot-settings-window';
-
-	const titlebar = document.createElement('div');
-	titlebar.className = 'botsw-titlebar';
-	titlebar.style.cssText = STYLE.titlebar;
-	const titleEl = document.createElement('span');
-	titleEl.textContent = opts.title || '设置';
-	const closeBtn = document.createElement('button');
-	closeBtn.className = 'botsw-close';
-	closeBtn.style.cssText = STYLE.close;
-	closeBtn.textContent = '✕';
-	titlebar.appendChild(titleEl);
-	titlebar.appendChild(closeBtn);
-
-	const tabbar = document.createElement('div');
-	tabbar.className = 'botsw-tabbar';
-	tabbar.style.cssText = STYLE.tabbar;
-
-	const paneWrap = document.createElement('div');
-	paneWrap.className = 'botsw-panewrap';
-	paneWrap.style.cssText = STYLE.paneWrap;
-
-	const tabEls = [];
-	const paneEls = [];
-
-	tabs.forEach(function (tab, index) {
-		const tabEl = document.createElement('div');
-		tabEl.className = 'botsw-tab';
-		tabEl.dataset.index = String(index);
-		tabEl.textContent = tab.label;
-		tabEl.style.cssText = STYLE.tab;
-		tabbar.appendChild(tabEl);
-		tabEls.push(tabEl);
-
-		const pane = document.createElement('div');
-		pane.className = 'botsw-pane';
-		pane.dataset.index = String(index);
-		pane.style.cssText = STYLE.pane;
-		pane.textContent = placeholder;
-		paneWrap.appendChild(pane);
-		paneEls.push(pane);
+	let tabHtml = '';
+	let paneHtml = '';
+	list.forEach(function (tab, index) {
+		tabHtml +=
+			'<button class="botsw-tab" data-index="' + index + '">' + tab.label + '</button>';
+		paneHtml += '<div class="botsw-pane" data-index="' + index + '">' + ph + '</div>';
 	});
 
-	root.appendChild(titlebar);
-	root.appendChild(tabbar);
-	root.appendChild(paneWrap);
-	root.style.cssText = STYLE.window;
+	return (
+		'<div class="titlebar" data-background="basic_interface/titlebar_mid.bmp">' +
+			'<button class="base node" data-background="basic_interface/sys_base_off.bmp" data-hover="basic_interface/sys_base_on.bmp"></button>' +
+			'<div class="title">自动战斗设置</div>' +
+			'<button class="base close" data-background="basic_interface/sys_close_off.bmp" data-hover="basic_interface/sys_close_on.bmp"></button>' +
+		'</div>' +
+		'<div class="botsw-tabbar">' + tabHtml + '</div>' +
+		'<div class="botsw-panewrap">' + paneHtml + '</div>'
+	);
+}
 
-	// 事件阻断：防止透传到游戏 MouseEventHandler
-	['mousedown', 'mouseup', 'click', 'mousemove', 'wheel', 'contextmenu', 'dblclick'].forEach(function (type) {
-		root.addEventListener(type, function (e) {
-			e.stopPropagation();
-		}, false);
-	});
+/**
+ * 为窗口根节点绑定页签切换/关闭行为（独立导出，便于 jsdom 测试）
+ *
+ * @param {HTMLElement} root        包含 .botsw-tabbar/.botsw-panewrap 的根元素
+ * @param {Function}    [onClose]   关闭回调
+ */
+export function bindSettingsBehavior(root, onClose) {
+	const tabs = Array.from(root.querySelectorAll('.botsw-tab'));
+	const panes = Array.from(root.querySelectorAll('.botsw-pane'));
 
 	function setActive(index) {
-		tabEls.forEach(function (tabEl, i) {
-			const active = i === index;
-			tabEl.classList.toggle('active', active);
-			tabEl.style.cssText = STYLE.tab + (active ? STYLE.tabActive : '');
-			paneEls[i].style.display = active ? '' : 'none';
+		tabs.forEach(function (tabEl, i) {
+			tabEl.classList.toggle('active', i === index);
+			if (panes[i]) panes[i].style.display = i === index ? '' : 'none';
 		});
 	}
 
-	tabEls.forEach(function (tabEl, index) {
+	tabs.forEach(function (tabEl, index) {
 		tabEl.addEventListener('click', function () {
 			setActive(index);
 		});
 	});
 
-	closeBtn.addEventListener('click', function () {
-		close();
+	if (panes[0]) panes[0].style.display = '';
+	for (let i = 1; i < panes.length; i++) panes[i].style.display = 'none';
+	tabs.forEach(function (tabEl, i) {
+		tabEl.classList.toggle('active', i === 0);
 	});
 
-	if (typeof opts.makeDraggable === 'function') {
-		opts.makeDraggable(root, titlebar);
+	const closeBtn = root.querySelector('.base.close');
+	if (closeBtn) {
+		closeBtn.addEventListener('click', function () {
+			if (typeof onClose === 'function') onClose();
+		});
 	}
 
-	let openTabIndex = 0;
-	function open(tabId) {
-		let index = 0;
-		if (tabId) {
-			const found = tabs.findIndex(function (t) {
-				return t.id === tabId;
-			});
-			if (found >= 0) index = found;
-		}
-		setActive(index);
-		openTabIndex = index;
-		root.style.display = '';
-		if (!root.parentElement) {
-			document.body.appendChild(root);
-		}
-	}
-
-	function close() {
-		root.style.display = 'none';
-	}
-
-	if (tabs.length) {
-		setActive(0);
-	}
-
-	return {
-		root: root,
-		open: open,
-		close: close,
-		isOpen: function () {
-			return root.style.display !== 'none';
-		},
-		get activeTabIndex() {
-			return openTabIndex;
-		}
-	};
+	return { setActive: setActive };
 }
 
-export default createSettingsWindow;
+/**
+ * 创建设置窗口组件（GUIComponent，官方样式）
+ *
+ * @param {Object}   [opts]
+ * @param {string}   [opts.placeholder] 页签占位文案
+ * @param {Function} [opts.onClose]     关闭回调
+ * @return {GUIComponent} 用 append() 打开、remove() 关闭
+ */
+export function createSettingsComponent(opts) {
+	const opts_ = opts || {};
+	const html = buildSettingsHTML(SETTINGS_TABS, opts_.placeholder);
+
+	const Component = new GUIComponent('BotAutoHuntSettings', CSS_TEXT);
+	Component.render = function () {
+		return html;
+	};
+
+	Component.init = function () {
+		this.draggable();
+		const root = this._shadow;
+		const comp = this;
+		bindSettingsBehavior(root, function () {
+			comp.remove();
+			if (typeof opts_.onClose === 'function') opts_.onClose();
+		});
+	};
+
+	return Component;
+}
+
+export default createSettingsComponent;

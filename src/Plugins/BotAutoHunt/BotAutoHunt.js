@@ -34,7 +34,7 @@ import Entity from 'Renderer/Entity/Entity.js'; // TYPE_MOB / ACTION.DIE 常量
 import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_PATH 图标路径
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
-import { createSettingsWindow } from './settings/SettingsWindow.js'; // T1: 官方对齐设置窗口（8 页签，零游戏依赖纯 DOM 模块）
+import { createSettingsComponent } from './settings/SettingsWindow.js'; // T1: 官方样式设置窗口（GUIComponent，8 页签）
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
 import MAP_CONNECTIONS from './data/map-connections.json'; // 由 tools/client/generate-map-connections.mjs 生成
 import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
@@ -274,11 +274,15 @@ class BotAutoHunt {
 		});
 
 		// ---------- 悬浮开关与设置窗口（T1：官方对齐改造） ----------
-		// 术语见仓库根 GLOSSARY.md：用户可见名「自动战斗」，悬浮开关停靠小地图旁
+		// 术语见仓库根 GLOSSARY.md：用户可见名「自动战斗」，悬浮开关仅进图后显示
 		this._floatBtn = null; // 悬浮开关 DOM 元素
 		this._floatMoved = false; // 本次按压是否产生位移（区分拖拽与点击）
-		this._settingsWin = null; // 设置窗口实例（懒创建）
+		this._settingsComp = null; // 设置窗口组件（GUIComponent，懒创建）
+		this._floatPoll = null; // 可见性轮询定时器
+		this._floatMiss = 0; // 连续离场计数（防过图瞬间闪烁）
+		this._toastTimer = null; // toast 消失定时器
 		this._createFloatingButton();
+		this._startFloatLifecyclePoll();
 
 		// ---------- 暴露桥接 ----------
 		// BasicInfoV4 按钮通过 window.botAutoHunt.toggle() 调用
@@ -1158,7 +1162,7 @@ class BotAutoHunt {
 		btn.id = 'bot-float-btn';
 		btn.title = '自动战斗：左键启停，右键打开设置';
 		btn.style.cssText =
-			'position:fixed;z-index:900;width:36px;height:36px;' +
+			'position:fixed;z-index:900;width:36px;height:36px;display:none;' +
 			'line-height:32px;text-align:center;font-size:18px;cursor:pointer;' +
 			'background:linear-gradient(to bottom,#f7ecd3,#e8d5ae);' +
 			'border:2px solid #7a5c2e;border-radius:6px;color:#6d5228;' +
@@ -1251,26 +1255,72 @@ class BotAutoHunt {
 			: '0 2px 6px rgba(0,0,0,0.4)';
 	}
 
-	/** 右键打开设置窗口（懒创建，8 页签骨架） */
+	/**
+	 * 可见性轮询：仅进图后显示悬浮开关；回选角/退回登录自动隐藏并停止挂机。
+	 * 不用 hookPacket：RESTART_ACK/ACCEPT_QUIT 已被 MapEngine 占用（覆盖语义），
+	 * 且退回登录会 GameEngine.reload() 整页重载，轮询信号在三个场景下均可靠：
+	 * 登录画面（WinLogin 在 DOM）、选角画面（CharSelect 在 DOM）、地图内（两者均不在）。
+	 * 隐藏带 2 次连续未命中防抖，避免过图瞬间实体重建导致的闪烁。
+	 */
+	_startFloatLifecyclePoll() {
+		this._floatMiss = 0;
+		this._floatPoll = setInterval(() => {
+			const inGame = !!(Session.Entity && Session.Entity.GID) &&
+				!document.querySelector('#CharSelect') &&
+				!document.querySelector('#WinLoginV2');
+			const btn = this._floatBtn;
+			if (!btn) return;
+			const visible = btn.style.display !== 'none';
+			if (inGame) {
+				this._floatMiss = 0;
+				if (!visible) btn.style.display = '';
+				return;
+			}
+			this._floatMiss++;
+			if (visible && this._floatMiss >= 2) {
+				btn.style.display = 'none';
+				if (this.active) this.stopAutoHunt();
+				if (this._settingsComp) this._settingsComp.remove();
+			}
+		}, 500);
+	}
+
+	/** 悬浮开关旁的独立 toast — 不依赖面板，登录/选角界面也可见 */
+	_showToast(msg) {
+		let toast = document.getElementById('bot-float-toast');
+		if (!toast) {
+			toast = document.createElement('div');
+			toast.id = 'bot-float-toast';
+			toast.style.cssText =
+				'position:fixed;z-index:901;padding:6px 10px;background:rgba(0,0,0,0.75);' +
+				'color:#fff;font-size:12px;border-radius:4px;pointer-events:none;' +
+				'transition:opacity 0.3s;opacity:0;max-width:220px;' +
+				'font-family:Gulim,Dotum,"Malgun Gothic",sans-serif;';
+			document.body.appendChild(toast);
+		}
+		if (this._floatBtn) {
+			toast.style.left = this._floatBtn.offsetLeft + 'px';
+			toast.style.top = this._floatBtn.offsetTop + this._floatBtn.offsetHeight + 6 + 'px';
+		} else {
+			toast.style.left = '40%';
+			toast.style.top = '60%';
+		}
+		toast.textContent = msg;
+		toast.style.opacity = '1';
+		clearTimeout(this._toastTimer);
+		this._toastTimer = setTimeout(() => {
+			toast.style.opacity = '0';
+		}, 2500);
+	}
+
+	/** 右键打开设置窗口（GUIComponent，懒创建；append 打开 / remove 关闭） */
 	_openSettings() {
-		if (!this._settingsWin) {
-			this._settingsWin = createSettingsWindow({
-				title: '自动战斗设置',
-				placeholder: '本页签建设中，将在后续工单逐步交付（T2-T8）',
-				tabs: [
-					{ id: 'basic', label: '基本设定' },
-					{ id: 'monster', label: '魔物设定' },
-					{ id: 'skill', label: '技能设定' },
-					{ id: 'potion', label: '药水设定' },
-					{ id: 'loot', label: '捡拾设定' },
-					{ id: 'move', label: '移动设定' },
-					{ id: 'item', label: '道具设定' },
-					{ id: 'service', label: '挂机服务' }
-				],
-				makeDraggable: (el, handle) => this._makeDraggable(el, handle)
+		if (!this._settingsComp) {
+			this._settingsComp = createSettingsComponent({
+				placeholder: '本页签建设中，将在后续工单逐步交付（T2-T8）'
 			});
 		}
-		this._settingsWin.open();
+		this._settingsComp.append();
 	}
 
 	/** 面板内开始/停止按钮 — 同一按钮的两个状态切换 */
@@ -2202,6 +2252,11 @@ class BotAutoHunt {
 
 	/** 面板内错误消息 — 红色文字，3 秒后消失（D2 #9） */
 	_showError(msg) {
+		// 面板隐藏时（登录/选角界面）降级为悬浮开关旁的 toast，保证任何场景可见
+		if (!this._panel) {
+			this._showToast(msg);
+			return;
+		}
 		this._showMsg(msg, '#c03030', 3000);
 	}
 
