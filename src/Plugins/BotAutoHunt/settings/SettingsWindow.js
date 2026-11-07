@@ -27,7 +27,9 @@ export const SETTINGS_TABS = [
 	{ id: 'service', label: '挂机服务' }
 ];
 
-/** 窗口 CSS（官方窗口规范：白底、圆角、标题栏位图、标准字号） */
+/** 窗口 CSS（官方窗口规范：白底、圆角、标题栏位图、标准字号）
+ *  注意：GUIComponent 的 shadow 内无法用文档级 id 选择器命中宿主，
+ *  全部规则使用 :host 与纯类名选择器。 */
 const CSS_TEXT = `
 :host {
 	width: 520px;
@@ -37,9 +39,10 @@ const CSS_TEXT = `
 	min-width: 420px;
 }
 
-#BotAutoHuntSettings {
+.ui-component-root {
 	width: 100%;
 	height: 100%;
+	box-sizing: border-box;
 	background-color: white;
 	border-radius: 5px;
 	border: 1px solid #4b4b4b;
@@ -51,14 +54,14 @@ const CSS_TEXT = `
 	flex-direction: column;
 }
 
-#BotAutoHuntSettings .titlebar {
+.titlebar {
 	position: relative;
 	height: 23px;
 	flex: 0 0 auto;
 	cursor: move;
 }
 
-#BotAutoHuntSettings .titlebar .base {
+.titlebar .base {
 	width: 11px;
 	height: 11px;
 	position: absolute;
@@ -70,10 +73,10 @@ const CSS_TEXT = `
 	cursor: pointer;
 }
 
-#BotAutoHuntSettings .titlebar .base.node { left: 3px; }
-#BotAutoHuntSettings .titlebar .base.close { right: 3px; }
+.titlebar .base.node { left: 3px; }
+.titlebar .base.close { right: 3px; }
 
-#BotAutoHuntSettings .titlebar .title {
+.titlebar .title {
 	line-height: 23px;
 	text-align: center;
 	color: #2d2d2d;
@@ -82,7 +85,7 @@ const CSS_TEXT = `
 	text-shadow: 0 1px 0 rgba(255,255,255,0.6);
 }
 
-#BotAutoHuntSettings .botsw-tabbar {
+.botsw-tabbar {
 	flex: 0 0 auto;
 	display: flex;
 	flex-wrap: wrap;
@@ -92,7 +95,7 @@ const CSS_TEXT = `
 	border-bottom: 1px solid #a58a55;
 }
 
-#BotAutoHuntSettings .botsw-tab {
+.botsw-tab {
 	padding: 4px 10px;
 	cursor: pointer;
 	border: 1px solid #a58a55;
@@ -104,19 +107,19 @@ const CSS_TEXT = `
 	font-family: inherit;
 }
 
-#BotAutoHuntSettings .botsw-tab.active {
+.botsw-tab.active {
 	background: #fffef2;
 	color: #2d2d2d;
 	font-weight: bold;
 }
 
-#BotAutoHuntSettings .botsw-panewrap {
+.botsw-panewrap {
 	flex: 1 1 auto;
 	overflow-y: auto;
 	background: #fffef2;
 }
 
-#BotAutoHuntSettings .botsw-pane {
+.botsw-pane {
 	padding: 16px;
 	text-align: center;
 	color: #7a6a4a;
