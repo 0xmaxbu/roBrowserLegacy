@@ -34,6 +34,7 @@ import Entity from 'Renderer/Entity/Entity.js'; // TYPE_MOB / ACTION.DIE 常量
 import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_PATH 图标路径
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
+import { createSettingsWindow } from './settings/SettingsWindow.js'; // T1: 官方对齐设置窗口（8 页签，零游戏依赖纯 DOM 模块）
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
 import MAP_CONNECTIONS from './data/map-connections.json'; // 由 tools/client/generate-map-connections.mjs 生成
 import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
@@ -271,6 +272,13 @@ class BotAutoHunt {
 				this._lastMobSeenTick = Date.now();
 			}
 		});
+
+		// ---------- 悬浮开关与设置窗口（T1：官方对齐改造） ----------
+		// 术语见仓库根 GLOSSARY.md：用户可见名「自动战斗」，悬浮开关停靠小地图旁
+		this._floatBtn = null; // 悬浮开关 DOM 元素
+		this._floatMoved = false; // 本次按压是否产生位移（区分拖拽与点击）
+		this._settingsWin = null; // 设置窗口实例（懒创建）
+		this._createFloatingButton();
 
 		// ---------- 暴露桥接 ----------
 		// BasicInfoV4 按钮通过 window.botAutoHunt.toggle() 调用
@@ -989,6 +997,8 @@ class BotAutoHunt {
 		this._refreshCells('skill', this.skillList);
 		// 刷新辅助格子（含数量灰化检查）
 		this._refreshCells('aux', this.auxList);
+		// 同步悬浮开关高亮态（active 状态变更均会路过此处）
+		this._updateFloatBtnState();
 	}
 
 	_refreshCells(slot, list) {
@@ -1132,6 +1142,135 @@ class BotAutoHunt {
 		pkt.cmd = cmd;
 		Network.sendPacket(pkt);
 		return true;
+	}
+
+	// =================================================================
+	// 悬浮开关与设置窗口（T1：官方对齐改造，Issue #2）
+	// =================================================================
+
+	/**
+	 * 悬浮开关：停靠小地图旁，可拖拽；左键启停自动战斗，右键打开设置窗口。
+	 * 位置持久化到 localStorage；拖拽与点击用 5px 位移阈值区分。
+	 */
+	_createFloatingButton() {
+		if (this._floatBtn) return;
+		const btn = document.createElement('div');
+		btn.id = 'bot-float-btn';
+		btn.title = '自动战斗：左键启停，右键打开设置';
+		btn.style.cssText =
+			'position:fixed;z-index:900;width:36px;height:36px;' +
+			'line-height:32px;text-align:center;font-size:18px;cursor:pointer;' +
+			'background:linear-gradient(to bottom,#f7ecd3,#e8d5ae);' +
+			'border:2px solid #7a5c2e;border-radius:6px;color:#6d5228;' +
+			'box-shadow:0 2px 6px rgba(0,0,0,0.4);user-select:none;';
+		btn.textContent = '⚔';
+
+		// 默认停靠小地图下方（MiniMap 位于右上角 16px 内）；已保存位置优先
+		const saved = this._loadFloatBtnPos();
+		btn.style.left = saved.left + 'px';
+		btn.style.top = saved.top + 'px';
+
+		// 事件阻断：防透传到游戏 MouseEventHandler（与面板同一约定）
+		['mousedown', 'mouseup', 'click', 'contextmenu', 'dblclick'].forEach(type => {
+			btn.addEventListener(type, e => e.stopPropagation(), false);
+		});
+
+		// 拖拽（带位移阈值，拖后不触发点击）
+		let startX = 0, startY = 0, origX = 0, origY = 0, pressing = false;
+		btn.addEventListener('mousedown', e => {
+			pressing = true;
+			this._floatMoved = false;
+			startX = e.clientX;
+			startY = e.clientY;
+			origX = btn.offsetLeft;
+			origY = btn.offsetTop;
+			e.preventDefault();
+		});
+		window.addEventListener('mousemove', e => {
+			if (!pressing) return;
+			const dx = e.clientX - startX, dy = e.clientY - startY;
+			if (!this._floatMoved && Math.abs(dx) + Math.abs(dy) > 5) {
+				this._floatMoved = true;
+			}
+			if (this._floatMoved) {
+				btn.style.left = origX + dx + 'px';
+				btn.style.top = origY + dy + 'px';
+			}
+		}, true);
+		window.addEventListener('mouseup', () => {
+			if (pressing && this._floatMoved) this._saveFloatBtnPos(btn);
+			pressing = false;
+		}, true);
+
+		btn.addEventListener('click', () => {
+			if (this._floatMoved) {
+				this._floatMoved = false; // 拖拽结束，吞掉本次 click
+				return;
+			}
+			this.toggleAutoHunt();
+		});
+		btn.addEventListener('contextmenu', e => {
+			e.preventDefault();
+			this._openSettings();
+		});
+
+		document.body.appendChild(btn);
+		this._floatBtn = btn;
+		this._updateFloatBtnState();
+	}
+
+	/** 读取悬浮开关持久化位置（无记录时默认小地图下方） */
+	_loadFloatBtnPos() {
+		try {
+			const raw = localStorage.getItem('bot_float_btn_pos');
+			if (raw) {
+				const pos = JSON.parse(raw);
+				if (typeof pos.left === 'number' && typeof pos.top === 'number') return pos;
+			}
+		} catch (_) { /* 损坏数据按默认处理 */ }
+		return {
+			left: Math.max(0, (window.innerWidth || 1024) - 60),
+			top: 200
+		};
+	}
+
+	_saveFloatBtnPos(btn) {
+		try {
+			localStorage.setItem(
+				'bot_float_btn_pos',
+				JSON.stringify({ left: btn.offsetLeft, top: btn.offsetTop })
+			);
+		} catch (_) { /* 忽略配额/隐私模式错误 */ }
+	}
+
+	/** 悬浮开关高亮态：挂机中绿色描边，停止时普通外观 */
+	_updateFloatBtnState() {
+		if (!this._floatBtn) return;
+		this._floatBtn.style.boxShadow = this.active
+			? '0 0 6px 2px rgba(80,200,80,0.8)'
+			: '0 2px 6px rgba(0,0,0,0.4)';
+	}
+
+	/** 右键打开设置窗口（懒创建，8 页签骨架） */
+	_openSettings() {
+		if (!this._settingsWin) {
+			this._settingsWin = createSettingsWindow({
+				title: '自动战斗设置',
+				placeholder: '本页签建设中，将在后续工单逐步交付（T2-T8）',
+				tabs: [
+					{ id: 'basic', label: '基本设定' },
+					{ id: 'monster', label: '魔物设定' },
+					{ id: 'skill', label: '技能设定' },
+					{ id: 'potion', label: '药水设定' },
+					{ id: 'loot', label: '捡拾设定' },
+					{ id: 'move', label: '移动设定' },
+					{ id: 'item', label: '道具设定' },
+					{ id: 'service', label: '挂机服务' }
+				],
+				makeDraggable: (el, handle) => this._makeDraggable(el, handle)
+			});
+		}
+		this._settingsWin.open();
 	}
 
 	/** 面板内开始/停止按钮 — 同一按钮的两个状态切换 */
