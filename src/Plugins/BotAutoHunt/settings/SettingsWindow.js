@@ -212,6 +212,10 @@ export function createSettingsComponent(opts) {
 	const html = buildSettingsHTML(SETTINGS_TABS, opts_.placeholder);
 
 	const Component = new GUIComponent('BotAutoHuntSettings', CSS_TEXT);
+	// 引擎在登录/地图切换时会 UIManager.removeComponents() 清除非持久组件
+	// （MapRenderer.js:130、LoginEngine 多处），UpdateAvailable 同款先例：
+	// 本窗口由插件自行管理开合，必须标记 persistent 才不会被周期性清除
+	Component.persistent = true;
 	Component.render = function () {
 		return html;
 	};

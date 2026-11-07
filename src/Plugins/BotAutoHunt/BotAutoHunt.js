@@ -28,6 +28,7 @@ import BinaryWriter from 'Utils/BinaryWriter.js';
 import Inventory from 'UI/Components/Inventory/Inventory.js';
 import SkillTargetSelection from 'UI/Components/SkillTargetSelection/SkillTargetSelection.js';
 import StatusIcons from 'UI/Components/StatusIcons/StatusIcons.js';
+import Mouse from 'Controls/MouseEventHandler.js'; // Mouse.intersect: 地图加载完成后才为 true（T1 悬浮开关可见性信号）
 // Task 2 补充导入 — 三循环 + 面板下拉数据源
 import EntityManager from 'Renderer/EntityManager.js'; // forEach/get/getClosestEntity/getFocusEntity/setFocusEntity
 import Entity from 'Renderer/Entity/Entity.js'; // TYPE_MOB / ACTION.DIE 常量
@@ -280,6 +281,7 @@ class BotAutoHunt {
 		this._settingsComp = null; // 设置窗口组件（GUIComponent，懒创建）
 		this._floatPoll = null; // 可见性轮询定时器
 		this._floatMiss = 0; // 连续离场计数（防过图瞬间闪烁）
+		this._floatHit = 0; // 连续在场计数（防选角→地图黑屏瞬时态闪现）
 		this._toastTimer = null; // toast 消失定时器
 		this._createFloatingButton();
 		this._startFloatLifecyclePoll();
@@ -1264,8 +1266,12 @@ class BotAutoHunt {
 	 */
 	_startFloatLifecyclePoll() {
 		this._floatMiss = 0;
+		this._floatHit = 0;
 		this._floatPoll = setInterval(() => {
+			// Mouse.intersect 在地图资源加载完成并开始渲染时才置 true（MapRenderer "Display game"），
+			// 加载页面期间为 false——保证按钮在加载完成后才出现
 			const inGame = !!(Session.Entity && Session.Entity.GID) &&
+				!!Mouse.intersect &&
 				!document.querySelector('#CharSelect') &&
 				!document.querySelector('#WinLoginV2');
 			const btn = this._floatBtn;
@@ -1273,9 +1279,12 @@ class BotAutoHunt {
 			const visible = btn.style.display !== 'none';
 			if (inGame) {
 				this._floatMiss = 0;
-				if (!visible) btn.style.display = '';
+				this._floatHit++;
+				// 2 次连续命中（约 1s）才显示：跳过选角→地图之间黑屏的瞬时信号态
+				if (!visible && this._floatHit >= 2) btn.style.display = '';
 				return;
 			}
+			this._floatHit = 0;
 			this._floatMiss++;
 			if (visible && this._floatMiss >= 2) {
 				btn.style.display = 'none';
