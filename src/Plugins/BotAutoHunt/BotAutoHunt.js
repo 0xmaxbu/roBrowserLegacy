@@ -1284,6 +1284,11 @@ class BotAutoHunt {
 	}
 
 	startAutoHunt() {
+		// T1 fix: 未进游戏（登录/选角界面）禁止启动，避免乐观置位后无反馈的假死
+		if (!Session.Entity || !Session.Entity.GID) {
+			this._showError('请进入游戏后再开启自动战斗');
+			return;
+		}
 		// #12 fix: 城镇地图禁止挂机
 		const mapName = this._getCurrentMapName();
 		if (mapName && TOWN_MAPS.has(mapName)) {
