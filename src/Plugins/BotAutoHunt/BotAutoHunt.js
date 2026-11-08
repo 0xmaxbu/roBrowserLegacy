@@ -38,6 +38,7 @@ import { createSettingsComponent } from './settings/SettingsWindow.js'; // T1: �
 import { migrateSettings, slotReady, evaluateThresholds, mobInWhitelist, decideNoMobAction, matchLootType, validateLootedItem, isCureStatusActive, CURE_WATCH_LISTS, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2-T7: 纯函数
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
 import MAP_CONNECTIONS from './data/map-connections.json'; // 由 tools/client/generate-map-connections.mjs 生成
+import MAP_MOBS from './data/map-mobs.json'; // T4: 地图→魔物种族表（tools/client/generate-map-mobs.mjs 构建期生成）
 import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
 import Altitude from 'Renderer/Map/Altitude.js'; // getCellType + TYPE.WALKABLE — 巡逻可行走验证
 import PathFinding from 'Utils/PathFinding.js'; // search() — 巡逻路径验证
@@ -294,13 +295,10 @@ class BotAutoHunt {
 		this._lootTick = null; // T6: 捡拾循环定时器
 		this._lootPending = null; // T6: 待校验拾取 { gid, tick }
 		this._lootBlacklist = new Set(); // T6: 本会话不再拾取的地面物品 GID（防捡丢循环）
-		this._mobScanTick = null; // T4: 魔物清单扫描轮询定时器
-		this._mobListSignature = ''; // T4: 清单种类集签名（变化才重建列表）
 		this.cureItems = { poison: 0, panacea: 0 }; // T7: 解除药槽位（物品 ID，0=空）
 		this._slotLastCast = {}; // 槽下标 → 上次施放时间戳
 		this._createFloatingButton();
 		this._startFloatLifecyclePoll();
-		this._startMobScanPoll(); // T4: 魔物清单 1s 扫描轮询（设置窗口打开期间生效）
 
 		// ---------- 暴露桥接 ----------
 		// BasicInfoV4 按钮通过 window.botAutoHunt.toggle() 调用
@@ -1898,32 +1896,7 @@ class BotAutoHunt {
 		seen[entity.job] = (seen[entity.job] || 0) + 1;
 	}
 
-	/** T4: 魔物清单扫描轮询（设置窗口打开期间 1s 扫描当前视野；种类集变化且魔物页激活时重建） */
-	_startMobScanPoll() {
-		if (this._mobScanTick) return;
-		this._mobScanTick = setInterval(() => {
-			if (!this._settingsComp || !this._settingsComp._host || !this._settingsComp._host.parentNode) return;
-			const currentMap = this._getCurrentMapName() || '';
-			if (!currentMap) return;
-			EntityManager.forEach(entity => {
-				if (entity.objecttype === Entity.TYPE_MOB && entity.action !== entity.ACTION.DIE && entity.remove_tick === 0) {
-					this._catalogMob(entity, currentMap);
-				}
-			});
-			const sig = this._getMobListSignature(currentMap);
-			if (sig !== this._mobListSignature) {
-				this._mobListSignature = sig;
-				const active = typeof this._settingsComp.getActiveIndex === 'function' ? this._settingsComp.getActiveIndex() : -1;
-				if (active === 1) this._renderMobTab();
-			}
-		}, 1000);
-	}
 
-	/** T4: 当前图清单种类集签名（仅种类 ID 集合；数量变化不触发重建，避免打断勾选） */
-	_getMobListSignature(currentMap) {
-		const seen = this._seenMobs[currentMap] || {};
-		return Object.keys(seen).map(Number).sort((a, b) => a - b).join(',');
-	}
 
 	/** 渲染魔物设定页内容（存进 pane[1]；清单 = 本会话见过的魔物，勾选按地图持久化） */
 	_renderMobTab() {
@@ -1940,7 +1913,6 @@ class BotAutoHunt {
 		});
 		pane.innerHTML = '';
 		pane.appendChild(this._buildMobTabContent(currentMap));
-		this._mobListSignature = this._getMobListSignature(currentMap);
 	}
 
 	/** 构建魔物设定页（官方设计语言：区块条 + 白底圆角清单容器 + 页签同款按钮） */
@@ -1967,14 +1939,19 @@ class BotAutoHunt {
 		const listBox = document.createElement('div');
 		listBox.style.cssText = 'border:1px solid #a8b3bd;border-radius:5px;background:#ffffff;padding:4px 6px;display:flex;flex-direction:column;gap:1px;';
 
+		// T4 第二轮：清单 = 服务端刷怪表全量物种（构建期生成 map-mobs.json）∪ 本会话所见
 		const seen = this._seenMobs[currentMap] || {};
-		const jobs = Object.keys(seen).map(Number).filter(j => j > 0).sort((a, b) => a - b);
+		const spawnJobs = Array.isArray(MAP_MOBS[currentMap]) ? MAP_MOBS[currentMap] : [];
+		const seenJobs = Object.keys(seen).map(Number).filter(j => j > 0);
+		const jobs = [...new Set(spawnJobs.concat(seenJobs))].sort((a, b) =>
+			DB.getMonsterName(a).localeCompare(DB.getMonsterName(b), 'zh')
+		);
 		const wl = this.mobWhitelist[currentMap] || [];
 
 		if (jobs.length === 0) {
 			const empty = document.createElement('div');
 			empty.style.cssText = 'font-size:10px;color:#4a7ab5;padding:2px 0;';
-			empty.textContent = '尚未发现魔物；走近魔物后清单自动累加（约 1 秒刷新）。';
+			empty.textContent = '本地图无刷怪数据。';
 			listBox.appendChild(empty);
 		} else {
 			jobs.forEach(function (job) {
@@ -1995,7 +1972,7 @@ class BotAutoHunt {
 				row.appendChild(document.createTextNode(DB.getMonsterName(job)));
 				const cnt = document.createElement('span');
 				cnt.style.cssText = 'margin-left:auto;font-size:10px;color:#8aa5c0;';
-				cnt.textContent = '×' + seen[job];
+				cnt.textContent = seen[job] ? '×' + seen[job] : '';
 				row.appendChild(cnt);
 				listBox.appendChild(row);
 			});
@@ -2010,8 +1987,9 @@ class BotAutoHunt {
 		selAll.textContent = '全选';
 		selAll.style.cssText = btnStyle;
 		selAll.addEventListener('click', function () {
-			const seenNow = self._seenMobs[currentMap] || {};
-			const allJobs = Object.keys(seenNow).map(Number).filter(j => j > 0);
+			const spawnJobs = Array.isArray(MAP_MOBS[currentMap]) ? MAP_MOBS[currentMap] : [];
+			const seenJobs = Object.keys(self._seenMobs[currentMap] || {}).map(Number).filter(j => j > 0);
+			const allJobs = [...new Set(spawnJobs.concat(seenJobs))];
 			if (allJobs.length) self.mobWhitelist[currentMap] = allJobs;
 			self._saveSettings();
 			self._renderMobTab();
@@ -2034,7 +2012,7 @@ class BotAutoHunt {
 		info.innerHTML =
 			'名单为空 = 不过滤，攻击所有魔物；勾选后只攻击名单内魔物。<br/>' +
 			'场上只剩名单外魔物时按无怪处理（触发飞翅/巡逻）。<br/>' +
-			'清单随视野自动累加（约 1 秒刷新）；勾选按地图记忆。';
+			'清单来自服务端刷怪表（全物种）；勾选按地图记忆。';
 		wrap.appendChild(info);
 
 		return wrap;
@@ -3334,18 +3312,14 @@ class BotAutoHunt {
 			}
 
 			// T2: schema v2 结构迁移（纯函数：重排 4+4 + 每槽延迟 + 版本号）
-			const s2 = migrateSettings({
-				hp: s.hp,
-				sp: s.sp,
+			// T8 修复：字段透传改为全量（历史 bug——硬编码旧字段清单导致 T2 后新增字段
+			// （normalAttack/mobWhitelist/noMobSeconds/returnToMap/loot/cureItems）加载即被
+			// 重置为默认值，白名单/捡拾配置等在任何一次保存后丢失。skills/aux 因需先行
+			// 分类迁移，以处理后数组覆盖透传值。）
+			const s2 = migrateSettings(Object.assign({}, s, {
 				skills: skills,
-				aux: aux,
-				slotDelays: s.slotDelays,
-				follow: s.follow,
-				followTarget: s.followTarget,
-				flyNoMobs: s.flyNoMobs,
-				flyLowHp: s.flyLowHp,
-				autoPotion: s.autoPotion
-			});
+				aux: aux
+			}));
 			this._applySettings(s2);
 			if (migrated || s.v !== SCHEMA_VERSION) this._saveSettings();
 			return;
