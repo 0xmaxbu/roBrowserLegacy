@@ -32,6 +32,27 @@ function isSupportGroupItem(item) {
 }
 
 /**
+ * 用药阈值决策（纯函数，T3）：给定当前 HP/SP 百分比与设置，返回各触发项
+ * 判定与 _potionLoopInner 一致：严格小于阈值才触发（等于不触发）；
+ * 低血飞翅固定 10% 且需开关开启
+ *
+ * @param {number} hpPct 当前 HP 百分比（0-100）
+ * @param {number} spPct 当前 SP 百分比（0-100）
+ * @param {{ hpThreshold?: number, spThreshold?: number, flyLowHp?: boolean }} opts
+ * @return {{ lowHpFlyWing: boolean, hpPotion: boolean, spPotion: boolean }}
+ */
+export function evaluateThresholds(hpPct, spPct, opts) {
+	const o = opts || {};
+	const hpThreshold = typeof o.hpThreshold === 'number' ? o.hpThreshold : 70;
+	const spThreshold = typeof o.spThreshold === 'number' ? o.spThreshold : 30;
+	return {
+		lowHpFlyWing: !!(o.flyLowHp && hpPct < 10),
+		hpPotion: hpPct < hpThreshold,
+		spPotion: spPct < spThreshold
+	};
+}
+
+/**
  * 结构迁移：任意输入 → 合法的 v2 设置对象
  *
  * @param {*} saved  localStorage 解析结果（可能损坏/缺字段/旧版本）

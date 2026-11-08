@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	migrateSettings,
 	slotReady,
+	evaluateThresholds,
 	SCHEMA_VERSION,
 	TOTAL_SLOT_COUNT
 } from '../src/Plugins/BotAutoHunt/settings/schema.js';
@@ -130,6 +131,27 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 		expect(migrateSettings({}).normalAttack).toBe(true);
 		expect(migrateSettings({ normalAttack: false }).normalAttack).toBe(false);
 		expect(migrateSettings({ normalAttack: 'no' }).normalAttack).toBe(true); // 非布尔非 false → 开启
+	});
+
+	it('evaluateThresholds：低于阈值触发，等于不触发（严格小于）', () => {
+		const r = evaluateThresholds(69.9, 29.9, { hpThreshold: 70, spThreshold: 30 });
+		expect(r.hpPotion).toBe(true);
+		expect(r.spPotion).toBe(true);
+		const r2 = evaluateThresholds(70, 30, { hpThreshold: 70, spThreshold: 30 });
+		expect(r2.hpPotion).toBe(false);
+		expect(r2.spPotion).toBe(false);
+	});
+
+	it('evaluateThresholds：低血飞翅固定 10% 且需开关开启；缺省阈值 70/30', () => {
+		expect(evaluateThresholds(9.9, 100, { flyLowHp: true }).lowHpFlyWing).toBe(true);
+		expect(evaluateThresholds(9.9, 100, { flyLowHp: false }).lowHpFlyWing).toBe(false);
+		expect(evaluateThresholds(10, 100, { flyLowHp: true }).lowHpFlyWing).toBe(false);
+		const d = evaluateThresholds(69, 29, {});
+		expect(d.hpPotion).toBe(true);
+		expect(d.spPotion).toBe(true);
+		const d2 = evaluateThresholds(70.1, 30.1, {});
+		expect(d2.hpPotion).toBe(false);
+		expect(d2.spPotion).toBe(false);
 	});
 
 	it('无 id 的垃圾技能项 → 丢弃', () => {

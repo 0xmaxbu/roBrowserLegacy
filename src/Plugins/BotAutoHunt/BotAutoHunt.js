@@ -35,7 +35,7 @@ import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_P
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import { createSettingsComponent } from './settings/SettingsWindow.js'; // T1: 官方样式设置窗口（GUIComponent，8 页签）
-import { migrateSettings, slotReady, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2: schema v2 结构迁移 + 每槽延迟判定
+import { migrateSettings, slotReady, evaluateThresholds, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2: schema v2 + T3: 用药阈值决策
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
 import MAP_CONNECTIONS from './data/map-connections.json'; // 由 tools/client/generate-map-connections.mjs 生成
 import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
@@ -550,6 +550,7 @@ class BotAutoHunt {
 				const hpVal = p.querySelector('.hp-val');
 				if (hpVal) hpVal.textContent = this.hpThreshold + '%';
 				this._saveSettings();
+				this._syncThresholdsToBasicTab(); // T3: 双向同步
 			});
 		}
 
@@ -561,6 +562,7 @@ class BotAutoHunt {
 				const spVal = p.querySelector('.sp-val');
 				if (spVal) spVal.textContent = this.spThreshold + '%';
 				this._saveSettings();
+				this._syncThresholdsToBasicTab(); // T3: 双向同步
 			});
 		}
 
@@ -606,6 +608,7 @@ class BotAutoHunt {
 				this._saveSettings();
 				if (this.autoPotion) this._startAutoPotion();
 				else this._stopAutoPotion();
+				this._syncThresholdsToBasicTab(); // T3: 双向同步
 			});
 		}
 
@@ -1016,9 +1019,10 @@ class BotAutoHunt {
 	 * D2 #17: 消耗品 count <= 0 → icon 变灰
 	 */
 	_refreshPanel() {
-		// T2: 设置窗口技能页签同步（不依赖旧面板存在，须在早退之前）
+		// T2/T3: 设置窗口技能页签+基本页同步（不依赖旧面板存在，须在早退之前）
 		if (this._settingsComp && this._settingsComp._host && this._settingsComp._host.parentNode) {
 			this._renderSkillTab();
+			this._renderBasicTab();
 		}
 		if (!this._panel) return;
 
@@ -1034,6 +1038,7 @@ class BotAutoHunt {
 		// 同步设置窗口技能页签（T2：新窗口编辑下拉写入后回填 UI）
 		if (this._settingsComp && this._settingsComp._host && this._settingsComp._host.parentNode) {
 			this._renderSkillTab();
+			this._renderBasicTab();
 		}
 	}
 
@@ -1374,6 +1379,140 @@ class BotAutoHunt {
 		}
 		this._settingsComp.append();
 		this._renderSkillTab();
+		this._renderBasicTab();
+	}
+
+	// =================================================================
+	// 设置窗口基本设定页（T3：HP/SP 阈值滑杆 + 自动吃药 + 固定行为说明）
+	// =================================================================
+
+	/** 渲染基本设定页内容（存进 pane[0]；与旧面板阈值控件双向同步，过渡期共存） */
+	_renderBasicTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(0);
+		if (!pane) return;
+		// 滑杆拖动/输入进行中不重建（重建会打断拖拽），值已实时写入 this.*，无一致性问题
+		if (pane.contains(document.activeElement)) return;
+		pane.innerHTML = '';
+		pane.appendChild(this._buildBasicTabContent());
+	}
+
+	/** 构建基本设定页（紧凑单列：阈值滑杆×2 + 自动吃药开关 + 固定行为说明） */
+	_buildBasicTabContent() {
+		const self = this;
+		const wrap = document.createElement('div');
+		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
+
+		// —— HP 用药阈值滑杆 ——
+		const hpRow = document.createElement('div');
+		hpRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:#2e4058;';
+		hpRow.appendChild(document.createTextNode('HP 用药阈值：'));
+		const hpVal = document.createElement('span');
+		hpVal.className = 'basictab-hp-val';
+		hpVal.textContent = self.hpThreshold + '%';
+		hpRow.appendChild(hpVal);
+		const hpSlider = document.createElement('input');
+		hpSlider.type = 'range';
+		hpSlider.className = 'basictab-hp-slider';
+		hpSlider.min = '0';
+		hpSlider.max = '100';
+		hpSlider.value = String(self.hpThreshold);
+		hpSlider.style.cssText = 'flex:1;height:14px;';
+		hpSlider.addEventListener('input', function () {
+			self.hpThreshold = +hpSlider.value;
+			hpVal.textContent = self.hpThreshold + '%';
+			self._saveSettings();
+			self._syncThresholdsToOldPanel();
+		});
+		hpRow.appendChild(hpSlider);
+		wrap.appendChild(hpRow);
+
+		// —— SP 用药阈值滑杆 ——
+		const spRow = document.createElement('div');
+		spRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:#2e4058;';
+		spRow.appendChild(document.createTextNode('SP 用药阈值：'));
+		const spVal = document.createElement('span');
+		spVal.className = 'basictab-sp-val';
+		spVal.textContent = self.spThreshold + '%';
+		spRow.appendChild(spVal);
+		const spSlider = document.createElement('input');
+		spSlider.type = 'range';
+		spSlider.className = 'basictab-sp-slider';
+		spSlider.min = '0';
+		spSlider.max = '100';
+		spSlider.value = String(self.spThreshold);
+		spSlider.style.cssText = 'flex:1;height:14px;';
+		spSlider.addEventListener('input', function () {
+			self.spThreshold = +spSlider.value;
+			spVal.textContent = self.spThreshold + '%';
+			self._saveSettings();
+			self._syncThresholdsToOldPanel();
+		});
+		spRow.appendChild(spSlider);
+		wrap.appendChild(spRow);
+
+		// —— 自动吃药开关 ——
+		const apRow = document.createElement('label');
+		apRow.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;font-weight:bold;color:#2e4058;cursor:pointer;';
+		const apCb = document.createElement('input');
+		apCb.type = 'checkbox';
+		apCb.className = 'basictab-auto-potion';
+		apCb.checked = self.autoPotion;
+		apCb.addEventListener('change', function () {
+			self.autoPotion = apCb.checked;
+			self._saveSettings();
+			if (self.autoPotion) self._startAutoPotion();
+			else self._stopAutoPotion();
+			self._syncThresholdsToOldPanel();
+		});
+		apRow.appendChild(apCb);
+		apRow.appendChild(document.createTextNode('自动吃药（低于阈值自动使用设定药水/治疗技能）'));
+		wrap.appendChild(apRow);
+
+		// —— 固定行为说明（与代码实际行为一致，勿臆写） ——
+		const info = document.createElement('div');
+		info.style.cssText = 'border-top:1px dotted #b9c6d2;padding-top:3px;font-size:10px;color:#4a7ab5;line-height:1.5;';
+		info.innerHTML =
+			'固定行为说明：<br/>' +
+			'· 城镇内无法开启自动战斗<br/>' +
+			'· 角色死亡时自动停止挂机<br/>' +
+			'· 过图后自动重置并给予约 1.5 秒宽限再恢复行动';
+		wrap.appendChild(info);
+
+		return wrap;
+	}
+
+	/** T3: 阈值/自动吃药 → 同步旧面板控件（值以 this 为准，过渡期双端共存） */
+	_syncThresholdsToOldPanel() {
+		const p = this._panel;
+		if (!p) return;
+		const hpSlider = p.querySelector('.bot-hp-slider');
+		if (hpSlider && +hpSlider.value !== this.hpThreshold) hpSlider.value = String(this.hpThreshold);
+		const hpVal = p.querySelector('.hp-val');
+		if (hpVal) hpVal.textContent = this.hpThreshold + '%';
+		const spSlider = p.querySelector('.bot-sp-slider');
+		if (spSlider && +spSlider.value !== this.spThreshold) spSlider.value = String(this.spThreshold);
+		const spVal = p.querySelector('.sp-val');
+		if (spVal) spVal.textContent = this.spThreshold + '%';
+		const ap = p.querySelector('.bot-auto-potion');
+		if (ap && ap.checked !== this.autoPotion) ap.checked = this.autoPotion;
+	}
+
+	/** T3: 旧面板 → 同步基本设定页控件（就地更新，不重建避免打断拖拽） */
+	_syncThresholdsToBasicTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(0);
+		if (!pane) return;
+		const hpSlider = pane.querySelector('.basictab-hp-slider');
+		if (hpSlider && +hpSlider.value !== this.hpThreshold) hpSlider.value = String(this.hpThreshold);
+		const hpVal = pane.querySelector('.basictab-hp-val');
+		if (hpVal) hpVal.textContent = this.hpThreshold + '%';
+		const spSlider = pane.querySelector('.basictab-sp-slider');
+		if (spSlider && +spSlider.value !== this.spThreshold) spSlider.value = String(this.spThreshold);
+		const spVal = pane.querySelector('.basictab-sp-val');
+		if (spVal) spVal.textContent = this.spThreshold + '%';
+		const ap = pane.querySelector('.basictab-auto-potion');
+		if (ap && ap.checked !== this.autoPotion) ap.checked = this.autoPotion;
 	}
 
 	// =================================================================
@@ -2026,9 +2165,16 @@ class BotAutoHunt {
 		const hpPct = (hp / hpMax) * 100;
 		const spPct = (sp / spMax) * 100;
 
+		// 1-3. 阈值决策（纯函数 evaluateThresholds，T3：可测试；判定与原内联一致）
+		const need = evaluateThresholds(hpPct, spPct, {
+			hpThreshold: this.hpThreshold,
+			spThreshold: this.spThreshold,
+			flyLowHp: this.flyLowHp
+		});
+
 		// 1. 低血飞翅 (D2 #12): HP<10% → 优先苍蝇次选蝴蝶
 		// 仅在挂机地图上使用飞翅（错误地图上飞翅会干扰返回逻辑）
-		if (onHuntMap && this.flyLowHp && hpPct < 10) {
+		if (onHuntMap && need.lowHpFlyWing) {
 			if (!this._isOnCooldown('item_flywing')) {
 				if (!this._useItemById(ITEM_FLY_WING)) {
 					this._useItemById(ITEM_BUTTERFLY_WING);
@@ -2039,7 +2185,7 @@ class BotAutoHunt {
 		}
 
 		// 2. HP 低于阈值 → 使用药水 + 治疗技能(对自己)
-		if (hpPct < this.hpThreshold) {
+		if (need.hpPotion) {
 			// 2a. 辅助列表中的 HP 恢复药水 (WR-04 fix: 过滤 subtype)
 			// 500ms 冷却防刷
 			for (const aux of this.auxList) {
@@ -2070,7 +2216,7 @@ class BotAutoHunt {
 		}
 
 		// 3. SP 低于阈值 → 使用 SP 恢复消耗品
-		if (spPct < this.spThreshold) {
+		if (need.spPotion) {
 			for (const aux of this.auxList) {
 				if (!aux || aux.type !== AUX_TYPE_POTION) continue;
 				// WR-04 fix: SP 分支只接受 'sp' 或 'both'；旧数据 (subtype 缺失) 不匹配
