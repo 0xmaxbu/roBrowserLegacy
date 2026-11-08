@@ -77,11 +77,10 @@ describe('SettingsWindow', () => {
 		expect(dots.length).toBe(4);
 	});
 
-	it('白色内容面板 + 蓝色节标题条（官方布局）', () => {
+	it('白色内容面板存在且无额外标题条（官方窗口页签下直接是内容）', () => {
 		const root = buildRoot();
 		expect(root.querySelector('.botsw-panel')).toBeTruthy();
-		const header = root.querySelector('.botsw-header');
-		expect(header.textContent).toBe('请设定自动战斗功能');
+		expect(root.querySelector('.botsw-header')).toBeNull(); // 官方窗口无标题条，第五轮移除
 	});
 
 	it('点击底部关闭按钮触发 onClose 回调', () => {

@@ -131,22 +131,11 @@ const CSS_TEXT = `
 	flex: 1 1 auto;
 	display: flex;
 	flex-direction: column;
-	margin: 8px;
+	margin: 6px;
 	background: #ffffff;
 	border: 1px solid #b8cde0;
 	border-radius: 8px;
 	overflow: hidden;
-}
-
-.botsw-header {
-	flex: 0 0 auto;
-	height: 26px;
-	line-height: 26px;
-	text-align: center;
-	color: #ffffff;
-	font-weight: bold;
-	background: linear-gradient(to bottom, #8fb4d6, #7ba3c9);
-	letter-spacing: 2px;
 }
 
 .botsw-panewrap {
@@ -156,10 +145,10 @@ const CSS_TEXT = `
 }
 
 .botsw-pane {
-	padding: 16px;
+	padding: 4px 10px; /* 紧凑：官方无滚动条，一页容纳全部内容 */
 	text-align: center;
 	color: #1a3a5c;
-	line-height: 1.8;
+	line-height: 1.4;
 }
 
 /* 底部：初始化（左）/ 關閉（右） */
@@ -167,7 +156,7 @@ const CSS_TEXT = `
 	flex: 0 0 auto;
 	display: flex;
 	justify-content: space-between;
-	padding: 6px 8px;
+	padding: 4px 8px;
 }
 
 .botsw-footer button {
@@ -215,7 +204,6 @@ export function buildSettingsHTML(tabs, placeholder) {
 		'</div>' +
 		'<div class="botsw-tabbar">' + tabHtml + '</div>' +
 		'<div class="botsw-panel">' +
-			'<div class="botsw-header">请设定自动战斗功能</div>' +
 			'<div class="botsw-panewrap">' + paneHtml + '</div>' +
 		'</div>' +
 		'<div class="botsw-footer">' +

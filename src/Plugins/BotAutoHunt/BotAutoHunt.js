@@ -1411,7 +1411,7 @@ class BotAutoHunt {
 	_buildSkillTabContent() {
 		const self = this;
 		const wrap = document.createElement('div');
-		wrap.style.cssText = 'padding:8px;display:flex;flex-direction:column;gap:8px;text-align:left;';
+		wrap.style.cssText = 'padding:0 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
 
 		// 官方文案与字号（对照 docs/assets/official-auto-battle/1d95a0f6 逐像素测量）
 		const hint = document.createElement('div');
@@ -1420,7 +1420,7 @@ class BotAutoHunt {
 		wrap.appendChild(hint);
 
 		const hintSub = document.createElement('div');
-		hintSub.style.cssText = 'font-size:11px;color:#4a7ab5;text-align:center;border-bottom:1px dotted #b9c6d2;padding-bottom:6px;';
+		hintSub.style.cssText = 'font-size:11px;color:#4a7ab5;text-align:center;border-bottom:1px dotted #b9c6d2;padding-bottom:3px;';
 		hintSub.textContent = '每个设定的延迟时间将左到右顺序使用。';
 		wrap.appendChild(hintSub);
 
@@ -1438,7 +1438,7 @@ class BotAutoHunt {
 
 			// 官方格子行：4 格 34×34 等距分布（1fr），条下留白约 16px
 			const cells = document.createElement('div');
-			cells.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);justify-items:center;padding:14px 6px 12px;';
+			cells.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);justify-items:center;padding:6px 6px 4px;';
 			for (let gi = 0; gi < 4; gi++) {
 				cells.appendChild(self._buildSkillSlotCell(g.offset + gi));
 			}
@@ -1447,7 +1447,7 @@ class BotAutoHunt {
 
 		// T2: 普通攻击开关（官方技能页底部勾选框位置；法系职业建议关闭）
 		const naRow = document.createElement('div');
-		naRow.style.cssText = 'display:flex;flex-direction:column;gap:2px;border-top:1px dotted #b9c6d2;padding-top:6px;';
+		naRow.style.cssText = 'display:flex;flex-direction:column;gap:1px;border-top:1px dotted #b9c6d2;padding-top:3px;';
 		const naLine = document.createElement('label');
 		naLine.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;font-weight:bold;color:#2e4058;cursor:pointer;';
 		const naCb = document.createElement('input');
@@ -1461,7 +1461,7 @@ class BotAutoHunt {
 		naLine.appendChild(document.createTextNode('普通攻击'));
 		const naHint = document.createElement('div');
 		naHint.style.cssText = 'font-size:10px;color:#4a7ab5;padding-left:18px;';
-		naHint.textContent = '勾选时：无技能可用将接近魔物普通攻击；不勾选：仅使用设定技能（法系职业建议关闭）';
+		naHint.textContent = '无技能可用时不接近魔物普攻（法系职业建议关闭）';
 		naRow.appendChild(naLine);
 		naRow.appendChild(naHint);
 		wrap.appendChild(naRow);
@@ -1476,7 +1476,7 @@ class BotAutoHunt {
 		const delayMs = this.slotDelays[flatIdx] || 0;
 
 		const unit = document.createElement('div');
-		unit.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:5px;';
+		unit.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;';
 
 		const cell = document.createElement('div');
 		cell.className = 'skilltab-cell';
