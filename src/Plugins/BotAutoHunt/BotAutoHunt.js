@@ -294,10 +294,13 @@ class BotAutoHunt {
 		this._lootTick = null; // T6: 捡拾循环定时器
 		this._lootPending = null; // T6: 待校验拾取 { gid, tick }
 		this._lootBlacklist = new Set(); // T6: 本会话不再拾取的地面物品 GID（防捡丢循环）
+		this._mobScanTick = null; // T4: 魔物清单扫描轮询定时器
+		this._mobListSignature = ''; // T4: 清单种类集签名（变化才重建列表）
 		this.cureItems = { poison: 0, panacea: 0 }; // T7: 解除药槽位（物品 ID，0=空）
 		this._slotLastCast = {}; // 槽下标 → 上次施放时间戳
 		this._createFloatingButton();
 		this._startFloatLifecyclePoll();
+		this._startMobScanPoll(); // T4: 魔物清单 1s 扫描轮询（设置窗口打开期间生效）
 
 		// ---------- 暴露桥接 ----------
 		// BasicInfoV4 按钮通过 window.botAutoHunt.toggle() 调用
@@ -1895,6 +1898,33 @@ class BotAutoHunt {
 		seen[entity.job] = (seen[entity.job] || 0) + 1;
 	}
 
+	/** T4: 魔物清单扫描轮询（设置窗口打开期间 1s 扫描当前视野；种类集变化且魔物页激活时重建） */
+	_startMobScanPoll() {
+		if (this._mobScanTick) return;
+		this._mobScanTick = setInterval(() => {
+			if (!this._settingsComp || !this._settingsComp._host || !this._settingsComp._host.parentNode) return;
+			const currentMap = this._getCurrentMapName() || '';
+			if (!currentMap) return;
+			EntityManager.forEach(entity => {
+				if (entity.objecttype === Entity.TYPE_MOB && entity.action !== entity.ACTION.DIE && entity.remove_tick === 0) {
+					this._catalogMob(entity, currentMap);
+				}
+			});
+			const sig = this._getMobListSignature(currentMap);
+			if (sig !== this._mobListSignature) {
+				this._mobListSignature = sig;
+				const active = typeof this._settingsComp.getActiveIndex === 'function' ? this._settingsComp.getActiveIndex() : -1;
+				if (active === 1) this._renderMobTab();
+			}
+		}, 1000);
+	}
+
+	/** T4: 当前图清单种类集签名（仅种类 ID 集合；数量变化不触发重建，避免打断勾选） */
+	_getMobListSignature(currentMap) {
+		const seen = this._seenMobs[currentMap] || {};
+		return Object.keys(seen).map(Number).sort((a, b) => a - b).join(',');
+	}
+
 	/** 渲染魔物设定页内容（存进 pane[1]；清单 = 本会话见过的魔物，勾选按地图持久化） */
 	_renderMobTab() {
 		if (!this._settingsComp) return;
@@ -1910,13 +1940,14 @@ class BotAutoHunt {
 		});
 		pane.innerHTML = '';
 		pane.appendChild(this._buildMobTabContent(currentMap));
+		this._mobListSignature = this._getMobListSignature(currentMap);
 	}
 
-	/** 构建魔物设定页（地图名 + 全选/清空 + 勾选清单 + 语义说明） */
+	/** 构建魔物设定页（官方设计语言：区块条 + 白底圆角清单容器 + 页签同款按钮） */
 	_buildMobTabContent(currentMap) {
 		const self = this;
 		const wrap = document.createElement('div');
-		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
+		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:4px;text-align:left;';
 
 		if (!currentMap) {
 			const unknown = document.createElement('div');
@@ -1926,52 +1957,29 @@ class BotAutoHunt {
 			return wrap;
 		}
 
-		// 头部：地图名 + 全选/清空（仅作用于本图清单）
-		const head = document.createElement('div');
-		head.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;font-weight:bold;color:#2e4058;';
-		head.appendChild(document.createTextNode('当前地图：' + currentMap));
-		const spacer = document.createElement('span');
-		spacer.style.cssText = 'flex:1;';
-		head.appendChild(spacer);
-		const btnStyle = 'padding:1px 8px;font-size:10px;border:1px solid #9db8d2;border-radius:2px;background:linear-gradient(to bottom,#ffffff,#d5e2ee);cursor:pointer;color:#1a3a5c;';
-		const selAll = document.createElement('button');
-		selAll.textContent = '全选';
-		selAll.style.cssText = btnStyle;
-		selAll.addEventListener('click', function () {
-			const seen = self._seenMobs[currentMap] || {};
-			const jobs = Object.keys(seen).map(Number).filter(j => j > 0);
-			if (jobs.length) self.mobWhitelist[currentMap] = jobs;
-			self._saveSettings();
-			self._renderMobTab();
-		});
-		head.appendChild(selAll);
-		const clearAll = document.createElement('button');
-		clearAll.textContent = '清空';
-		clearAll.style.cssText = btnStyle;
-		clearAll.addEventListener('click', function () {
-			delete self.mobWhitelist[currentMap];
-			self._saveSettings();
-			self._renderMobTab();
-		});
-		head.appendChild(clearAll);
-		wrap.appendChild(head);
+		// —— 地图行（区块标题条同款样式，技能页测量值） ——
+		const mapBar = document.createElement('div');
+		mapBar.style.cssText = 'height:24px;line-height:22px;background:linear-gradient(to bottom,#e3f5ff,#fdffff);border:1px solid #b9c9d8;border-radius:4px;font-size:11px;font-weight:bold;color:#2e4058;text-align:center;';
+		mapBar.textContent = '当前地图：' + currentMap;
+		wrap.appendChild(mapBar);
 
-		// 勾选清单（本会话视野内发现的魔物，按种族 ID 去重）
+		// —— 清单容器：白底圆角（与格子同款边框语言） ——
+		const listBox = document.createElement('div');
+		listBox.style.cssText = 'border:1px solid #a8b3bd;border-radius:5px;background:#ffffff;padding:4px 6px;display:flex;flex-direction:column;gap:1px;';
+
 		const seen = this._seenMobs[currentMap] || {};
 		const jobs = Object.keys(seen).map(Number).filter(j => j > 0).sort((a, b) => a - b);
 		const wl = this.mobWhitelist[currentMap] || [];
 
 		if (jobs.length === 0) {
 			const empty = document.createElement('div');
-			empty.style.cssText = 'font-size:10px;color:#4a7ab5;padding:4px 0;';
-			empty.textContent = '本会话尚未在此图发现魔物；走近魔物后自动加入清单。';
-			wrap.appendChild(empty);
+			empty.style.cssText = 'font-size:10px;color:#4a7ab5;padding:2px 0;';
+			empty.textContent = '尚未发现魔物；走近魔物后清单自动累加（约 1 秒刷新）。';
+			listBox.appendChild(empty);
 		} else {
-			const list = document.createElement('div');
-			list.style.cssText = 'display:flex;flex-direction:column;gap:1px;';
 			jobs.forEach(function (job) {
 				const row = document.createElement('label');
-				row.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;color:#2e4058;cursor:pointer;padding:1px 0;';
+				row.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:#2e4058;cursor:pointer;padding:2px 2px;border-bottom:1px dotted #e2ecf4;';
 				const cb = document.createElement('input');
 				cb.type = 'checkbox';
 				cb.checked = wl.indexOf(job) !== -1;
@@ -1984,19 +1992,49 @@ class BotAutoHunt {
 					self._saveSettings();
 				});
 				row.appendChild(cb);
-				row.appendChild(document.createTextNode(DB.getMonsterName(job) + '（×' + seen[job] + '）'));
-				list.appendChild(row);
+				row.appendChild(document.createTextNode(DB.getMonsterName(job)));
+				const cnt = document.createElement('span');
+				cnt.style.cssText = 'margin-left:auto;font-size:10px;color:#8aa5c0;';
+				cnt.textContent = '×' + seen[job];
+				row.appendChild(cnt);
+				listBox.appendChild(row);
 			});
-			wrap.appendChild(list);
 		}
+		wrap.appendChild(listBox);
 
-		// 语义说明
+		// —— 操作行：全选/清空（页签同款按钮样式） ——
+		const btnRow = document.createElement('div');
+		btnRow.style.cssText = 'display:flex;gap:6px;';
+		const btnStyle = 'flex:1;padding:2px 0;font-size:11px;border:1px solid #9db8d2;border-radius:3px;background:linear-gradient(to bottom,#ffffff,#d5e2ee);cursor:pointer;color:#1a3a5c;';
+		const selAll = document.createElement('button');
+		selAll.textContent = '全选';
+		selAll.style.cssText = btnStyle;
+		selAll.addEventListener('click', function () {
+			const seenNow = self._seenMobs[currentMap] || {};
+			const allJobs = Object.keys(seenNow).map(Number).filter(j => j > 0);
+			if (allJobs.length) self.mobWhitelist[currentMap] = allJobs;
+			self._saveSettings();
+			self._renderMobTab();
+		});
+		btnRow.appendChild(selAll);
+		const clearAll = document.createElement('button');
+		clearAll.textContent = '清空';
+		clearAll.style.cssText = btnStyle;
+		clearAll.addEventListener('click', function () {
+			delete self.mobWhitelist[currentMap];
+			self._saveSettings();
+			self._renderMobTab();
+		});
+		btnRow.appendChild(clearAll);
+		wrap.appendChild(btnRow);
+
+		// —— 语义说明 ——
 		const info = document.createElement('div');
 		info.style.cssText = 'border-top:1px dotted #b9c6d2;padding-top:3px;font-size:10px;color:#4a7ab5;line-height:1.4;';
 		info.innerHTML =
 			'名单为空 = 不过滤，攻击所有魔物；勾选后只攻击名单内魔物。<br/>' +
 			'场上只剩名单外魔物时按无怪处理（触发飞翅/巡逻）。<br/>' +
-			'清单为本次会话在此图视野内发现的魔物；勾选按地图记忆。';
+			'清单随视野自动累加（约 1 秒刷新）；勾选按地图记忆。';
 		wrap.appendChild(info);
 
 		return wrap;

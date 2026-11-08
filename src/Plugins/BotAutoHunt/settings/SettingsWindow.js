@@ -328,12 +328,14 @@ export function createSettingsComponent(opts) {
 		if (topbar) {
 			this.draggable(topbar); // 僅頂部條拖拽，內容區文字保持可選中
 		}
-		bindSettingsBehavior(root, function () {
+		const behavior = bindSettingsBehavior(root, function () {
 			comp.remove();
 			if (typeof opts_.onClose === 'function') opts_.onClose();
 		}, function (tabIndex) {
 			if (typeof opts_.onReset === 'function') opts_.onReset(tabIndex);
 		});
+		// T4: 暴露当前页签索引（魔物清单扫描轮询判断是否需要重建列表）
+		Component.getActiveIndex = behavior.getActiveIndex;
 	};
 
 	/** 取指定頁籤內容根元素（供外部填充頁籤內容，index 對應 buildSettingsHTML 順序） */
