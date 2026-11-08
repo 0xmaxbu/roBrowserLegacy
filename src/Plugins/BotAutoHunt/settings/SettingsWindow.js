@@ -286,6 +286,11 @@ export function createSettingsComponent(opts) {
 		});
 	};
 
+	/** 取指定頁籤內容根元素（供外部填充頁籤內容，index 對應 buildSettingsHTML 順序） */
+	Component.getPane = function (index) {
+		return this._shadow.querySelector('.botsw-pane[data-index="' + index + '"]');
+	};
+
 	return Component;
 }
 

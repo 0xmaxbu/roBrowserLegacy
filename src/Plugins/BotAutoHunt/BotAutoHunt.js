@@ -35,6 +35,7 @@ import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_P
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import { createSettingsComponent } from './settings/SettingsWindow.js'; // T1: 官方样式设置窗口（GUIComponent，8 页签）
+import { migrateSettings, slotReady, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2: schema v2 结构迁移 + 每槽延迟判定
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
 import MAP_CONNECTIONS from './data/map-connections.json'; // 由 tools/client/generate-map-connections.mjs 生成
 import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
@@ -282,6 +283,9 @@ class BotAutoHunt {
 		this._floatMiss = 0; // 连续离场计数（防过图瞬间闪烁）
 		this._floatHit = 0; // 连续在场计数（防选角→地图黑屏瞬时态闪现）
 		this._toastTimer = null; // toast 消失定时器
+		// ---------- schema v2（T2）：8 槽（攻击组 0-3 / 辅助组 4-7）+ 每槽延迟 ----------
+		this.slotDelays = new Array(TOTAL_SLOT_COUNT).fill(0); // 每槽施放延迟 ms，0=仅引擎默认限速
+		this._slotLastCast = {}; // 槽下标 → 上次施放时间戳
 		this._createFloatingButton();
 		this._startFloatLifecyclePoll();
 
@@ -1004,6 +1008,10 @@ class BotAutoHunt {
 		this._refreshCells('aux', this.auxList);
 		// 同步悬浮开关高亮态（active 状态变更均会路过此处）
 		this._updateFloatBtnState();
+		// 同步设置窗口技能页签（T2：新窗口编辑下拉写入后回填 UI）
+		if (this._settingsComp && this._settingsComp._host && this._settingsComp._host.parentNode) {
+			this._renderSkillTab();
+		}
 	}
 
 	_refreshCells(slot, list) {
@@ -1272,17 +1280,19 @@ class BotAutoHunt {
 			// ① playerInWorld：玩家实体已加入 EntityManager（选角/黑屏早段为 false）
 			// ② z0 渲染画布已挂载：Renderer.show()（引擎注释 "Display game"）时才发生，
 			//    此前玩家实体可能早已入列（实测早 ~11.5s），黑屏期两者不同真。
-			var hasEntity = !!(Session.Entity && Session.Entity.GID);
-			var playerInWorld = hasEntity && !!EntityManager.get(Session.Entity.GID);
-			var z0Canvas = false;
-			var canvases = document.querySelectorAll('body > canvas');
-			for (var i = 0; i < canvases.length; i++) {
+			const hasEntity = !!(Session.Entity && Session.Entity.GID);
+			const playerInWorld = hasEntity && !!EntityManager.get(Session.Entity.GID);
+			let z0Canvas = false;
+			const canvases = document.querySelectorAll('body > canvas');
+			for (let i = 0; i < canvases.length; i++) {
 				if (canvases[i].style.zIndex === '0') {
 					z0Canvas = true;
 					break;
 				}
 			}
-			var inGame = playerInWorld && z0Canvas && !document.querySelector('#WinLoginV2');
+			const inGame = playerInWorld && z0Canvas && !document.querySelector('#WinLoginV2');
+			// 调试探针（长期保留：显示时序问题可用 _lastSignal 取分量时间线）
+			this._lastSignal = { inGame: inGame, gid: hasEntity ? Session.Entity.GID : 0, playerInWorld: playerInWorld, z0Canvas: z0Canvas, winLogin: !!document.querySelector('#WinLoginV2') };
 			const btn = this._floatBtn;
 			if (!btn) return;
 			const visible = btn.style.display !== 'none';
@@ -1339,6 +1349,112 @@ class BotAutoHunt {
 			});
 		}
 		this._settingsComp.append();
+		this._renderSkillTab();
+	}
+
+	// =================================================================
+	// 设置窗口技能页签（T2：4+4 槽 + 每槽延迟）
+	// =================================================================
+
+	/** 渲染技能页签内容（存进新窗口 pane[2]；旧面板仍由 _refreshCells 同步，过渡期双显示） */
+	_renderSkillTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(2);
+		if (!pane) return;
+		pane.innerHTML = '';
+		pane.appendChild(this._buildSkillTabContent());
+	}
+
+	/** 构建 4+4 技能槽编辑器（攻击组 0-3 / 辅助组 4-7，每格含等级选择与延迟输入） */
+	_buildSkillTabContent() {
+		const self = this;
+		const wrap = document.createElement('div');
+		wrap.style.cssText = 'padding:8px;display:flex;flex-direction:column;gap:10px;text-align:left;';
+
+		const groups = [
+			{ label: '攻击技能（对目标施放）', offset: 0 },
+			{ label: '辅助技能（增益自动维持）', offset: 4 }
+		];
+
+		groups.forEach(function (g) {
+			const label = document.createElement('div');
+			label.style.cssText = 'font-size:11px;font-weight:bold;color:#1a3a5c;margin-bottom:3px;';
+			label.textContent = g.label;
+			wrap.appendChild(label);
+
+			const cells = document.createElement('div');
+			cells.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px;';
+			for (let gi = 0; gi < 4; gi++) {
+				cells.appendChild(self._buildSkillSlotCell(g.offset + gi));
+			}
+			wrap.appendChild(cells);
+		});
+
+		const note = document.createElement('div');
+		note.style.cssText = 'font-size:10px;color:#7a94ad;';
+		note.textContent = '延迟 = 该槽施放间隔（毫秒，0 = 仅受引擎攻击间隔限制）';
+		wrap.appendChild(note);
+		return wrap;
+	}
+
+	/** 单个技能槽编辑器（点击选技能，含等级选择；延迟输入框实时生效） */
+	_buildSkillSlotCell(flatIdx) {
+		const self = this;
+		const skill = this.skillList[flatIdx];
+		const delay = this.slotDelays[flatIdx] || 0;
+
+		const cell = document.createElement('div');
+		cell.style.cssText =
+			'border:1px solid #9db8d2;border-radius:4px;background:#f4f9fd;padding:4px;' +
+			'cursor:pointer;text-align:center;min-height:52px;user-select:none;';
+
+		const nameEl = document.createElement('div');
+		nameEl.style.cssText = 'font-size:10px;color:#1a3a5c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+		const lvlEl = document.createElement('div');
+		lvlEl.style.cssText = 'font-size:10px;color:#5a7a9c;';
+
+		if (skill && skill.id) {
+			const available = this._getAvailableSkills().find(x => x.id === skill.id);
+			nameEl.textContent = available ? available.name : '技能 ' + skill.id;
+			const max = (available && available.level) || skill.maxLevel || skill.level || 1;
+			lvlEl.textContent = 'Lv ' + (skill.level || 1) + '/' + max;
+			cell.style.borderColor = '#6f94b8';
+			cell.style.background = '#eaf3fb';
+		} else {
+			nameEl.textContent = '＋ 点击设置';
+			nameEl.style.color = '#9db8d2';
+			lvlEl.textContent = '';
+		}
+		cell.appendChild(nameEl);
+		cell.appendChild(lvlEl);
+
+		const delayRow = document.createElement('div');
+		delayRow.style.cssText = 'display:flex;align-items:center;gap:2px;margin-top:2px;font-size:10px;color:#5a7a9c;';
+		delayRow.appendChild(document.createTextNode('延迟'));
+		const input = document.createElement('input');
+		input.type = 'number';
+		input.min = '0';
+		input.step = '100';
+		input.value = String(delay);
+		input.style.cssText = 'width:46px;padding:0 2px;font-size:10px;border:1px solid #9db8d2;border-radius:2px;';
+		input.addEventListener('mousedown', e => e.stopPropagation());
+		input.addEventListener('click', e => e.stopPropagation());
+		input.addEventListener('change', function () {
+			const v = Math.max(0, Math.round(+input.value || 0));
+			input.value = String(v);
+			self.slotDelays[flatIdx] = v;
+			self._saveSettings();
+		});
+		delayRow.appendChild(input);
+		delayRow.appendChild(document.createTextNode('ms'));
+		cell.appendChild(delayRow);
+
+		cell.addEventListener('click', function (e) {
+			if (e.target === input) return;
+			self._openDropdown('skill', flatIdx, cell);
+		});
+
+		return cell;
 	}
 
 	/** 面板内开始/停止按钮 — 同一按钮的两个状态切换 */
@@ -1737,12 +1853,18 @@ class BotAutoHunt {
 		if (Session.Entity.amotionTick > Date.now()) return;
 
 		// 6. 遍历技能列表 — 攻击型 / 治疗型(对不死系怪物当攻击用，D2 #13)
-		for (const skill of this.skillList) {
+		// T2: 每槽延迟（skillDelays[idx] ms，0=仅 amotion 引擎限速）
+		const nowTs = Date.now();
+		for (let idx = 0; idx < this.skillList.length; idx++) {
+			const skill = this.skillList[idx];
 			if (!skill || !skill.id) continue;
 			if (skill.type === SKILL_TYPE_ATTACK || skill.type === SKILL_TYPE_HEAL) {
 				// SP 不足 → 跳过此技能（防止技能失败后每 tick 重试刷屏）
 				if (skill.spcost && Session.Entity.life && Session.Entity.life.sp < skill.spcost) continue;
+				// 每槽延迟：未到期则跳过该槽，尝试下一槽
+				if (!slotReady(nowTs, this._slotLastCast[idx] || 0, this.slotDelays[idx] || 0)) continue;
 				SkillTargetSelection.onUseSkillToId(skill.id, skill.level || 1, target.GID);
+				this._slotLastCast[idx] = nowTs;
 				return; // 释放一个技能后等下一 tick
 			}
 		}
@@ -1820,14 +1942,17 @@ class BotAutoHunt {
 					break;
 				}
 			}
-			// 2b. 治疗技能(对自己释放，1s 冷却)
-			for (const skill of this.skillList) {
+			// 2b. 治疗技能(对自己释放，1s 冷却，另受所在槽延迟约束)
+			for (let idx = 0; idx < this.skillList.length; idx++) {
+				const skill = this.skillList[idx];
 				if (!skill || skill.type !== SKILL_TYPE_HEAL) continue;
 				if (skill.spcost && sp < skill.spcost) continue;
+				if (!slotReady(Date.now(), this._slotLastCast[idx] || 0, this.slotDelays[idx] || 0)) continue;
 				const key = 'skill_' + skill.id;
 				if (this._isOnCooldown(key)) continue;
 				SkillTargetSelection.onUseSkillToId(skill.id, skill.level || 1, Session.Entity.GID);
 				this._markAction(key, 1000);
+				this._slotLastCast[idx] = Date.now();
 				break;
 			}
 		}
@@ -1871,7 +1996,8 @@ class BotAutoHunt {
 		if (!this.active) return;
 		if (!Session.Entity || Session.Entity.isDead()) return;
 
-		for (const skill of this.skillList) {
+		for (let idx = 0; idx < this.skillList.length; idx++) {
+			const skill = this.skillList[idx];
 			if (!skill) continue;
 			if (skill.type !== SKILL_TYPE_BUFF) continue;
 			const efst = _getPrimaryEfst('skills', skill.id);
@@ -1881,6 +2007,9 @@ class BotAutoHunt {
 			if (skill.spcost && currentSp < skill.spcost) continue;
 			const key = 'buff_' + efst;
 			if (this._isOnCooldown(key)) continue;
+			// T2: 每槽延迟（与 efst 冷却取较大值）
+			const slotDelay = this.slotDelays[idx] || 0;
+			if (!slotReady(Date.now(), this._slotLastCast[idx] || 0, slotDelay)) continue;
 			// buff 已消失 → 释放技能（对自己）
 			// 直接发包绕过 onUseSkill 的 amotion 检查（Skill.js:630 在战斗中几乎总是 return）
 			const buffPkt = new PACKET.CZ.USE_SKILL2();
@@ -1888,7 +2017,8 @@ class BotAutoHunt {
 			buffPkt.selectedLevel = skill.level || 1;
 			buffPkt.targetID = Session.Entity.GID;
 			Network.sendPacket(buffPkt);
-			this._markAction(key, 8000); // 8s: 5s 施法 + 3s 网络/注册缓冲
+			this._markAction(key, Math.max(8000, slotDelay)); // 8s: 5s 施法 + 3s 网络/注册缓冲
+			this._slotLastCast[idx] = Date.now();
 			this._castingUntil = Date.now() + 8000; // 抑制巡逻移动
 			return;
 		}
@@ -2278,8 +2408,12 @@ class BotAutoHunt {
 		this._showMsg(msg, '#c03030', 3000);
 	}
 
-	/** 面板内信息消息 — 灰色文字，2 秒后消失 */
+	/** 面板内信息消息 — 灰色文字，2 秒后消失（面板隐藏时降级 toast） */
 	_showInfo(msg) {
+		if (!this._panel) {
+			this._showToast(msg);
+			return;
+		}
 		this._showMsg(msg, '#484848', 2000);
 	}
 
@@ -2367,70 +2501,89 @@ class BotAutoHunt {
 	}
 
 	_loadSettings() {
+		let s = null;
 		try {
 			const raw = localStorage.getItem(this._getStorageKey());
-			if (raw) {
-				const s = JSON.parse(raw);
-				this.hpThreshold = s.hp ?? 70;
-				this.spThreshold = s.sp ?? 30;
-				this.skillList = s.skills ?? [];
-				this.auxList = s.aux ?? [];
-				this.followEnabled = s.follow ?? false;
-				this.followTarget = s.followTarget ?? '';
-
-				// WR-03/WR-04 fix: 一次性迁移旧保存数据
-				// 旧版本没有 HEAL 分类和 HP/SP subtype，需要重分类/补字段
-				let migrated = false;
-				for (const skill of this.skillList) {
-					if (skill && skill.type === SKILL_TYPE_ATTACK && HEAL_SKILL_IDS.has(skill.id)) {
-						skill.type = SKILL_TYPE_HEAL;
-						migrated = true;
-					}
-					// Bug 3 fix: ATTACK → BUFF 迁移（旧版保存时 EFST 分类尚未生效）
-					if (skill && skill.type === SKILL_TYPE_ATTACK && _isBuff('skills', skill.id)) {
-						skill.type = SKILL_TYPE_BUFF;
-						migrated = true;
-					}
-				}
-				for (const aux of this.auxList) {
-					if (aux && aux.type === AUX_TYPE_POTION && !aux.subtype) {
-						aux.subtype = _getPotionRestoreType(aux.id) || 'hp';
-						migrated = true;
-					}
-					// Bug 3 fix: POTION → BUFF_ITEM 迁移
-					if (aux && aux.type === AUX_TYPE_POTION && _isBuff('items', aux.id)) {
-						aux.type = AUX_TYPE_BUFF_ITEM;
-						migrated = true;
-					}
-				}
-				if (migrated) this._saveSettings();
-				this.flyNoMobs = s.flyNoMobs ?? false;
-				this.flyLowHp = s.flyLowHp ?? false;
-				this.autoPotion = s.autoPotion ?? false;
-				return;
-			}
+			if (raw) s = JSON.parse(raw);
 		} catch (_) {
-			// 损坏 JSON → 回退默认值，不崩溃
+			s = null; // 损坏 JSON → 回退默认值，不崩溃
 		}
-		this.hpThreshold = 70;
-		this.spThreshold = 30;
-		this.skillList = [];
-		this.auxList = [];
-		this.followEnabled = false;
-		this.followTarget = '';
-		this.flyNoMobs = false;
-		this.flyLowHp = false;
-		this.autoPotion = false;
+
+		if (s && typeof s === 'object') {
+			const skills = Array.isArray(s.skills) ? s.skills : [];
+			const aux = Array.isArray(s.aux) ? s.aux : [];
+
+			// WR-03/WR-04 fix: 分类迁移（依赖游戏数据 HEAL_SKILL_IDS/efst-map，
+			// 必须在结构迁移前完成——schema.js 是零游戏依赖纯模块）
+			let migrated = false;
+			for (const skill of skills) {
+				if (skill && skill.type === SKILL_TYPE_ATTACK && HEAL_SKILL_IDS.has(skill.id)) {
+					skill.type = SKILL_TYPE_HEAL;
+					migrated = true;
+				}
+				// Bug 3 fix: ATTACK → BUFF 迁移（旧版保存时 EFST 分类尚未生效）
+				if (skill && skill.type === SKILL_TYPE_ATTACK && _isBuff('skills', skill.id)) {
+					skill.type = SKILL_TYPE_BUFF;
+					migrated = true;
+				}
+			}
+			for (const a of aux) {
+				if (a && a.type === AUX_TYPE_POTION && !a.subtype) {
+					a.subtype = _getPotionRestoreType(a.id) || 'hp';
+					migrated = true;
+				}
+				// Bug 3 fix: POTION → BUFF_ITEM 迁移
+				if (a && a.type === AUX_TYPE_POTION && _isBuff('items', a.id)) {
+					a.type = AUX_TYPE_BUFF_ITEM;
+					migrated = true;
+				}
+			}
+
+			// T2: schema v2 结构迁移（纯函数：重排 4+4 + 每槽延迟 + 版本号）
+			const s2 = migrateSettings({
+				hp: s.hp,
+				sp: s.sp,
+				skills: skills,
+				aux: aux,
+				slotDelays: s.slotDelays,
+				follow: s.follow,
+				followTarget: s.followTarget,
+				flyNoMobs: s.flyNoMobs,
+				flyLowHp: s.flyLowHp,
+				autoPotion: s.autoPotion
+			});
+			this._applySettings(s2);
+			if (migrated || s.v !== SCHEMA_VERSION) this._saveSettings();
+			return;
+		}
+
+		this._applySettings(migrateSettings(null));
+	}
+
+	/** 应用规范化后的 v2 设置对象 */
+	_applySettings(s2) {
+		this.hpThreshold = s2.hp;
+		this.spThreshold = s2.sp;
+		this.skillList = s2.skills;
+		this.auxList = s2.aux;
+		this.slotDelays = s2.slotDelays;
+		this.followEnabled = s2.follow;
+		this.followTarget = s2.followTarget;
+		this.flyNoMobs = s2.flyNoMobs;
+		this.flyLowHp = s2.flyLowHp;
+		this.autoPotion = s2.autoPotion;
 	}
 
 	_saveSettings() {
 		localStorage.setItem(
 			this._getStorageKey(),
 			JSON.stringify({
+				v: SCHEMA_VERSION,
 				hp: this.hpThreshold,
 				sp: this.spThreshold,
 				skills: this.skillList,
 				aux: this.auxList,
+				slotDelays: this.slotDelays,
 				follow: this.followEnabled,
 				followTarget: this.followTarget,
 				flyNoMobs: this.flyNoMobs,
