@@ -997,6 +997,10 @@ class BotAutoHunt {
 	 * D2 #17: 消耗品 count <= 0 → icon 变灰
 	 */
 	_refreshPanel() {
+		// T2: 设置窗口技能页签同步（不依赖旧面板存在，须在早退之前）
+		if (this._settingsComp && this._settingsComp._host && this._settingsComp._host.parentNode) {
+			this._renderSkillTab();
+		}
 		if (!this._panel) return;
 
 		// 切换 toggle 按钮文字
@@ -1404,6 +1408,7 @@ class BotAutoHunt {
 		const delay = this.slotDelays[flatIdx] || 0;
 
 		const cell = document.createElement('div');
+		cell.className = 'skilltab-cell';
 		cell.style.cssText =
 			'border:1px solid #9db8d2;border-radius:4px;background:#f4f9fd;padding:4px;' +
 			'cursor:pointer;text-align:center;min-height:52px;user-select:none;';
