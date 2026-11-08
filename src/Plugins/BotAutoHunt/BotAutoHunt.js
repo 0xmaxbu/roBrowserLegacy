@@ -35,7 +35,7 @@ import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_P
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import { createSettingsComponent } from './settings/SettingsWindow.js'; // T1: 官方样式设置窗口（GUIComponent，8 页签）
-import { migrateSettings, slotReady, evaluateThresholds, mobInWhitelist, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2: schema v2 + T3: 阈值决策 + T4: 白名单判定
+import { migrateSettings, slotReady, evaluateThresholds, mobInWhitelist, decideNoMobAction, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2-T5: 纯函数（迁移/槽延迟/阈值/白名单/无怪回落链）
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
 import MAP_CONNECTIONS from './data/map-connections.json'; // 由 tools/client/generate-map-connections.mjs 生成
 import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
@@ -69,6 +69,7 @@ function _getPotionRestoreType(id) {
 }
 
 import SkillInfo from 'DB/Skills/SkillInfo.js'; // 技能名解析 (SkillName 字段)
+import SK from 'DB/Skills/SkillConst.js'; // T5: AL_TELEPORT 瞬移技能常量
 import SkillListUI from 'UI/Components/SkillList/SkillList.js'; // getUI().getList() 技能下拉数据源 (R4-问题6)
 
 // =====================================================================
@@ -288,6 +289,8 @@ class BotAutoHunt {
 		this.normalAttack = true; // T2: 无技能可用时允许普通攻击（法系职业可关闭，避免近身普攻）
 		this.mobWhitelist = {}; // T4: 魔物白名单（按地图记忆 { 地图名: [种族ID...] }，空=不过滤）
 		this._seenMobs = {}; // T4: 本会话见过的魔物清单（按地图，运行时内存，不持久化）
+		this.noMobSeconds = 5; // T5: 无怪触发秒数（1-60，回落链触发等待）
+		this.returnToMap = true; // T5: 被传送后返回挂机地图（关闭则就地继续）
 		this._slotLastCast = {}; // 槽下标 → 上次施放时间戳
 		this._createFloatingButton();
 		this._startFloatLifecyclePoll();
@@ -593,6 +596,7 @@ class BotAutoHunt {
 			flyNoMobsCb.addEventListener('change', e => {
 				this.flyNoMobs = e.target.checked;
 				this._saveSettings();
+				this._syncMoveTab(); // T5: 双向同步
 			});
 		}
 		const flyLowHpCb = p.querySelector('.bot-fly-lowhp');
@@ -600,6 +604,7 @@ class BotAutoHunt {
 			flyLowHpCb.addEventListener('change', e => {
 				this.flyLowHp = e.target.checked;
 				this._saveSettings();
+				this._syncMoveTab(); // T5: 双向同步
 			});
 		}
 		// #13 fix: 独立自动药水开关
@@ -1026,6 +1031,7 @@ class BotAutoHunt {
 			this._renderSkillTab();
 			this._renderBasicTab();
 			this._renderMobTab();
+			this._renderMoveTab();
 		}
 		if (!this._panel) return;
 
@@ -1043,6 +1049,7 @@ class BotAutoHunt {
 			this._renderSkillTab();
 			this._renderBasicTab();
 			this._renderMobTab();
+			this._renderMoveTab();
 		}
 	}
 
@@ -1385,6 +1392,7 @@ class BotAutoHunt {
 		this._renderSkillTab();
 		this._renderBasicTab();
 		this._renderMobTab();
+		this._renderMoveTab();
 	}
 
 	// =================================================================
@@ -1518,6 +1526,150 @@ class BotAutoHunt {
 		if (spVal) spVal.textContent = this.spThreshold + '%';
 		const ap = pane.querySelector('.basictab-auto-potion');
 		if (ap && ap.checked !== this.autoPotion) ap.checked = this.autoPotion;
+	}
+
+	// =================================================================
+	// 移动设定页（T5：无怪回落链/触发秒数/低血保命/返回挂机图开关）
+	// =================================================================
+
+	/** 渲染移动设定页内容（存进 pane[5]；flyNoMobs/flyLowHp 与旧面板双向同步） */
+	_renderMoveTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(5);
+		if (!pane) return;
+		if (pane.contains(document.activeElement)) return; // 输入进行中不重建
+		pane.innerHTML = '';
+		pane.appendChild(this._buildMoveTabContent());
+	}
+
+	/** T5: 瞬移技能是否就绪（AL_TELEPORT 已学且当前 SP ≥ 对应等级消耗；施放固定 lv1 随机传送） */
+	_isTeleportReady() {
+		try {
+			const ui = SkillListUI.getUI();
+			if (!ui || typeof ui.getList !== 'function') return false;
+			const skills = ui.getList();
+			if (!Array.isArray(skills)) return false;
+			for (const s of skills) {
+				if (s && s.SKID === SK.AL_TELEPORT && s.level > 0) {
+					const cost = (SkillInfo[SK.AL_TELEPORT] && SkillInfo[SK.AL_TELEPORT].SpAmount[s.level - 1]) || 10;
+					const sp = Session.Entity && Session.Entity.life ? Session.Entity.life.sp : 0;
+					return sp >= cost;
+				}
+			}
+			return false;
+		} catch (_) {
+			return false; // 技能列表未就绪时视作不可用
+		}
+	}
+
+	/** T5: 移动设定 → 同步旧面板飞翅勾选（值以 this 为准） */
+	_syncMoveSettingsToOldPanel() {
+		const p = this._panel;
+		if (!p) return;
+		const fn = p.querySelector('.bot-fly-nomobs');
+		if (fn && fn.checked !== this.flyNoMobs) fn.checked = this.flyNoMobs;
+		const fl = p.querySelector('.bot-fly-lowhp');
+		if (fl && fl.checked !== this.flyLowHp) fl.checked = this.flyLowHp;
+	}
+
+	/** T5: 旧面板 → 就地同步移动设定页控件（不重建） */
+	_syncMoveTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(5);
+		if (!pane) return;
+		const noMobSec = pane.querySelector('.movetab-nomob-seconds');
+		if (noMobSec && +noMobSec.value !== this.noMobSeconds) noMobSec.value = String(this.noMobSeconds);
+		const nm = pane.querySelector('.movetab-fly-nomobs');
+		if (nm && nm.checked !== this.flyNoMobs) nm.checked = this.flyNoMobs;
+		const fl = pane.querySelector('.movetab-fly-lowhp');
+		if (fl && fl.checked !== this.flyLowHp) fl.checked = this.flyLowHp;
+		const rt = pane.querySelector('.movetab-return-map');
+		if (rt && rt.checked !== this.returnToMap) rt.checked = this.returnToMap;
+	}
+
+	/** 构建移动设定页（回落链说明 + 无怪秒数 + 三开关） */
+	_buildMoveTabContent() {
+		const self = this;
+		const wrap = document.createElement('div');
+		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
+
+		// —— 回落链说明 + 无怪秒数 ——
+		const chain = document.createElement('div');
+		chain.style.cssText = 'font-size:11px;color:#2e4058;line-height:1.4;';
+		chain.innerHTML = '无怪动作回落链：瞬移（已学且 SP 足够）→ 苍蝇翅膀 → 随机步行';
+		wrap.appendChild(chain);
+
+		const secRow = document.createElement('div');
+		secRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:#2e4058;';
+		secRow.appendChild(document.createTextNode('无怪触发等待：'));
+		const secInput = document.createElement('input');
+		secInput.type = 'number';
+		secInput.className = 'movetab-nomob-seconds';
+		secInput.min = '1';
+		secInput.max = '60';
+		secInput.value = String(self.noMobSeconds);
+		secInput.style.cssText = 'width:40px;height:14px;padding:0 1px;font-size:11px;border:1px solid #c7c7c7;border-radius:2px;background:#fff;';
+		secInput.addEventListener('mousedown', e => e.stopPropagation());
+		secInput.addEventListener('click', e => e.stopPropagation());
+		// 只允许数字：禁小数点/符号/字母（保持 type=number 整数秒语义）
+		secInput.addEventListener('keydown', function (e) {
+			if (e.key.length === 1 && !/^[0-9]$/.test(e.key)) e.preventDefault();
+		});
+		secInput.addEventListener('change', function () {
+			const v = Math.min(60, Math.max(1, Math.round(+secInput.value || 5)));
+			secInput.value = String(v);
+			self.noMobSeconds = v;
+			self._saveSettings();
+		});
+		secRow.appendChild(secInput);
+		secRow.appendChild(document.createTextNode('秒（1-60）'));
+		wrap.appendChild(secRow);
+
+		// —— 三开关 ——
+		function makeSwitch(cls, checked, text) {
+			const row = document.createElement('label');
+			row.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;color:#2e4058;cursor:pointer;';
+			const cb = document.createElement('input');
+			cb.type = 'checkbox';
+			cb.className = cls;
+			cb.checked = checked;
+			row.appendChild(cb);
+			row.appendChild(document.createTextNode(text));
+			return { row: row, cb: cb };
+		}
+
+		const nm = makeSwitch('movetab-fly-nomobs', self.flyNoMobs, '无怪自动移动（回落链生效开关）');
+		nm.cb.addEventListener('change', function () {
+			self.flyNoMobs = nm.cb.checked;
+			self._saveSettings();
+			self._syncMoveSettingsToOldPanel();
+		});
+		wrap.appendChild(nm.row);
+
+		const fl = makeSwitch('movetab-fly-lowhp', self.flyLowHp, '低血保命飞翅（HP<10%：优先苍蝇，次选蝴蝶）');
+		fl.cb.addEventListener('change', function () {
+			self.flyLowHp = fl.cb.checked;
+			self._saveSettings();
+			self._syncMoveSettingsToOldPanel();
+		});
+		wrap.appendChild(fl.row);
+
+		const rt = makeSwitch('movetab-return-map', self.returnToMap, '被传送后返回挂机地图（关闭则就地继续挂机）');
+		rt.cb.addEventListener('change', function () {
+			self.returnToMap = rt.cb.checked;
+			self._saveSettings();
+		});
+		wrap.appendChild(rt.row);
+
+		// —— 语义说明 ——
+		const info = document.createElement('div');
+		info.style.cssText = 'border-top:1px dotted #b9c6d2;padding-top:3px;font-size:10px;color:#4a7ab5;line-height:1.4;';
+		info.innerHTML =
+			'无怪达到等待秒数后按回落链执行；关闭「无怪自动移动」时仅随机步行。<br/>' +
+			'关闭「返回挂机地图」后，异地不再自动回图，药水/飞翅限制同步解除。';
+		wrap.appendChild(info);
+
+		return wrap;
 	}
 
 	// =================================================================
@@ -2149,8 +2301,8 @@ class BotAutoHunt {
 			return;
 		}
 
-		// 1.5. 返回挂机地图 — 不在挂机图上时，寻找传送门回去
-		if (this._huntMapName && currentMap !== this._huntMapName) {
+		// 1.5. 返回挂机地图 — 不在挂机图上时，寻找传送门回去（T5: 可开关，关闭则就地继续）
+		if (this.returnToMap && this._huntMapName && currentMap !== this._huntMapName) {
 			this._returnToHuntMap();
 			return; // 返回途中不执行战斗逻辑
 		}
@@ -2245,11 +2397,23 @@ class BotAutoHunt {
 			} else {
 				// 无怪状态
 				const noMobMs = Date.now() - this._lastMobSeenTick;
-				// 5 秒无怪 + 勾选了飞翅 → 使用苍蝇翅膀
-				if (this.flyNoMobs && noMobMs > 5000) {
-					this._useItemById(ITEM_FLY_WING);
-					this._lastMobSeenTick = Date.now(); // 重置计时
-					return;
+				// T5: 无怪超过设定秒数 → 回落链：瞬移(已学且SP足) → 苍蝇翅膀 → 随机步行
+				if (this.flyNoMobs && noMobMs > this.noMobSeconds * 1000) {
+					const action = decideNoMobAction({
+						flyNoMobs: this.flyNoMobs,
+						teleportReady: this._isTeleportReady()
+					});
+					if (action === 'teleport') {
+						SkillTargetSelection.onUseSkillToId(SK.AL_TELEPORT, 1, Session.Entity.GID);
+						this._lastMobSeenTick = Date.now(); // 重置计时
+						return;
+					}
+					if (action === 'flywing') {
+						this._useItemById(ITEM_FLY_WING);
+						this._lastMobSeenTick = Date.now(); // 重置计时
+						return;
+					}
+					// walk → 落到下方巡逻分支
 				}
 				// 巡逻：角色行走中不重复发指令；停下后立即寻路（短冷却防刷包）
 				if (Session.Entity.action === Session.Entity.ACTION.WALK) {
@@ -2333,8 +2497,9 @@ class BotAutoHunt {
 		if (!Session.Entity || Session.Entity.isDead()) return;
 
 		// 不在挂机地图上时，只保留基础 HP 药水（不用飞翅，不干扰返回逻辑）
+		// T5: 返回开关关闭时不存在返回逻辑，视为始终在挂机图
 		const currentMap = this._getCurrentMapName();
-		const onHuntMap = !this._huntMapName || currentMap === this._huntMapName;
+		const onHuntMap = !this.returnToMap || !this._huntMapName || currentMap === this._huntMapName;
 
 		const life = Session.Entity.life;
 		if (!life) return;
@@ -3017,6 +3182,8 @@ class BotAutoHunt {
 		this.autoPotion = s2.autoPotion;
 		this.normalAttack = s2.normalAttack !== false;
 		this.mobWhitelist = s2.mobWhitelist;
+		this.noMobSeconds = s2.noMobSeconds;
+		this.returnToMap = s2.returnToMap;
 	}
 
 	_saveSettings() {
@@ -3035,7 +3202,9 @@ class BotAutoHunt {
 				flyLowHp: this.flyLowHp,
 				autoPotion: this.autoPotion,
 				normalAttack: this.normalAttack !== false,
-				mobWhitelist: this.mobWhitelist
+				mobWhitelist: this.mobWhitelist,
+				noMobSeconds: this.noMobSeconds,
+				returnToMap: this.returnToMap !== false
 			})
 		);
 	}

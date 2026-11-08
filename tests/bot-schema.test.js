@@ -6,6 +6,7 @@ import {
 	slotReady,
 	evaluateThresholds,
 	mobInWhitelist,
+	decideNoMobAction,
 	SCHEMA_VERSION,
 	TOTAL_SLOT_COUNT
 } from '../src/Plugins/BotAutoHunt/settings/schema.js';
@@ -164,6 +165,24 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 		expect(mobInWhitelist(1002, wl, 'geffen')).toBe(true);
 		expect(mobInWhitelist(1002, null, 'prontera')).toBe(true);
 		expect(mobInWhitelist(1002, undefined, 'prontera')).toBe(true);
+	});
+
+	it('decideNoMobAction：回落链 瞬移→苍蝇→步行，关闭时永远步行', () => {
+		expect(decideNoMobAction({ flyNoMobs: true, teleportReady: true })).toBe('teleport');
+		expect(decideNoMobAction({ flyNoMobs: true, teleportReady: false })).toBe('flywing');
+		expect(decideNoMobAction({ flyNoMobs: false, teleportReady: true })).toBe('walk');
+		expect(decideNoMobAction({ flyNoMobs: false })).toBe('walk');
+		expect(decideNoMobAction({})).toBe('walk');
+	});
+
+	it('noMobSeconds/returnToMap 迁移：秒数钳 1-60 并取整，返回开关缺省开启', () => {
+		expect(migrateSettings({ noMobSeconds: 0 }).noMobSeconds).toBe(1);
+		expect(migrateSettings({ noMobSeconds: 100 }).noMobSeconds).toBe(60);
+		expect(migrateSettings({ noMobSeconds: 7.6 }).noMobSeconds).toBe(8);
+		expect(migrateSettings({}).noMobSeconds).toBe(5);
+		expect(migrateSettings({ noMobSeconds: 'x' }).noMobSeconds).toBe(5);
+		expect(migrateSettings({}).returnToMap).toBe(true);
+		expect(migrateSettings({ returnToMap: false }).returnToMap).toBe(false);
 	});
 
 	it('mobWhitelist 迁移：非法项过滤去重、空数组键丢弃、键截断', () => {

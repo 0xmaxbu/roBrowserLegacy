@@ -53,6 +53,20 @@ export function evaluateThresholds(hpPct, spPct, opts) {
 }
 
 /**
+ * 无怪动作回落链决策（纯函数，T5）：瞬移 → 苍蝇翅膀 → 随机步行
+ * 关闭无怪自动移动时永远步行（保持原巡逻行为）
+ *
+ * @param {{ flyNoMobs?: boolean, teleportReady?: boolean }} opts
+ * @return {'teleport'|'flywing'|'walk'} teleport/flywing 由调用方执行后重置计时；walk 落回巡逻分支
+ */
+export function decideNoMobAction(opts) {
+	const o = opts || {};
+	if (!o.flyNoMobs) return 'walk';
+	if (o.teleportReady) return 'teleport';
+	return 'flywing';
+}
+
+/**
  * 魔物白名单判定（纯函数，T4）
  * 名单为空/未配置 → 不过滤（所有魔物可攻击）；非空 → 仅名单内可攻击
  *
@@ -119,7 +133,10 @@ export function migrateSettings(saved) {
 		}
 	}
 
-		return {
+	// ---- T5: 无怪触发秒数（1-60 整数，缺省 5） ----
+	const rawNoMobSeconds = typeof src.noMobSeconds === 'number' && isFinite(src.noMobSeconds) ? Math.round(src.noMobSeconds) : 5;
+
+	return {
 		v: SCHEMA_VERSION,
 		hp: typeof src.hp === 'number' ? src.hp : 70,
 		sp: typeof src.sp === 'number' ? src.sp : 30,
@@ -132,7 +149,9 @@ export function migrateSettings(saved) {
 		flyLowHp: !!src.flyLowHp,
 		autoPotion: !!src.autoPotion,
 		normalAttack: src.normalAttack !== false, // T2: 普通攻击开关（默认开启；旧档无字段=开启）
-		mobWhitelist: mobWhitelist // T4: 魔物白名单（按地图记忆）
+		mobWhitelist: mobWhitelist, // T4: 魔物白名单（按地图记忆）
+		noMobSeconds: Math.min(60, Math.max(1, rawNoMobSeconds)), // T5: 无怪触发秒数（1-60）
+		returnToMap: src.returnToMap !== false // T5: 被传送后返回挂机地图（默认开启；旧档无字段=开启）
 	};
 }
 
