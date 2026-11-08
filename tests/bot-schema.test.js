@@ -9,6 +9,8 @@ import {
 	decideNoMobAction,
 	matchLootType,
 	validateLootedItem,
+	isCureStatusActive,
+	CURE_WATCH_LISTS,
 	SCHEMA_VERSION,
 	TOTAL_SLOT_COUNT
 } from '../src/Plugins/BotAutoHunt/settings/schema.js';
@@ -247,6 +249,28 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 		expect(s.refineMin).toBe(10);
 		expect(s.cardMin).toBe(0);
 		expect(s.weightPausePct).toBe(100);
+	});
+
+	it('isCureStatusActive：opt2/opt1 位掩码与 efst 图标三通道命中', () => {
+		const ch = { efstMap: { 34: true }, bodyState: 0, healthState: 0x0004 };
+		// 健康位命中（沉默）
+		expect(isCureStatusActive(CURE_WATCH_LISTS.poison, ch)).toBe(true);
+		// 图标命中（幻觉）
+		const ch2 = { efstMap: { 34: true }, bodyState: 0, healthState: 0 };
+		expect(isCureStatusActive(CURE_WATCH_LISTS.poison, ch2)).toBe(true);
+		// 全通道未命中
+		const ch3 = { efstMap: {}, bodyState: 0, healthState: 0 };
+		expect(isCureStatusActive(CURE_WATCH_LISTS.poison, ch3)).toBe(false);
+		// 万能药：诅咒位（0x0002）
+		const ch4 = { efstMap: {}, bodyState: 0, healthState: 0x0002 };
+		expect(isCureStatusActive(CURE_WATCH_LISTS.panacea, ch4)).toBe(true);
+		expect(isCureStatusActive(CURE_WATCH_LISTS.poison, ch4)).toBe(false); // 解毒药不覆盖诅咒
+	});
+
+	it('cureItems 迁移：缺省 0/非法归 0/合法保留', () => {
+		expect(migrateSettings({}).cureItems).toEqual({ poison: 0, panacea: 0 });
+		expect(migrateSettings({ cureItems: { poison: 506, panacea: 525 } }).cureItems).toEqual({ poison: 506, panacea: 525 });
+		expect(migrateSettings({ cureItems: { poison: -1, panacea: 'x' } }).cureItems).toEqual({ poison: 0, panacea: 0 });
 	});
 
 	it('mobWhitelist 迁移：非法项过滤去重、空数组键丢弃、键截断', () => {

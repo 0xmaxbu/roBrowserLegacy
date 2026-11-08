@@ -35,7 +35,7 @@ import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_P
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import { createSettingsComponent } from './settings/SettingsWindow.js'; // T1: 官方样式设置窗口（GUIComponent，8 页签）
-import { migrateSettings, slotReady, evaluateThresholds, mobInWhitelist, decideNoMobAction, matchLootType, validateLootedItem, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2-T6: 纯函数
+import { migrateSettings, slotReady, evaluateThresholds, mobInWhitelist, decideNoMobAction, matchLootType, validateLootedItem, isCureStatusActive, CURE_WATCH_LISTS, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2-T7: 纯函数
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
 import MAP_CONNECTIONS from './data/map-connections.json'; // 由 tools/client/generate-map-connections.mjs 生成
 import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
@@ -296,6 +296,7 @@ class BotAutoHunt {
 		this._lootTick = null; // T6: 捡拾循环定时器
 		this._lootPending = null; // T6: 待校验拾取 { gid, tick }
 		this._lootBlacklist = new Set(); // T6: 本会话不再拾取的地面物品 GID（防捡丢循环）
+		this.cureItems = { poison: 0, panacea: 0 }; // T7: 解除药槽位（物品 ID，0=空）
 		this._slotLastCast = {}; // 槽下标 → 上次施放时间戳
 		this._createFloatingButton();
 		this._startFloatLifecyclePoll();
@@ -1038,6 +1039,7 @@ class BotAutoHunt {
 			this._renderMobTab();
 			this._renderMoveTab();
 			this._renderLootTab();
+			this._renderPotionTab();
 		}
 		if (!this._panel) return;
 
@@ -1057,6 +1059,7 @@ class BotAutoHunt {
 			this._renderMobTab();
 			this._renderMoveTab();
 			this._renderLootTab();
+			this._renderPotionTab();
 		}
 	}
 
@@ -1401,6 +1404,7 @@ class BotAutoHunt {
 		this._renderMobTab();
 		this._renderMoveTab();
 		this._renderLootTab();
+		this._renderPotionTab();
 		this._hookInventoryAdd();
 	}
 
@@ -1535,6 +1539,149 @@ class BotAutoHunt {
 		if (spVal) spVal.textContent = this.spThreshold + '%';
 		const ap = pane.querySelector('.basictab-auto-potion');
 		if (ap && ap.checked !== this.autoPotion) ap.checked = this.autoPotion;
+	}
+
+	// =================================================================
+	// 药水设定页（T7：异常状态解除——解毒药/万能药槽位）
+	// =================================================================
+
+	/** T7: 渲染药水设定页内容（存进 pane[3]；解除药槽位，HP/SP 药水格过渡期仍在旧面板） */
+	_renderPotionTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(3);
+		if (!pane) return;
+		if (pane.contains(document.activeElement)) return;
+		pane.innerHTML = '';
+		pane.appendChild(this._buildPotionTabContent());
+	}
+
+	/** T7: 刷新解除药槽位显示（配置变更后就地更新） */
+	_syncPotionTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(3);
+		if (!pane) return;
+		const poisonCell = pane.querySelector('.curetab-cell-poison .curetab-name');
+		if (poisonCell) poisonCell.textContent = this._getCureSlotLabel('poison');
+		const panaceaCell = pane.querySelector('.curetab-cell-panacea .curetab-name');
+		if (panaceaCell) panaceaCell.textContent = this._getCureSlotLabel('panacea');
+	}
+
+	/** T7: 解除药槽位显示文本 */
+	_getCureSlotLabel(key) {
+		const id = this.cureItems[key];
+		if (!id) return '＋ 点击设置';
+		const info = DB.getItemInfo(id);
+		return (info && info.identifiedDisplayName) || ('Item ' + id);
+	}
+
+	/**
+	 * T7: 解除药专用下拉（无需等级选择；首项为清空）
+	 * 复用 _openDropdown 的定位/外点关闭模式，数据源 = 背包消耗品
+	 */
+	_openCureDropdown(key, anchorCell) {
+		this._closeDropdown();
+		const items = this._getAvailableConsumables();
+		const dd = document.createElement('div');
+		Object.assign(dd.style, {
+			position: 'fixed',
+			zIndex: '300',
+			background: 'white',
+			border: '1px solid #c1c6c2',
+			borderRadius: '5px',
+			padding: '11px',
+			boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+			fontFamily: 'Gulim, Dotum, "Malgun Gothic", sans-serif',
+			maxWidth: '240px',
+			maxHeight: '260px',
+			overflowY: 'auto'
+		});
+		const title = document.createElement('div');
+		title.style.cssText = 'font-size:11px;font-weight:bold;color:#484848;margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid #eee;';
+		title.textContent = key === 'poison' ? '选择解毒药' : '选择万能药';
+		dd.appendChild(title);
+
+		function row(label, onClick) {
+			const el = document.createElement('div');
+			el.style.cssText = 'font-size:11px;color:#333;padding:4px 6px;cursor:pointer;border-radius:2px;';
+			el.textContent = label;
+			el.addEventListener('mouseover', () => { el.style.background = '#e8f0f7'; });
+			el.addEventListener('mouseout', () => { el.style.background = ''; });
+			el.addEventListener('click', onClick);
+			dd.appendChild(el);
+		}
+
+		row('（清空设置）', () => {
+			this.cureItems[key] = 0;
+			this._saveSettings();
+			this._closeDropdown();
+			this._syncPotionTab();
+		});
+		if (items.length === 0) {
+			const empty = document.createElement('div');
+			empty.style.cssText = 'font-size:11px;color:#999;padding:4px 6px;';
+			empty.textContent = '背包中无可用消耗品';
+			dd.appendChild(empty);
+		} else {
+			for (const it of items) {
+				row(it.name + (it.count ? ' ×' + it.count : ''), () => {
+					this.cureItems[key] = it.id;
+					this._saveSettings();
+					this._closeDropdown();
+					this._syncPotionTab();
+				});
+			}
+		}
+
+		this._positionDropdown(dd, anchorCell);
+		document.body.appendChild(dd);
+		this._dropdown = dd;
+		this._dropdownClickHandler = e => {
+			if (!dd.contains(e.target) && !anchorCell.contains(e.target)) this._closeDropdown();
+		};
+		document.addEventListener('mousedown', this._dropdownClickHandler, true);
+	}
+
+	/** T7: 构建药水设定页（异常状态解除双槽 + 语义说明） */
+	_buildPotionTabContent() {
+		const self = this;
+		const wrap = document.createElement('div');
+		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
+
+		const head = document.createElement('div');
+		head.style.cssText = 'font-size:11px;font-weight:bold;color:#2e4058;';
+		head.textContent = '异常状态解除（挂机中检测到即自动使用）：';
+		wrap.appendChild(head);
+
+		const slotDefs = [
+			['poison', 'curetab-cell-poison', '解毒药（中毒/沉默/黑暗/混乱/幻觉）'],
+			['panacea', 'curetab-cell-panacea', '万能药（在解毒基础上增加诅咒）']
+		];
+		slotDefs.forEach(function (sd) {
+			const row = document.createElement('div');
+			row.className = 'curetab-cell-' + sd[0];
+			row.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:#2e4058;';
+			const cell = document.createElement('div');
+			cell.style.cssText = 'border:1px solid #a8b3bd;border-radius:4px;background:#f6fafd;padding:3px 6px;width:150px;font-size:10px;cursor:pointer;text-align:center;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+			const name = document.createElement('span');
+			name.className = 'curetab-name';
+			name.textContent = self._getCureSlotLabel(sd[0]);
+			cell.appendChild(name);
+			cell.addEventListener('click', function () {
+				self._openCureDropdown(sd[0], cell);
+			});
+			row.appendChild(cell);
+			row.appendChild(document.createTextNode(sd[2]));
+			wrap.appendChild(row);
+		});
+
+		const info = document.createElement('div');
+		info.style.cssText = 'border-top:1px dotted #b9c6d2;padding-top:3px;font-size:10px;color:#4a7ab5;line-height:1.4;';
+		info.innerHTML =
+			'状态检测覆盖图标态与 Opt 态（中毒/沉默/黑暗/混乱/诅咒/幻觉等）。<br/>' +
+			'触发后 1 秒冷却防刷；HP/SP 药水格过渡期仍在旧面板（T8 迁移）。';
+		wrap.appendChild(info);
+
+		return wrap;
 	}
 
 	// =================================================================
@@ -2853,6 +3000,24 @@ class BotAutoHunt {
 				}
 			}
 		}
+		// 4. T7: 异常状态自动解除（解毒药优先，其次万能药；1 秒冷却防刷）
+		const channels = {
+			efstMap: this._buffMap,
+			bodyState: Session.Entity.bodyState || 0,
+			healthState: Session.Entity.healthState || 0
+		};
+		if (this.cureItems.poison && !this._isOnCooldown('cure_poison') &&
+			isCureStatusActive(CURE_WATCH_LISTS.poison, channels)) {
+			this._markAction('cure_poison', 1000);
+			this._useItemById(this.cureItems.poison);
+			return;
+		}
+		if (this.cureItems.panacea && !this._isOnCooldown('cure_panacea') &&
+			isCureStatusActive(CURE_WATCH_LISTS.panacea, channels)) {
+			this._markAction('cure_panacea', 1000);
+			this._useItemById(this.cureItems.panacea);
+			return;
+		}
 	}
 
 	// =================================================================
@@ -3458,6 +3623,7 @@ class BotAutoHunt {
 		this.noMobSeconds = s2.noMobSeconds;
 		this.returnToMap = s2.returnToMap;
 		this.loot = s2.loot;
+		this.cureItems = s2.cureItems;
 	}
 
 	_saveSettings() {
@@ -3479,7 +3645,8 @@ class BotAutoHunt {
 				mobWhitelist: this.mobWhitelist,
 				noMobSeconds: this.noMobSeconds,
 				returnToMap: this.returnToMap !== false,
-				loot: this.loot
+				loot: this.loot,
+				cureItems: this.cureItems
 			})
 		);
 	}

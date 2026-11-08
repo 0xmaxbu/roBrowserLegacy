@@ -110,6 +110,30 @@ export function validateLootedItem(item, lootCfg) {
 }
 
 /**
+ * 异常状态解除判定（纯函数，T7）
+ * 三通道任一命中即视为状态活跃：opt1/opt2 位掩码（Opt 通道，无图标状态如中毒）
+ * 或 efst（图标通道，_buffMap 由 StatusIcons.update 钩子维护）
+ *
+ * @param {Array<{efst?: number, opt1?: number, opt2?: number}>} watchList 该解除药覆盖的状态清单
+ * @param {{efstMap: object, bodyState: number, healthState: number}} channels 运行时三通道
+ * @return {boolean}
+ */
+export function isCureStatusActive(watchList, channels) {
+	const ch = channels || {};
+	const map = ch.efstMap || {};
+	const body = ch.bodyState || 0;
+	const health = ch.healthState || 0;
+	const list = Array.isArray(watchList) ? watchList : [];
+	for (const s of list) {
+		if (!s) continue;
+		if (s.opt1 && (body & s.opt1) !== 0) return true;
+		if (s.opt2 && (health & s.opt2) !== 0) return true;
+		if (s.efst && map[s.efst]) return true;
+	}
+	return false;
+}
+
+/**
  * 魔物白名单判定（纯函数，T4）
  * 名单为空/未配置 → 不过滤（所有魔物可攻击）；非空 → 仅名单内可攻击
  *
@@ -199,6 +223,14 @@ export function migrateSettings(saved) {
 		weightPausePct: clampInt(srcLoot.weightPausePct, 0, 100, 90)
 	};
 
+	// ---- T7: 解除药槽位（{ poison: 物品ID, panacea: 物品ID }，0 = 空） ----
+	const srcCure = src.cureItems && typeof src.cureItems === 'object' && !Array.isArray(src.cureItems) ? src.cureItems : {};
+	const normCureId = v => (typeof v === 'number' && v > 0 && isFinite(v)) ? Math.round(v) : 0;
+	const cureItems = {
+		poison: normCureId(srcCure.poison),
+		panacea: normCureId(srcCure.panacea)
+	};
+
 	return {
 		v: SCHEMA_VERSION,
 		hp: typeof src.hp === 'number' ? src.hp : 70,
@@ -215,6 +247,7 @@ export function migrateSettings(saved) {
 		mobWhitelist: mobWhitelist, // T4: 魔物白名单（按地图记忆）
 		noMobSeconds: Math.min(60, Math.max(1, rawNoMobSeconds)), // T5: 无怪触发秒数（1-60）
 		returnToMap: src.returnToMap !== false, // T5: 被传送后返回挂机地图（默认开启；旧档无字段=开启）
+		cureItems: cureItems, // T7: 解除药槽位（按槽记忆物品 ID）
 		loot: loot // T6: 捡拾配置
 	};
 }
@@ -232,5 +265,26 @@ export function slotReady(now, lastCast, delay) {
 	if (!lastCast || lastCast <= 0) return true; // 从未施放 → 可施放
 	return now >= lastCast + delay;
 }
+
+// T7: 解除药覆盖的状态清单（与生成器 efst-map cure 条目同源；opt1/opt2 位见 rAthena status.hpp）
+// 解毒药系（绿色药水等）：中毒/沉默/黑暗/混乱/幻觉（幻觉走图标通道 EFST_ILLUSION=34）
+// 万能药系：在解毒基础上增加诅咒（opt2 0x0002）
+export const CURE_WATCH_LISTS = {
+	poison: [
+		{ opt2: 0x0001 },
+		{ opt2: 0x0004 },
+		{ opt2: 0x0010 },
+		{ opt2: 0x0008 },
+		{ efst: 34 }
+	],
+	panacea: [
+		{ opt2: 0x0001 },
+		{ opt2: 0x0002 },
+		{ opt2: 0x0004 },
+		{ opt2: 0x0008 },
+		{ opt2: 0x0010 },
+		{ efst: 34 }
+	]
+};
 
 export default { SCHEMA_VERSION, migrateSettings, slotReady };
