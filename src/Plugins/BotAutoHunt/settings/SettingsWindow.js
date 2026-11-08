@@ -95,22 +95,23 @@ const CSS_TEXT = `
 
 .botsw-tab {
 	flex: 1 1 auto;
-	padding: 4px 2px;
+	height: 26px;
+	line-height: 24px;
+	padding: 0 2px;
 	cursor: pointer;
-	border: 1px solid #9db8d2;
-	border-bottom: none;
+	border: none;
 	border-radius: 3px 3px 0 0;
-	background: #dce9f5;
-	color: #1a3a5c;
+	color: #2e4058;
 	font-size: 12px;
 	font-family: inherit;
 	text-align: center;
 	white-space: nowrap; /* 页签文字禁止换行（窗口宽度已按 8 页签单行设计） */
+	background-size: 100% 100%;
+	background-color: #dce9f5; /* 位图加载失败兑底 */
+	user-select: none;
 }
 
 .botsw-tab.active {
-	background: #ffffff;
-	border-color: #6f94b8;
 	color: #0d2b4d;
 	font-weight: bold;
 }
@@ -148,7 +149,7 @@ const CSS_TEXT = `
 	padding: 4px 10px; /* 紧凑：官方无滚动条，一页容纳全部内容 */
 	text-align: center;
 	color: #1a3a5c;
-	line-height: 1.4;
+	line-height: 1.2;
 }
 
 /* 底部：初始化（左）/ 關閉（右） */
@@ -192,8 +193,13 @@ export function buildSettingsHTML(tabs, placeholder) {
 	let tabHtml = '';
 	let paneHtml = '';
 	list.forEach(function (tab, index) {
+		// T2: 页签用游戏标准三态位图（achievement_re/tab_*.bmp，GUIComponent data-active 跟随 .active 类自动换图）
 		tabHtml +=
-			'<button class="botsw-tab" data-index="' + index + '">' + tab.label + '</button>';
+			'<button class="botsw-tab" data-index="' + index + '" ' +
+			'data-background="achievement_re/tab_out.bmp" ' +
+			'data-hover="achievement_re/tab_over.bmp" ' +
+			'data-down="achievement_re/tab_press.bmp" ' +
+			'data-active="achievement_re/tab_press.bmp">' + tab.label + '</button>';
 		paneHtml += '<div class="botsw-pane" data-index="' + index + '">' + ph + '</div>';
 	});
 
@@ -225,6 +231,8 @@ export function bindSettingsBehavior(root, onClose, onReset) {
 	const tabs = Array.from(root.querySelectorAll('.botsw-tab'));
 	const panes = Array.from(root.querySelectorAll('.botsw-pane'));
 	let activeIndex = 0;
+	// 页签位图三态由 GUIComponent 构造函数的 _processAllDataAttrs 统一接线
+	// （data-active 的 MutationObserver 监听 .active 类自动换图，此处勿重复调用 processDataAttrs）
 
 	function setActive(index) {
 		activeIndex = index;

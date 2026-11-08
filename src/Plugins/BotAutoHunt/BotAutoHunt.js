@@ -1411,7 +1411,7 @@ class BotAutoHunt {
 	_buildSkillTabContent() {
 		const self = this;
 		const wrap = document.createElement('div');
-		wrap.style.cssText = 'padding:0 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
+		wrap.style.cssText = 'padding:0 4px;display:flex;flex-direction:column;gap:2px;text-align:left;';
 
 		// 官方文案与字号（对照 docs/assets/official-auto-battle/1d95a0f6 逐像素测量）
 		const hint = document.createElement('div');
@@ -1438,7 +1438,7 @@ class BotAutoHunt {
 
 			// 官方格子行：4 格 34×34 等距分布（1fr），条下留白约 16px
 			const cells = document.createElement('div');
-			cells.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);justify-items:center;padding:6px 6px 4px;';
+			cells.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);justify-items:center;padding:4px 6px 2px;';
 			for (let gi = 0; gi < 4; gi++) {
 				cells.appendChild(self._buildSkillSlotCell(g.offset + gi));
 			}
@@ -1449,7 +1449,7 @@ class BotAutoHunt {
 		const naRow = document.createElement('div');
 		naRow.style.cssText = 'display:flex;flex-direction:column;gap:1px;border-top:1px dotted #b9c6d2;padding-top:3px;';
 		const naLine = document.createElement('label');
-		naLine.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;font-weight:bold;color:#2e4058;cursor:pointer;';
+		naLine.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;font-weight:bold;line-height:1.2;color:#2e4058;cursor:pointer;';
 		const naCb = document.createElement('input');
 		naCb.type = 'checkbox';
 		naCb.checked = self.normalAttack !== false;
@@ -1460,7 +1460,7 @@ class BotAutoHunt {
 		naLine.appendChild(naCb);
 		naLine.appendChild(document.createTextNode('普通攻击'));
 		const naHint = document.createElement('div');
-		naHint.style.cssText = 'font-size:10px;color:#4a7ab5;padding-left:18px;';
+		naHint.style.cssText = 'font-size:10px;color:#4a7ab5;padding-left:18px;line-height:1.2;';
 		naHint.textContent = '无技能可用时不接近魔物普攻（法系职业建议关闭）';
 		naRow.appendChild(naLine);
 		naRow.appendChild(naHint);
@@ -1476,13 +1476,13 @@ class BotAutoHunt {
 		const delayMs = this.slotDelays[flatIdx] || 0;
 
 		const unit = document.createElement('div');
-		unit.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;';
+		unit.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:2px;';
 
 		const cell = document.createElement('div');
 		cell.className = 'skilltab-cell';
-		// 官方格子：双层边框圆角（外框 #a8b3bd + 白圈 + 内线 #dce8f2），34×34
+		// 官方格子：双层边框圆角（外框 #a8b3bd + 白圈 + 内线 #dce8f2），34×34（含边框，border-box）
 		cell.style.cssText =
-			'border:1px solid #a8b3bd;border-radius:7px;background:linear-gradient(to bottom,#fdfeff,#f6fafd);padding:0;width:34px;height:34px;' +
+			'box-sizing:border-box;border:1px solid #a8b3bd;border-radius:7px;background:linear-gradient(to bottom,#fdfeff,#f6fafd);padding:0;width:34px;height:34px;' +
 			'cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;position:relative;' +
 			'box-shadow:inset 0 0 0 2px #ffffff, inset 0 0 0 3px #dce8f2;';
 
