@@ -172,7 +172,6 @@ class BotAutoHunt {
 	constructor() {
 		// ---------- 挂机状态 ----------
 		this.active = false;
-		this.panelVisible = false;
 		this.currentPoints = 0;
 		this.timerSec = 0;
 
@@ -232,7 +231,6 @@ class BotAutoHunt {
 		this._buffMap = {};
 
 		// ---------- 面板 DOM ----------
-		this._panel = null; // 面板根 DOM 元素
 		this._dropdown = null; // 当前 dropdown DOM 元素
 		this._dropdownClickHandler = null; // dropdown 外部点击关闭处理器（引用以便清理）
 
@@ -353,79 +351,18 @@ class BotAutoHunt {
 	// =================================================================
 
 	/**
-	 * 切换面板显示。由 BasicInfoV4 的 'bot' 按钮 case 调用。
+	 * 切换设置窗口显示（T8: 旧面板退役后，BasicInfo/ButtonBar 入口按钮 = 打开设置窗口）。
+	 * 挂机启停由悬浮开关左键承担。
 	 */
 	toggle() {
-		this.panelVisible = !this.panelVisible;
-		// 进游戏后 GID 才已知，打开面板时重载一次设置确保 per-character 正确
+		// 进游戏后 GID 才已知，打开窗口时重载一次设置确保 per-character 正确
 		this._loadSettings();
-		if (this.panelVisible) {
-			this._showPanel();
+		if (this._settingsComp && this._settingsComp._host && this._settingsComp._host.parentNode) {
+			this._settingsComp.remove();
 		} else {
-			this._hidePanel();
-		}
-	}
-
-	_showPanel() {
-		if (this._panel) {
-			// 已存在 → 直接显示并刷新当前状态
-			this._panel.style.display = 'block';
-			this._refreshPanel();
+			this._openSettings();
 			this.sendCommand(4); // 立即请求积分更新
-			return;
 		}
-
-		// 构建根 overlay（D-57 用户审核: 复用 RO 原生配色/边框样式，不引入新主题）
-		// R4-问题3-A: 面板用 inline DOM 构建，无独立 .html/.css 文件
-		const panel = document.createElement('div');
-		panel.id = 'bot-autohunt-panel';
-		Object.assign(panel.style, {
-			position: 'fixed',
-			top: '100px',
-			left: '300px',
-			zIndex: '200',
-			background: 'white',
-			border: '1px solid #c1c6c2', // RO 原生边框色 (SkillList.css/NpcMenu.css)
-			borderRadius: '5px',
-			padding: '0',
-			fontFamily: 'Gulim, Dotum, "Malgun Gothic", sans-serif',
-			fontSize: '11px',
-			color: '#484848',
-			boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-			userSelect: 'none',
-			minWidth: '260px'
-		});
-
-		panel.innerHTML = this._buildPanelHTML();
-		document.body.appendChild(panel);
-		this._panel = panel;
-
-		// #1 fix: Block mouse events from bubbling to document/window where
-		// the game's MouseEventHandler lives. Must use BUBBLE phase (false) so
-		// child elements (buttons, cells) still receive events normally.
-		const _stop = e => { e.stopPropagation(); };
-		panel.addEventListener('mousedown', _stop, false);
-		panel.addEventListener('mouseup', _stop, false);
-		panel.addEventListener('click', _stop, false);
-		panel.addEventListener('mousemove', _stop, false);
-		panel.addEventListener('wheel', _stop, false);
-		panel.addEventListener('contextmenu', _stop, false);
-		panel.addEventListener('dblclick', _stop, false);
-
-		this._bindPanelEvents();
-		this._makeDraggable(panel, panel.querySelector('.bot-titlebar'));
-		this._refreshPanel();
-		this.sendCommand(4); // 面板首次打开时立即请求积分
-
-		// #13 fix: 如果 autoPotion 已启用，启动独立药水循环
-		if (this.autoPotion) this._startAutoPotion();
-	}
-
-	_hidePanel() {
-		if (this._panel) {
-			this._panel.style.display = 'none';
-		}
-		this._closeDropdown();
 	}
 
 	/**
@@ -443,197 +380,17 @@ class BotAutoHunt {
 		}
 	}
 
-	_updateButtonLabel() {
-		if (!this._panel) return;
-		const btn = this._panel.querySelector('.bot-toggle-btn');
-		if (btn) btn.textContent = this.active ? '停止挂机' : '开始挂机';
-	}
-
 	/**
 	 * 构建面板内部 HTML（参照 bot-panel-prototype.html 像素级原型）
 	 * 复用 Common.css 的 .ui-btn 按钮样式（D1 决策），其他元素用 inline style
-	 */
-	_buildPanelHTML() {
-		return (
-			'<div class="bot-titlebar" style="height:17px;background:#fff;border-bottom:1px solid #c1c6c2;' +
-			'border-radius:5px 5px 0 0;cursor:move;padding:0 4px;display:flex;' +
-			'align-items:center;justify-content:space-between;">' +
-			'<span style="font-size:11px;font-weight:bold;text-shadow:1px 1px white;">挂机助手</span>' +
-			'<span class="bot-close" style="cursor:pointer;font-size:14px;color:#888;">×</span>' +
-			'</div>' +
-			'<div style="padding:8px;">' +
-			// HP 阈值滑块（D2 用户决策 #1: 0-100）
-			'<div style="margin-bottom:6px;display:flex;align-items:center;gap:4px;">' +
-			'<label style="width:38px;flex-shrink:0;">HP: <span class="hp-val">' + this.hpThreshold + '%</span></label>' +
-			'<input type="range" min="0" max="100" value="' + this.hpThreshold + '" ' +
-			'class="bot-hp-slider" style="flex:1;min-width:0;"></div>' +
-			// SP 阈值滑块
-			'<div style="margin-bottom:8px;display:flex;align-items:center;gap:4px;">' +
-			'<label style="width:38px;flex-shrink:0;">SP: <span class="sp-val">' + this.spThreshold + '%</span></label>' +
-			'<input type="range" min="0" max="100" value="' + this.spThreshold + '" ' +
-			'class="bot-sp-slider" style="flex:1;min-width:0;"></div>' +
-			// 技能列表 6 格
-			'<div style="font-size:11px;font-weight:bold;margin-bottom:2px;">技能列表</div>' +
-			'<div class="bot-skill-grid" style="display:flex;gap:6px;margin-bottom:14px;">' +
-			this._buildCellGrid('skill', 6) + '</div>' +
-			// 消耗品列表 6 格 (#11 rename)
-			'<div style="font-size:11px;font-weight:bold;margin-bottom:2px;">消耗品</div>' +
-			'<div class="bot-aux-grid" style="display:flex;gap:6px;margin-bottom:14px;">' +
-			this._buildCellGrid('aux', 6) + '</div>' +
-			// 跟随 + 飞翅勾选（D2 #11/#12）— checkbox 与文字垂直居中对齐
-			'<div style="margin-bottom:8px;display:flex;gap:10px;align-items:center;">' +
-			'<label style="display:flex;align-items:center;gap:3px;cursor:pointer;">' +
-			'<input type="checkbox" class="bot-follow"' + (this.followEnabled ? ' checked' : '') +
-			' style="margin:0;"> 跟随队友</label>' +
-			'<label style="display:flex;align-items:center;gap:3px;cursor:pointer;">' +
-			'<input type="checkbox" class="bot-fly-nomobs"' + (this.flyNoMobs ? ' checked' : '') +
-			' style="margin:0;"> 无怪飞翅</label>' +
-			'<label style="display:flex;align-items:center;gap:3px;cursor:pointer;">' +
-			'<input type="checkbox" class="bot-fly-lowhp"' + (this.flyLowHp ? ' checked' : '') +
-			' style="margin:0;"> 低血飞翅</label></div>' +
-			// #13 fix: 独立自动药水（不依赖挂机开关）
-			'<div style="margin-bottom:8px;">' +
-			'<label style="display:flex;align-items:center;gap:3px;cursor:pointer;">' +
-			'<input type="checkbox" class="bot-auto-potion"' + (this.autoPotion ? ' checked' : '') +
-			' style="margin:0;"> 自动吃药（独立）</label></div>' +
-			// 按钮行：开始/停止 toggle（同一按钮两状态）+ 离线挂机（D2 #1, D-14b）
-			// 按钮文字减小 2px（11px → 9px）
-			'<div style="display:flex;gap:6px;margin-bottom:6px;">' +
-			'<button class="bot-toggle-btn" style="flex:1;font-size:10px;">' +
-			(this.active ? '停止挂机' : '开始挂机') + '</button>' +
-			'<button class="bot-offline-btn" style="flex:1;font-size:10px;">离线挂机</button></div>' +
-			// 状态栏：挂机时长 + 积分（分两行）
-			'<div style="min-height:14px;">' +
-			'挂机时长: <span class="bot-timer">' + this._formatTime(this.timerSec) + '</span></div>' +
-			'<div style="min-height:14px;">' +
-			'积分: <span class="bot-points">' + this.currentPoints + '</span></div>' +
-			// 消息区（D2 #9: 面板内红色/灰色文字，不阻塞）
-			'<div class="bot-msg" style="min-height:12px;font-size:10px;margin-top:2px;"></div>' +
-			'</div>'
-		);
-	}
 
 	/**
 	 * 构建格子行 HTML（6 个方形格子，+ 号占位，参照 prototype 像素级样式）
 	 * D2 #17: 资源耗尽灰化 — 由 _refreshPanel 根据物品/技能可用性切换 .grayed 类
-	 */
-	_buildCellGrid(slot, count) {
-		let html = '';
-		for (let i = 0; i < count; i++) {
-			html +=
-			'<div class="cell" data-slot="' + slot + '" data-index="' + i + '" ' +
-			'style="width:32px;height:32px;border:1px solid #ccc;border-radius:3px;' +
-			'background:linear-gradient(to bottom,#f5f5f5,#e8e8e8);cursor:pointer;' +
-			'position:relative;display:flex;align-items:center;justify-content:center;' +
-			'transition:border-color 0.15s;">' +
-			'<span class="plus" style="font-size:18px;color:#bbb;line-height:1;">+</span>' +
-			'<div class="icon" style="width:24px;height:24px;display:none;' +
-			'border-radius:2px;background-size:contain;background-repeat:no-repeat;' +
-			'background-position:center;"></div>' +
-			'<span class="cell-level" style="display:none;position:absolute;bottom:-15px;' +
-			'left:50%;transform:translateX(-50%);font-size:11px;font-weight:bold;white-space:nowrap;' +
-			'color:#3a6;padding:0 2px;z-index:5;">' +
-			'</span>' +
-			'<span class="cell-name" style="display:none;position:absolute;bottom:-30px;' +
-			'left:50%;transform:translateX(-50%);font-size:0.55rem;white-space:nowrap;' +
-			'background:rgba(0,0,0,0.7);color:white;padding:1px 3px;border-radius:1px;z-index:10;"></span>' +
-			'</div>';
-		}
-		return html;
-	}
 
 	/**
 	 * 绑定面板内所有事件（HP/SP 滑块、toggle/offline 按钮、勾选项、格子点击）
 	 * R2-07: 所有变更点都触发 _saveSettings 持久化
-	 */
-	_bindPanelEvents() {
-		const p = this._panel;
-
-		// 关闭按钮
-		const closeBtn = p.querySelector('.bot-close');
-		if (closeBtn) closeBtn.addEventListener('click', () => this._hidePanel());
-
-		// HP 滑块
-		const hpSlider = p.querySelector('.bot-hp-slider');
-		if (hpSlider) {
-			hpSlider.addEventListener('input', () => {
-				this.hpThreshold = +hpSlider.value;
-				const hpVal = p.querySelector('.hp-val');
-				if (hpVal) hpVal.textContent = this.hpThreshold + '%';
-				this._saveSettings();
-				this._syncThresholdsToBasicTab(); // T3: 双向同步
-			});
-		}
-
-		// SP 滑块
-		const spSlider = p.querySelector('.bot-sp-slider');
-		if (spSlider) {
-			spSlider.addEventListener('input', () => {
-				this.spThreshold = +spSlider.value;
-				const spVal = p.querySelector('.sp-val');
-				if (spVal) spVal.textContent = this.spThreshold + '%';
-				this._saveSettings();
-				this._syncThresholdsToBasicTab(); // T3: 双向同步
-			});
-		}
-
-		// 开始/停止 toggle（D-14b: 同一按钮两状态）
-		const toggleBtn = p.querySelector('.bot-toggle-btn');
-		if (toggleBtn) {
-			toggleBtn.addEventListener('click', () => this.toggleAutoHunt());
-		}
-
-		// 离线挂机按钮
-		const offlineBtn = p.querySelector('.bot-offline-btn');
-		if (offlineBtn) {
-			offlineBtn.addEventListener('click', () => this.startOffline());
-		}
-
-		// 跟随/飞翅勾选
-		const followCb = p.querySelector('.bot-follow');
-		if (followCb) {
-			followCb.addEventListener('change', e => {
-				this.followEnabled = e.target.checked;
-				this._saveSettings();
-			});
-		}
-		const flyNoMobsCb = p.querySelector('.bot-fly-nomobs');
-		if (flyNoMobsCb) {
-			flyNoMobsCb.addEventListener('change', e => {
-				this.flyNoMobs = e.target.checked;
-				this._saveSettings();
-				this._syncMoveTab(); // T5: 双向同步
-			});
-		}
-		const flyLowHpCb = p.querySelector('.bot-fly-lowhp');
-		if (flyLowHpCb) {
-			flyLowHpCb.addEventListener('change', e => {
-				this.flyLowHp = e.target.checked;
-				this._saveSettings();
-				this._syncMoveTab(); // T5: 双向同步
-			});
-		}
-		// #13 fix: 独立自动药水开关
-		const autoPotionCb = p.querySelector('.bot-auto-potion');
-		if (autoPotionCb) {
-			autoPotionCb.addEventListener('change', e => {
-				this.autoPotion = e.target.checked;
-				this._saveSettings();
-				if (this.autoPotion) this._startAutoPotion();
-				else this._stopAutoPotion();
-				this._syncThresholdsToBasicTab(); // T3: 双向同步
-			});
-		}
-
-		// #10 fix: click slot = open dropdown (to select or change). Clear button is in the dropdown.
-		p.querySelectorAll('.cell').forEach(cell => {
-			cell.addEventListener('click', () => {
-				const slot = cell.dataset.slot;
-				const index = +cell.dataset.index;
-				this._openDropdown(slot, index, cell);
-			});
-		});
-	}
 
 	// =====================================================================
 	// Slot 数据层 — 统一管理 skillList/auxList 的增删改查
@@ -1040,16 +797,8 @@ class BotAutoHunt {
 			this._renderMoveTab();
 			this._renderLootTab();
 			this._renderPotionTab();
+			this._renderServiceTab();
 		}
-		if (!this._panel) return;
-
-		// 切换 toggle 按钮文字
-		this._updateButtonLabel();
-
-		// 刷新技能格子
-		this._refreshCells('skill', this.skillList);
-		// 刷新辅助格子（含数量灰化检查）
-		this._refreshCells('aux', this.auxList);
 		// 同步悬浮开关高亮态（active 状态变更均会路过此处）
 		this._updateFloatBtnState();
 		// 同步设置窗口技能页签（T2：新窗口编辑下拉写入后回填 UI）
@@ -1060,69 +809,10 @@ class BotAutoHunt {
 			this._renderMoveTab();
 			this._renderLootTab();
 			this._renderPotionTab();
+			this._renderServiceTab();
 		}
 	}
 
-	_refreshCells(slot, list) {
-		const cells = this._panel.querySelectorAll('.cell[data-slot="' + slot + '"]');
-		// 获取数据源一次（用于图标和数量检查），避免循环内重复调用
-		const available = slot === 'skill' ? this._getAvailableSkills() : this._getAvailableConsumables();
-		cells.forEach((cell, i) => {
-			const item = list[i];
-			const plus = cell.querySelector('.plus');
-			const icon = cell.querySelector('.icon');
-			const nameEl = cell.querySelector('.cell-name');
-
-			if (item && item.id) {
-				// 已填格子
-				cell.classList.add('filled');
-				cell.classList.remove('grayed');
-				cell.style.borderColor = '#6a8';
-				cell.style.background = 'linear-gradient(to bottom,#f0faf0,#e0f0e0)';
-				if (plus) plus.style.display = 'none';
-				const info = available.find(x => x.id === item.id);
-				if (icon) {
-					icon.style.display = 'block';
-					if (info && info.iconName) {
-						this._loadIcon(icon, info.iconName);
-					}
-				}
-				if (nameEl) nameEl.style.display = 'none';
-
-				// 技能格子显示当前等级 / 最高等级
-				if (slot === 'skill') {
-					const levelEl = cell.querySelector('.cell-level');
-					if (levelEl) {
-						const max = (info && info.level) || item.maxLevel || item.level || 1;
-						levelEl.textContent = item.level + '/' + max;
-						levelEl.style.display = '';
-					}
-				}
-
-				// D2 #17: 消耗品 count <= 0 → 灰化
-				if (slot === 'aux') {
-					if (info && info.count <= 0) {
-						cell.classList.add('grayed');
-						cell.style.opacity = '0.45';
-					} else {
-						cell.classList.remove('grayed');
-						cell.style.opacity = '';
-					}
-				}
-			} else {
-				// 空格子
-				cell.classList.remove('filled', 'grayed');
-				cell.style.borderColor = '#ccc';
-				cell.style.background = 'linear-gradient(to bottom,#f5f5f5,#e8e8e8)';
-				cell.style.opacity = '';
-				if (plus) plus.style.display = '';
-				if (icon) icon.style.display = 'none';
-				if (nameEl) nameEl.style.display = 'none';
-				const levelEl = cell.querySelector('.cell-level');
-				if (levelEl) levelEl.style.display = 'none';
-			}
-		});
-	}
 
 	/**
 	 * 拖拽功能（面板 titlebar 抓手）
@@ -1130,33 +820,6 @@ class BotAutoHunt {
 	 * 关键: mousemove/mouseup 必须挂到 window + capture 阶段，
 	 * 否则面板根的 stopPropagation(bubble) 会拦截 document 上的 drag handler。
 	 */
-	_makeDraggable(element, handle) {
-		if (!handle) return;
-		let startX = 0;
-		let startY = 0;
-		let origX = 0;
-		let origY = 0;
-		let dragging = false;
-		handle.addEventListener('mousedown', e => {
-			// 关闭按钮点击不触发拖拽
-			if (e.target.classList && e.target.classList.contains('bot-close')) return;
-			dragging = true;
-			startX = e.clientX;
-			startY = e.clientY;
-			origX = element.offsetLeft;
-			origY = element.offsetTop;
-			e.preventDefault(); // 防止文本选中
-		});
-		// capture=true: 在面板 stopPropagation 之前截获
-		window.addEventListener('mousemove', e => {
-			if (!dragging) return;
-			element.style.left = origX + e.clientX - startX + 'px';
-			element.style.top = origY + e.clientY - startY + 'px';
-		}, true);
-		window.addEventListener('mouseup', () => {
-			dragging = false;
-		}, true);
-	}
 
 	// =================================================================
 	// 指令发送（三层防重复）
@@ -1405,6 +1068,7 @@ class BotAutoHunt {
 		this._renderMoveTab();
 		this._renderLootTab();
 		this._renderPotionTab();
+		this._renderServiceTab();
 		this._hookInventoryAdd();
 	}
 
@@ -1448,7 +1112,6 @@ class BotAutoHunt {
 			self.hpThreshold = +hpSlider.value;
 			hpVal.textContent = self.hpThreshold + '%';
 			self._saveSettings();
-			self._syncThresholdsToOldPanel();
 		});
 		hpRow.appendChild(hpSlider);
 		wrap.appendChild(hpRow);
@@ -1472,7 +1135,6 @@ class BotAutoHunt {
 			self.spThreshold = +spSlider.value;
 			spVal.textContent = self.spThreshold + '%';
 			self._saveSettings();
-			self._syncThresholdsToOldPanel();
 		});
 		spRow.appendChild(spSlider);
 		wrap.appendChild(spRow);
@@ -1489,7 +1151,6 @@ class BotAutoHunt {
 			self._saveSettings();
 			if (self.autoPotion) self._startAutoPotion();
 			else self._stopAutoPotion();
-			self._syncThresholdsToOldPanel();
 		});
 		apRow.appendChild(apCb);
 		apRow.appendChild(document.createTextNode('自动吃药（低于阈值自动使用设定药水/治疗技能）'));
@@ -1508,21 +1169,6 @@ class BotAutoHunt {
 		return wrap;
 	}
 
-	/** T3: 阈值/自动吃药 → 同步旧面板控件（值以 this 为准，过渡期双端共存） */
-	_syncThresholdsToOldPanel() {
-		const p = this._panel;
-		if (!p) return;
-		const hpSlider = p.querySelector('.bot-hp-slider');
-		if (hpSlider && +hpSlider.value !== this.hpThreshold) hpSlider.value = String(this.hpThreshold);
-		const hpVal = p.querySelector('.hp-val');
-		if (hpVal) hpVal.textContent = this.hpThreshold + '%';
-		const spSlider = p.querySelector('.bot-sp-slider');
-		if (spSlider && +spSlider.value !== this.spThreshold) spSlider.value = String(this.spThreshold);
-		const spVal = p.querySelector('.sp-val');
-		if (spVal) spVal.textContent = this.spThreshold + '%';
-		const ap = p.querySelector('.bot-auto-potion');
-		if (ap && ap.checked !== this.autoPotion) ap.checked = this.autoPotion;
-	}
 
 	/** T3: 旧面板 → 同步基本设定页控件（就地更新，不重建避免打断拖拽） */
 	_syncThresholdsToBasicTab() {
@@ -1553,6 +1199,36 @@ class BotAutoHunt {
 		if (pane.contains(document.activeElement)) return;
 		pane.innerHTML = '';
 		pane.appendChild(this._buildPotionTabContent());
+	}
+
+	/** T8: 单个 HP/SP 药水格（名称+数量显示；点击弹消耗品下拉） */
+	_buildAuxSlotCell(index) {
+		const self = this;
+		const aux = this.auxList[index];
+		const cell = document.createElement('div');
+		cell.style.cssText = 'box-sizing:border-box;border:1px solid #a8b3bd;border-radius:5px;background:#f6fafd;padding:2px;width:36px;height:36px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;user-select:none;';
+		if (aux && aux.id) {
+			const info = DB.getItemInfo(aux.id);
+			const name = document.createElement('span');
+			name.style.cssText = 'font-size:9px;color:#1a3a5c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32px;';
+			name.textContent = (info && info.identifiedDisplayName) || ('Item ' + aux.id);
+			cell.title = name.textContent;
+			const count = document.createElement('span');
+			count.style.cssText = 'font-size:9px;color:#5a7a9c;';
+			count.textContent = '×' + (aux.count != null ? aux.count : '?');
+			cell.appendChild(name);
+			cell.appendChild(count);
+		} else {
+			cell.title = '点击设置药水';
+			const ph = document.createElement('div');
+			ph.textContent = '＋';
+			ph.style.cssText = 'font-size:16px;color:#9db8d2;line-height:1;';
+			cell.appendChild(ph);
+		}
+		cell.addEventListener('click', function () {
+			self._openDropdown('aux', index, cell);
+		});
+		return cell;
 	}
 
 	/** T7: 刷新解除药槽位显示（配置变更后就地更新） */
@@ -1647,7 +1323,25 @@ class BotAutoHunt {
 		const wrap = document.createElement('div');
 		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
 
-		const head = document.createElement('div');
+		// —— T8: HP/SP 药水格迁入（原旧面板消耗品格，自动吃药/阈值触发使用） ——
+		const auxHead = document.createElement('div');
+		auxHead.style.cssText = 'font-size:11px;font-weight:bold;color:#2e4058;';
+		auxHead.textContent = 'HP/SP 药水格（自动吃药与阈值触发使用）：';
+		wrap.appendChild(auxHead);
+
+		const auxGrid = document.createElement('div');
+		auxGrid.style.cssText = 'display:grid;grid-template-columns:repeat(6,1fr);gap:4px;justify-items:center;padding:2px 0;';
+		for (let i = 0; i < 6; i++) {
+			auxGrid.appendChild(self._buildAuxSlotCell(i));
+		}
+		wrap.appendChild(auxGrid);
+
+		const auxNote = document.createElement('div');
+		auxNote.style.cssText = 'font-size:10px;color:#4a7ab5;';
+		auxNote.textContent = '格子按顺序作为自动吃药的候选（依次尝试直到成功）；点击更换物品。';
+		wrap.appendChild(auxNote);
+
+				const head = document.createElement('div');
 		head.style.cssText = 'font-size:11px;font-weight:bold;color:#2e4058;';
 		head.textContent = '异常状态解除（挂机中检测到即自动使用）：';
 		wrap.appendChild(head);
@@ -1679,6 +1373,68 @@ class BotAutoHunt {
 		info.innerHTML =
 			'状态检测覆盖图标态与 Opt 态（中毒/沉默/黑暗/混乱/诅咒/幻觉等）。<br/>' +
 			'触发后 1 秒冷却防刷；HP/SP 药水格过渡期仍在旧面板（T8 迁移）。';
+		wrap.appendChild(info);
+
+		return wrap;
+	}
+
+	// =================================================================
+	// 挂机服务页（T8：离线挂机/积分/时长展示；旧面板退役后唯一入口）
+	// =================================================================
+
+	/** T8: 渲染挂机服务页内容（存进 pane[7]） */
+	_renderServiceTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(7);
+		if (!pane) return;
+		pane.innerHTML = '';
+		pane.appendChild(this._buildServiceTabContent());
+	}
+
+	/** T8: 就地刷新服务页时长/积分显示（每秒计时与积分回包时调用，不重建） */
+	_updateServiceTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(7);
+		if (!pane) return;
+		const t = pane.querySelector('.servicetab-timer');
+		if (t) t.textContent = this._formatTime(this.timerSec);
+		const p = pane.querySelector('.servicetab-points');
+		if (p) p.textContent = String(this.currentPoints);
+	}
+
+	/** T8: 构建挂机服务页（时长/积分/离线挂机按钮） */
+	_buildServiceTabContent() {
+		const self = this;
+		const wrap = document.createElement('div');
+		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
+
+		const timerRow = document.createElement('div');
+		timerRow.style.cssText = 'font-size:11px;color:#2e4058;';
+		timerRow.innerHTML = '本次挂机时长：<span class="servicetab-timer">' + this._formatTime(this.timerSec) + '</span>';
+		wrap.appendChild(timerRow);
+
+		const pointsRow = document.createElement('div');
+		pointsRow.style.cssText = 'font-size:11px;color:#2e4058;';
+		pointsRow.innerHTML = '积分余额：<span class="servicetab-points">' + this.currentPoints + '</span>（每 60 秒自动刷新）';
+		wrap.appendChild(pointsRow);
+
+		const btnRow = document.createElement('div');
+		btnRow.style.cssText = 'display:flex;gap:6px;margin-top:2px;';
+		const btn = document.createElement('button');
+		btn.className = 'servicetab-offline-btn';
+		btn.textContent = '离线挂机';
+		btn.style.cssText = 'flex:1;font-size:11px;padding:3px 0;border:1px solid #9db8d2;border-radius:3px;background:linear-gradient(to bottom,#ffffff,#d5e2ee);cursor:pointer;color:#1a3a5c;';
+		btn.addEventListener('click', function () {
+			self.startOffline();
+		});
+		btnRow.appendChild(btn);
+		wrap.appendChild(btnRow);
+
+		const info = document.createElement('div');
+		info.style.cssText = 'border-top:1px dotted #b9c6d2;padding-top:3px;font-size:10px;color:#4a7ab5;line-height:1.4;';
+		info.innerHTML =
+			'离线挂机将踢下线，收益通过邮件发送（消耗积分）。<br/>' +
+			'挂机启停请使用悬浮开关（左键）。';
 		wrap.appendChild(info);
 
 		return wrap;
@@ -1978,15 +1734,6 @@ class BotAutoHunt {
 		}
 	}
 
-	/** T5: 移动设定 → 同步旧面板飞翅勾选（值以 this 为准） */
-	_syncMoveSettingsToOldPanel() {
-		const p = this._panel;
-		if (!p) return;
-		const fn = p.querySelector('.bot-fly-nomobs');
-		if (fn && fn.checked !== this.flyNoMobs) fn.checked = this.flyNoMobs;
-		const fl = p.querySelector('.bot-fly-lowhp');
-		if (fl && fl.checked !== this.flyLowHp) fl.checked = this.flyLowHp;
-	}
 
 	/** T5: 旧面板 → 就地同步移动设定页控件（不重建） */
 	_syncMoveTab() {
@@ -2058,7 +1805,6 @@ class BotAutoHunt {
 		nm.cb.addEventListener('change', function () {
 			self.flyNoMobs = nm.cb.checked;
 			self._saveSettings();
-			self._syncMoveSettingsToOldPanel();
 		});
 		wrap.appendChild(nm.row);
 
@@ -2066,10 +1812,7 @@ class BotAutoHunt {
 		fl.cb.addEventListener('change', function () {
 			self.flyLowHp = fl.cb.checked;
 			self._saveSettings();
-			self._syncMoveSettingsToOldPanel();
 		});
-		wrap.appendChild(fl.row);
-
 		const rt = makeSwitch('movetab-return-map', self.returnToMap, '被传送后返回挂机地图（关闭则就地继续挂机）');
 		rt.cb.addEventListener('change', function () {
 			self.returnToMap = rt.cb.checked;
@@ -2263,7 +2006,7 @@ class BotAutoHunt {
 	// 设置窗口技能页签（T2：4+4 槽 + 每槽延迟）
 	// =================================================================
 
-	/** 渲染技能页签内容（存进新窗口 pane[2]；旧面板仍由 _refreshCells 同步，过渡期双显示） */
+	/** 渲染技能页签内容（存进新窗口 pane[2]） */
 	_renderSkillTab() {
 		if (!this._settingsComp) return;
 		const pane = this._settingsComp.getPane(2);
@@ -2457,7 +2200,6 @@ class BotAutoHunt {
 		} else {
 			this.startAutoHunt();
 		}
-		this._updateButtonLabel();
 	}
 
 	startAutoHunt() {
@@ -2511,7 +2253,6 @@ class BotAutoHunt {
 			if (!this.sendCommand(2)) return;
 			this.active = false;
 			this.stopLoops();
-			this._hidePanel();
 		});
 	}
 
@@ -2648,6 +2389,7 @@ class BotAutoHunt {
 	_timerLoop() {
 		this.timerSec++;
 		this._refreshTimer();
+		this._updateServiceTab(); // T8: 服务页时长/积分就地刷新
 		if (this.timerSec % 60 === 0) {
 			this.sendCommand(4); // get_points
 		}
@@ -2716,7 +2458,7 @@ class BotAutoHunt {
 		if (Session.Entity.isDead()) {
 			this.active = false;
 			this.stopLoops();
-			this._updateButtonLabel();
+			this._updateFloatBtnState();
 			this._showError('角色已死亡，挂机已停止');
 			return;
 		}
@@ -3444,60 +3186,28 @@ class BotAutoHunt {
 		Network.sendPacket(pkt);
 	}
 
-	/** 面板内错误消息 — 红色文字，3 秒后消失（D2 #9） */
-	_showError(msg) {
-		// 面板隐藏时（登录/选角界面）降级为悬浮开关旁的 toast，保证任何场景可见
-		if (!this._panel) {
-			this._showToast(msg);
-			return;
-		}
-		this._showMsg(msg, '#c03030', 3000);
-	}
 
-	/** 面板内信息消息 — 灰色文字，2 秒后消失（面板隐藏时降级 toast） */
-	_showInfo(msg) {
-		if (!this._panel) {
-			this._showToast(msg);
-			return;
-		}
-		this._showMsg(msg, '#484848', 2000);
-	}
-
-	_showMsg(msg, color, duration) {
-		if (!this._panel) return;
-		const el = this._panel.querySelector('.bot-msg');
-		if (!el) return;
-		el.textContent = msg;
-		el.style.color = color;
-		setTimeout(() => {
-			if (el) el.textContent = '';
-		}, duration);
-	}
 
 	_setButtonsDisabled(disabled) {
-		if (!this._panel) return;
-		const btn = this._panel.querySelector('.bot-toggle-btn');
-		if (btn) btn.disabled = disabled;
+		// T8: 挂机启停由悬浮开关承担，无需禁用按钮（保留空实现兼容 _onStatus 调用点）
 	}
 
 	_setOfflineButtonDisabled(disabled) {
-		if (!this._panel) return;
-		const btn = this._panel.querySelector('.bot-offline-btn');
+		// T8: 离线挂机按钮在挂机服务页（pane[7]）
+		const pane = this._settingsComp && this._settingsComp.getPane ? this._settingsComp.getPane(7) : null;
+		if (!pane) return;
+		const btn = pane.querySelector('.servicetab-offline-btn');
 		if (btn) btn.disabled = disabled;
 	}
 
 	_refreshTimer() {
-		if (!this._panel) return;
-		const el = this._panel.querySelector('.bot-timer');
-		if (el) el.textContent = this._formatTime(this.timerSec);
+		// T8: 时长显示在挂机服务页（_updateServiceTab 就地刷新）
+		this._updateServiceTab();
 	}
 
 	_updatePoints(points) {
 		this.currentPoints = points;
-		if (this._panel) {
-			const el = this._panel.querySelector('.bot-points');
-			if (el) el.textContent = points;
-		}
+		this._updateServiceTab(); // T8: 服务页积分就地刷新
 	}
 
 	/** cmd=3 响应：status 始终 0，data1=0（D-51: 客户端本地维护挂机状态） */
@@ -3679,7 +3389,7 @@ class BotAutoHunt {
 					// 服务端拒绝 → 回退乐观更新
 					this.active = false;
 					this.stopLoops();
-					this._updateButtonLabel();
+					this._updateFloatBtnState();
 					this._showError('挂机启动失败');
 				}
 				break;
@@ -3688,7 +3398,7 @@ class BotAutoHunt {
 					// 服务端拒绝 → 回退
 					this.active = true;
 					this.startLoops();
-					this._updateButtonLabel();
+					this._updateFloatBtnState();
 					this._showError('挂机停止失败');
 				}
 				break;
