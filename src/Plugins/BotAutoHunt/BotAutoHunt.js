@@ -1267,19 +1267,29 @@ class BotAutoHunt {
 		this._floatMiss = 0;
 		this._floatHit = 0;
 		this._floatPoll = setInterval(() => {
-			// 核心信号：玩家实体已进入 EntityManager（地图加载完成、实体添加后才为 true）。
-			// 选角界面/黑屏/加载页三阶段均为 false；不可用 Mouse.intersect（选角期即为 true，
-			// 实测第四轮）也不可用 #CharSelect 查询（宿主 id 并非 CharSelect，永不命中）。
+			// 双条件信号（第五轮实测确定，控制台可自行验证：
+			//   Array.from(document.querySelectorAll('body > canvas')).some(c => c.style.zIndex === '0')）
+			// ① playerInWorld：玩家实体已加入 EntityManager（选角/黑屏早段为 false）
+			// ② z0 渲染画布已挂载：Renderer.show()（引擎注释 "Display game"）时才发生，
+			//    此前玩家实体可能早已入列（实测早 ~11.5s），黑屏期两者不同真。
 			var hasEntity = !!(Session.Entity && Session.Entity.GID);
 			var playerInWorld = hasEntity && !!EntityManager.get(Session.Entity.GID);
-			var inGame = playerInWorld && !document.querySelector('#WinLoginV2');
+			var z0Canvas = false;
+			var canvases = document.querySelectorAll('body > canvas');
+			for (var i = 0; i < canvases.length; i++) {
+				if (canvases[i].style.zIndex === '0') {
+					z0Canvas = true;
+					break;
+				}
+			}
+			var inGame = playerInWorld && z0Canvas && !document.querySelector('#WinLoginV2');
 			const btn = this._floatBtn;
 			if (!btn) return;
 			const visible = btn.style.display !== 'none';
 			if (inGame) {
 				this._floatMiss = 0;
 				this._floatHit++;
-				// 2 次连续命中（约 1s）才显示：跳过选角→地图之间黑屏的瞬时信号态
+				// 2 次连续命中（约 0.5s）才显示：双条件同时成立的稳定态
 				if (!visible && this._floatHit >= 2) btn.style.display = '';
 				return;
 			}
