@@ -83,13 +83,13 @@ describe('SettingsWindow', () => {
 		expect(root.querySelector('.botsw-top-text').textContent).toBe('自动战斗');
 	});
 
-	it('页签使用游戏标准三态位图（achievement_re/tab_*.bmp）', () => {
+	it('页签为装备栏同款样式（纯 CSS，无位图 data-* 属性）', () => {
 		const root = buildRoot();
 		const tab = root.querySelector('.botsw-tab');
-		expect(tab.getAttribute('data-background')).toBe('achievement_re/tab_out.bmp');
-		expect(tab.getAttribute('data-hover')).toBe('achievement_re/tab_over.bmp');
-		expect(tab.getAttribute('data-down')).toBe('achievement_re/tab_press.bmp');
-		expect(tab.getAttribute('data-active')).toBe('achievement_re/tab_press.bmp');
+		expect(tab.getAttribute('data-background')).toBeNull();
+		expect(tab.getAttribute('data-hover')).toBeNull();
+		expect(tab.getAttribute('data-down')).toBeNull();
+		expect(tab.getAttribute('data-active')).toBeNull();
 	});
 
 	it('白色内容面板存在且无额外标题条（官方窗口页签下直接是内容）', () => {

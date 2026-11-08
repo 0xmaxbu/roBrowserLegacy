@@ -7,8 +7,8 @@
  * - 位于 settings/ 子目录：PluginManager 的 glob 只扫描 Plugins 下两层深（目录名/文件名），
  *   本文件位于第三层，不会被误当作插件自动加载，仅由 BotAutoHunt.js 显式 import。
  * - 样式对照官方公告截图（docs/assets/official-auto-battle/，公告 id=217525）：
- *   浅蓝窗体 + 顶部控制点条 + 蓝字页签（激活白底）+ 白色圆角内容面板（蓝色节标题条）+
- *   底部初始化/關閉按钮。纯 CSS 绘制，不依赖 GRF 位图。
+ *   浅蓝窗体 + 顶部控制点条 + 页签（与装备栏 EquipmentV4 同款：细边框圆角顶、激活白底加粗）+
+ *   白色圆角内容面板（蓝色节标题条）+ 底部初始化/關閉按钮。纯 CSS 绘制，不依赖 GRF 位图。
  * - 生命周期：append() 打开 / remove() 关闭，persistent=true（引擎在登录/地图
  *   切换时会 removeComponents 清除非持久组件，窗口开合由插件自行管理）。
  *
@@ -97,37 +97,40 @@ const CSS_TEXT = `
 	display: flex;
 }
 
-/* 頁籤列 */
+/* 頁籤列：装备栏（EquipmentV4 .tab-manager）同款——细边框圆角顶页签盒子，
+   激活页签白底加粗并以白色下边框压住面板顶边，与内容区连为一体 */
 .botsw-tabbar {
 	flex: 0 0 auto;
 	display: flex;
-	gap: 1px;
-	padding: 3px 4px 0;
-	background: #cfdfef;
-	border-bottom: 1px solid #9db8d2;
+	height: 15px;
+	padding: 0 6px; /* 与内容面板左右边距对齐，页签组与面板边缘接齐 */
 }
 
 .botsw-tab {
 	flex: 1 1 auto;
-	height: 26px;
-	line-height: 24px;
+	height: 100%;
+	line-height: 15px;
 	padding: 0 2px;
 	cursor: pointer;
-	border: none;
+	border: 1px solid #c9c3ba;
+	border-bottom: none;
 	border-radius: 3px 3px 0 0;
-	color: #2e4058;
-	font-size: 11px; /* 与游戏内页签字号一致 */
+	color: #42454a;
+	font-size: 12px; /* 与装备栏页签字号一致 */
 	font-family: inherit;
 	text-align: center;
 	white-space: nowrap; /* 页签文字禁止换行（窗口宽度已按 8 页签单行设计） */
-	background-size: 100% 100%;
-	background-color: #dce9f5; /* 位图加载失败兑底 */
+	background-color: transparent; /* 未激活页签透出窗口底色（同装备栏未选中态） */
 	user-select: none;
 }
 
 .botsw-tab.active {
-	color: #0d2b4d;
+	color: #000;
 	font-weight: bold;
+	background-color: white;
+	border-bottom: 1px solid white; /* 白色下边框盖住面板顶边线，实现页签与内容区相连 */
+	position: relative;
+	z-index: 100;
 }
 
 /* T2: 数字输入去原生上下箭头（保持 type=number 整数语义，仅文本框） */
@@ -146,9 +149,10 @@ const CSS_TEXT = `
 	flex: 1 1 auto;
 	display: flex;
 	flex-direction: column;
-	margin: 6px;
+	margin: 0 6px 6px; /* 顶边与页签行无缝相接（同装备栏），左右/底保留官方窗体内边距 */
 	background: #ffffff;
 	border: 1px solid #b8cde0;
+	border-top: 1px solid #9db8d2; /* 页签行下的分界线（同装备栏 border-top），激活页签白底下边框覆盖此线 */
 	border-radius: 8px;
 	overflow: hidden;
 }
@@ -207,13 +211,8 @@ export function buildSettingsHTML(tabs, placeholder) {
 	let tabHtml = '';
 	let paneHtml = '';
 	list.forEach(function (tab, index) {
-		// T2: 页签用游戏标准三态位图（achievement_re/tab_*.bmp，GUIComponent data-active 跟随 .active 类自动换图）
-		tabHtml +=
-			'<button class="botsw-tab" data-index="' + index + '" ' +
-			'data-background="achievement_re/tab_out.bmp" ' +
-			'data-hover="achievement_re/tab_over.bmp" ' +
-			'data-down="achievement_re/tab_press.bmp" ' +
-			'data-active="achievement_re/tab_press.bmp">' + tab.label + '</button>';
+		// 页签为装备栏同款纯 CSS 样式（细边框圆角顶 + 激活白底加粗），不再使用 achievement_re 位图
+		tabHtml += '<button class="botsw-tab" data-index="' + index + '">' + tab.label + '</button>';
 		paneHtml += '<div class="botsw-pane" data-index="' + index + '">' + ph + '</div>';
 	});
 
@@ -250,8 +249,7 @@ export function bindSettingsBehavior(root, onClose, onReset) {
 	const tabs = Array.from(root.querySelectorAll('.botsw-tab'));
 	const panes = Array.from(root.querySelectorAll('.botsw-pane'));
 	let activeIndex = 0;
-	// 页签位图三态由 GUIComponent 构造函数的 _processAllDataAttrs 统一接线
-	// （data-active 的 MutationObserver 监听 .active 类自动换图，此处勿重复调用 processDataAttrs）
+	// 页签为装备栏同款纯 CSS 三态（.active 类切换样式），无位图 data-* 属性需要 GUIComponent 接线
 
 	function setActive(index) {
 		activeIndex = index;
