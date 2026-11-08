@@ -57,30 +57,44 @@ const CSS_TEXT = `
 	box-shadow: 0 4px 14px rgba(30, 60, 100, 0.35);
 }
 
-/* 頂部控制點條 */
+/* 頂部标题栏：游戏标准素材（titlebar_mid 水平平铺 + sys_base/sys_close 系统按钮，同 SkillListMH 规范） */
 .botsw-top {
 	flex: 0 0 auto;
-	height: 16px;
-	background: linear-gradient(to bottom, #a9c4dc, #8fb0cc);
+	height: 17px;
+	background-color: #a9c4dc;
+	background-repeat: repeat-x; /* titlebar_mid 12×17 位图水平平铺 */
 	border-bottom: 1px solid #7f9fc0;
 	display: flex;
 	align-items: center;
-	padding: 0 5px;
+	justify-content: space-between;
+	padding: 0 3px;
 	cursor: move;
 }
 
-.botsw-top .dot {
-	width: 8px;
-	height: 8px;
-	border-radius: 50%;
-	background: #5b82a8;
-	border: 1px solid #486d94;
-	margin-right: 3px;
+.botsw-sysbtn {
+	width: 11px;
+	height: 11px;
+	background-repeat: no-repeat;
+	cursor: pointer;
 }
 
-.botsw-top .dot.right {
-	margin-left: auto;
-	margin-right: 0;
+.botsw-top-left {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+}
+
+.botsw-top-text {
+	font-size: 11px;
+	font-weight: bold;
+	color: #1a3a5c;
+	text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.85);
+	line-height: 1;
+	white-space: nowrap;
+}
+
+.botsw-top-right {
+	display: flex;
 }
 
 /* 頁籤列 */
@@ -102,7 +116,7 @@ const CSS_TEXT = `
 	border: none;
 	border-radius: 3px 3px 0 0;
 	color: #2e4058;
-	font-size: 12px;
+	font-size: 11px; /* 与游戏内页签字号一致 */
 	font-family: inherit;
 	text-align: center;
 	white-space: nowrap; /* 页签文字禁止换行（窗口宽度已按 8 页签单行设计） */
@@ -204,9 +218,14 @@ export function buildSettingsHTML(tabs, placeholder) {
 	});
 
 	return (
-		'<div class="botsw-top">' +
-			'<span class="dot"></span><span class="dot"></span>' +
-			'<span class="dot right"></span><span class="dot right"></span>' +
+		'<div class="botsw-top" data-background="basic_interface/titlebar_mid.bmp">' +
+			'<div class="botsw-top-left">' +
+				'<div class="botsw-sysbtn botsw-btn-base" data-background="basic_interface/sys_base_off.bmp" data-hover="basic_interface/sys_base_on.bmp"></div>' +
+				'<span class="botsw-top-text">自动战斗</span>' +
+			'</div>' +
+			'<div class="botsw-top-right">' +
+				'<div class="botsw-sysbtn botsw-btn-close" data-background="basic_interface/sys_close_off.bmp" data-hover="basic_interface/sys_close_on.bmp"></div>' +
+			'</div>' +
 		'</div>' +
 		'<div class="botsw-tabbar">' + tabHtml + '</div>' +
 		'<div class="botsw-panel">' +
@@ -257,6 +276,14 @@ export function bindSettingsBehavior(root, onClose, onReset) {
 	const closeBtn = root.querySelector('.botsw-close');
 	if (closeBtn) {
 		closeBtn.addEventListener('click', function () {
+			if (typeof onClose === 'function') onClose();
+		});
+	}
+
+	// T2: 标题栏 sys_close 系统按钮（与 footer 关闭同一回调）
+	const tbClose = root.querySelector('.botsw-btn-close');
+	if (tbClose) {
+		tbClose.addEventListener('click', function () {
 			if (typeof onClose === 'function') onClose();
 		});
 	}

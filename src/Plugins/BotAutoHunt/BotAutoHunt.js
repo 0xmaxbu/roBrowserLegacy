@@ -1491,10 +1491,11 @@ class BotAutoHunt {
 			const available = this._getAvailableSkills().find(x => x.id === skill.id);
 			cell.title = ((available && available.name) || (info && info.SkillName) || ('技能 ' + skill.id)) +
 				' Lv ' + (skill.level || 1);
-			// 官方格子显示技能图标（kRO 惯例：图标存于 user interface 的 item/ 目录，SkillList 同款）
+			// 官方格子显示技能图标（kRO 惯例：图标存于 user interface 的 item/ 目录，SkillList 同款）；
+			// 图标 28×28 尽量充满格子内部（玩家反馈 22 偏小）
 			const img = document.createElement('img');
-			img.width = 22;
-			img.height = 22;
+			img.width = 28;
+			img.height = 28;
 			img.draggable = false;
 			img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
 			if (info && info.Name) {

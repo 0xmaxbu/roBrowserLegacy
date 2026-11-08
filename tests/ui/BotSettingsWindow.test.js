@@ -71,10 +71,16 @@ describe('SettingsWindow', () => {
 		panes.forEach(p => expect(p.textContent).toBe('本页签建设中'));
 	});
 
-	it('顶部控制点条存在（官方窗口控制点样式）', () => {
+	it('标题栏使用游戏标准素材（titlebar 平铺条 + sys_base/sys_close 系统按钮）', () => {
 		const root = buildRoot();
-		const dots = root.querySelectorAll('.botsw-top .dot');
-		expect(dots.length).toBe(4);
+		const base = root.querySelector('.botsw-btn-base');
+		const close = root.querySelector('.botsw-btn-close');
+		expect(root.querySelector('.botsw-top').getAttribute('data-background')).toBe('basic_interface/titlebar_mid.bmp');
+		expect(base.getAttribute('data-background')).toBe('basic_interface/sys_base_off.bmp');
+		expect(base.getAttribute('data-hover')).toBe('basic_interface/sys_base_on.bmp');
+		expect(close.getAttribute('data-background')).toBe('basic_interface/sys_close_off.bmp');
+		expect(close.getAttribute('data-hover')).toBe('basic_interface/sys_close_on.bmp');
+		expect(root.querySelector('.botsw-top-text').textContent).toBe('自动战斗');
 	});
 
 	it('页签使用游戏标准三态位图（achievement_re/tab_*.bmp）', () => {
