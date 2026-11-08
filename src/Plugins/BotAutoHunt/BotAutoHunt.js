@@ -28,7 +28,6 @@ import BinaryWriter from 'Utils/BinaryWriter.js';
 import Inventory from 'UI/Components/Inventory/Inventory.js';
 import SkillTargetSelection from 'UI/Components/SkillTargetSelection/SkillTargetSelection.js';
 import StatusIcons from 'UI/Components/StatusIcons/StatusIcons.js';
-import Mouse from 'Controls/MouseEventHandler.js'; // Mouse.intersect: 地图加载完成后才为 true（T1 悬浮开关可见性信号）
 // Task 2 补充导入 — 三循环 + 面板下拉数据源
 import EntityManager from 'Renderer/EntityManager.js'; // forEach/get/getClosestEntity/getFocusEntity/setFocusEntity
 import Entity from 'Renderer/Entity/Entity.js'; // TYPE_MOB / ACTION.DIE 常量
@@ -1268,12 +1267,12 @@ class BotAutoHunt {
 		this._floatMiss = 0;
 		this._floatHit = 0;
 		this._floatPoll = setInterval(() => {
-			// Mouse.intersect 在地图资源加载完成并开始渲染时才置 true（MapRenderer "Display game"），
-			// 加载页面期间为 false——保证按钮在加载完成后才出现
-			const inGame = !!(Session.Entity && Session.Entity.GID) &&
-				!!Mouse.intersect &&
-				!document.querySelector('#CharSelect') &&
-				!document.querySelector('#WinLoginV2');
+			// 核心信号：玩家实体已进入 EntityManager（地图加载完成、实体添加后才为 true）。
+			// 选角界面/黑屏/加载页三阶段均为 false；不可用 Mouse.intersect（选角期即为 true，
+			// 实测第四轮）也不可用 #CharSelect 查询（宿主 id 并非 CharSelect，永不命中）。
+			var hasEntity = !!(Session.Entity && Session.Entity.GID);
+			var playerInWorld = hasEntity && !!EntityManager.get(Session.Entity.GID);
+			var inGame = playerInWorld && !document.querySelector('#WinLoginV2');
 			const btn = this._floatBtn;
 			if (!btn) return;
 			const visible = btn.style.display !== 'none';
