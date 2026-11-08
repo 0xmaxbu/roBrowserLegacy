@@ -1388,21 +1388,21 @@ class BotAutoHunt {
 		this._refreshPanel();
 	}
 
-	/** 构建 4+4 技能槽编辑器（官方样式：顶部双行提示 + 盒装区块标题 + 图标格与每格下方延迟秒） */
+	/** 构建 4+4 技能槽编辑器（严格对齐官方：提示 12/11px、标题条 24px 浅蓝渐变、格子 34×34 等距分布） */
 	_buildSkillTabContent() {
 		const self = this;
 		const wrap = document.createElement('div');
 		wrap.style.cssText = 'padding:8px;display:flex;flex-direction:column;gap:8px;text-align:left;';
 
-		// 官方文案（对照 docs/assets/official-auto-battle/1d95a0f6 截图）
+		// 官方文案与字号（对照 docs/assets/official-auto-battle/1d95a0f6 逐像素测量）
 		const hint = document.createElement('div');
-		hint.style.cssText = 'font-size:11px;font-weight:bold;color:#1a3a5c;text-align:center;';
+		hint.style.cssText = 'font-size:12px;font-weight:bold;color:#2e4058;text-align:center;';
 		hint.textContent = '请设定攻击/辅助技能。';
 		wrap.appendChild(hint);
 
 		const hintSub = document.createElement('div');
-		hintSub.style.cssText = 'font-size:10px;color:#5a8ab4;text-align:center;';
-		hintSub.textContent = '每个设定的延迟时间将左至右依序使用。';
+		hintSub.style.cssText = 'font-size:11px;color:#4a7ab5;text-align:center;border-bottom:1px dotted #b9c6d2;padding-bottom:6px;';
+		hintSub.textContent = '每个设定的延迟时间将左到右顺序使用。';
 		wrap.appendChild(hintSub);
 
 		const groups = [
@@ -1411,13 +1411,15 @@ class BotAutoHunt {
 		];
 
 		groups.forEach(function (g) {
+			// 官方区块标题条：24px 高浅蓝渐变圆角条（独立条，无外包围盒）
 			const label = document.createElement('div');
-			label.style.cssText = 'border:1px solid #9db8d2;border-radius:3px;background:#f4f9fd;font-size:11px;font-weight:bold;color:#1a3a5c;text-align:center;padding:2px 0;';
+			label.style.cssText = 'height:24px;line-height:22px;background:linear-gradient(to bottom,#e3f5ff,#fdffff);border:1px solid #b9c9d8;border-radius:4px;font-size:12px;font-weight:bold;color:#2e4058;text-align:center;';
 			label.textContent = g.label;
 			wrap.appendChild(label);
 
+			// 官方格子行：4 格 34×34 等距分布（1fr），条下留白约 16px
 			const cells = document.createElement('div');
-			cells.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:6px 12px;justify-items:center;padding:6px 0;';
+			cells.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);justify-items:center;padding:14px 6px 12px;';
 			for (let gi = 0; gi < 4; gi++) {
 				cells.appendChild(self._buildSkillSlotCell(g.offset + gi));
 			}
@@ -1427,57 +1429,71 @@ class BotAutoHunt {
 		return wrap;
 	}
 
-	/** 单个技能槽编辑单元（官方样式：上=图标格，下=独立延迟输入行；延迟 UI 单位秒、存储毫秒） */
+	/** 单个技能槽编辑单元（严格对齐官方：34×34 格 + 22px 图标 + 右下角等级数字 + 28px 延迟秒输入） */
 	_buildSkillSlotCell(flatIdx) {
 		const self = this;
 		const skill = this.skillList[flatIdx];
 		const delayMs = this.slotDelays[flatIdx] || 0;
 
 		const unit = document.createElement('div');
-		unit.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;';
+		unit.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:5px;';
 
 		const cell = document.createElement('div');
 		cell.className = 'skilltab-cell';
+		// 官方：白底 + 灰蓝边框 #adb7c0 圆角 5px，34×34，图标约 22×22 居中
 		cell.style.cssText =
-			'border:1px solid #9db8d2;border-radius:4px;background:#f4f9fd;padding:4px;width:40px;height:40px;' +
-			'cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;';
+			'border:1px solid #adb7c0;border-radius:5px;background:#ffffff;padding:0;width:34px;height:34px;' +
+			'cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;position:relative;';
 
 		if (skill && skill.id) {
 			const info = SkillInfo[skill.id];
 			const available = this._getAvailableSkills().find(x => x.id === skill.id);
 			cell.title = ((available && available.name) || (info && info.SkillName) || ('技能 ' + skill.id)) +
 				' Lv ' + (skill.level || 1);
-			cell.style.borderColor = '#6f94b8';
-			cell.style.background = '#eaf3fb';
 			// 官方格子显示技能图标（kRO 惯例：图标存于 user interface 的 item/ 目录，SkillList 同款）
 			const img = document.createElement('img');
-			img.width = 28;
-			img.height = 28;
+			img.width = 22;
+			img.height = 22;
 			img.draggable = false;
 			img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
 			if (info && info.Name) {
 				Client.loadFile(DB.INTERFACE_PATH + 'item/' + info.Name + '.bmp', function (data) {
 					img.src = data;
 				});
+			} else {
+				img.alt = '?';
+				img.style.cssText = 'font-size:12px;color:#8aa0b4;display:flex;align-items:center;justify-content:center;';
 			}
 			cell.appendChild(img);
+
+			// 官方：可选等级 > 1 时在图标右下角显示白色描边等级数字，无可选等级则不显示
+			// （可选上限 = 已学等级，与下拉选择器同一数据源；单级技能不显示）
+			const selectMax = (available && available.level) || 1;
+			if (selectMax > 1) {
+				const lvlBadge = document.createElement('div');
+				lvlBadge.textContent = String(skill.level || 1);
+				lvlBadge.style.cssText =
+					'position:absolute;right:2px;bottom:0px;font-size:10px;font-weight:bold;line-height:1;color:#ffffff;' +
+					'text-shadow:-1px 0 0 #000,1px 0 0 #000,0 -1px 0 #000,0 1px 0 #000;pointer-events:none;';
+				cell.appendChild(lvlBadge);
+			}
 		} else {
 			cell.title = '点击设置技能';
 			const ph = document.createElement('div');
 			ph.textContent = '✕';
-			ph.style.cssText = 'font-size:18px;color:#c3d4e4;line-height:1;';
+			ph.style.cssText = 'font-size:16px;color:#b9c4ce;line-height:1;';
 			cell.appendChild(ph);
 		}
 
-		// 延迟输入行：格子下方独立一行（官方样式），UI 秒 → 存储毫秒换算
+		// 延迟输入行：格子下方独立一行（官方 28×12px 居中），UI 秒 → 存储毫秒换算
 		const delayRow = document.createElement('div');
-		delayRow.style.cssText = 'display:flex;align-items:center;gap:2px;font-size:10px;color:#5a7a9c;';
+		delayRow.style.cssText = 'display:flex;align-items:center;gap:2px;font-size:11px;color:#2e4058;';
 		const input = document.createElement('input');
 		input.type = 'number';
 		input.min = '0';
 		input.step = '1';
 		input.value = String(delayMs / 1000);
-		input.style.cssText = 'width:46px;padding:0 2px;font-size:10px;border:1px solid #9db8d2;border-radius:2px;';
+		input.style.cssText = 'width:30px;height:14px;padding:0 1px;font-size:11px;border:1px solid #c7c7c7;border-radius:2px;background:#fff;';
 		input.addEventListener('mousedown', e => e.stopPropagation());
 		input.addEventListener('click', e => e.stopPropagation());
 		input.addEventListener('change', function () {

@@ -34,7 +34,7 @@ export const SETTINGS_TABS = [
  *  全部規則使用 :host 與純類名選擇器。 */
 const CSS_TEXT = `
 :host {
-	width: 480px;
+	width: 443px; /* 官方窗口外框宽（1d95a0f6 截图逐像素测量 40→482） */
 	height: 360px;
 	top: 110px;
 	left: 36%;
