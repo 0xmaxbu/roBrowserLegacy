@@ -7,6 +7,8 @@ import {
 	evaluateThresholds,
 	mobInWhitelist,
 	decideNoMobAction,
+	matchLootType,
+	validateLootedItem,
 	SCHEMA_VERSION,
 	TOTAL_SLOT_COUNT
 } from '../src/Plugins/BotAutoHunt/settings/schema.js';
@@ -183,6 +185,68 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 		expect(migrateSettings({ noMobSeconds: 'x' }).noMobSeconds).toBe(5);
 		expect(migrateSettings({}).returnToMap).toBe(true);
 		expect(migrateSettings({ returnToMap: false }).returnToMap).toBe(false);
+	});
+
+	it('matchLootType：四类映射（消耗品/武器/防具含影子装备/其他兜底），未勾选不匹配', () => {
+		const all = { consumable: true, weapon: true, armor: true, etc: true };
+		// 消耗品：HEALING0/USABLE2/DELAYCONSUME11/CASH18
+		expect(matchLootType(0, all)).toBe(true);
+		expect(matchLootType(2, all)).toBe(true);
+		expect(matchLootType(11, all)).toBe(true);
+		expect(matchLootType(18, all)).toBe(true);
+		// 武器 5 / 防具 4 + 影子 12
+		expect(matchLootType(5, all)).toBe(true);
+		expect(matchLootType(4, all)).toBe(true);
+		expect(matchLootType(12, all)).toBe(true);
+		// 其他：ETC3/CARD6/PETEGG7/PETARMOR8/AMMO10/UNKNOWN1
+		expect(matchLootType(3, all)).toBe(true);
+		expect(matchLootType(6, all)).toBe(true);
+		expect(matchLootType(7, all)).toBe(true);
+		expect(matchLootType(8, all)).toBe(true);
+		expect(matchLootType(10, all)).toBe(true);
+		expect(matchLootType(1, all)).toBe(true);
+		// 未勾选的类型 → 不匹配
+		const onlyWeapon = { consumable: false, weapon: true, armor: false, etc: false };
+		expect(matchLootType(5, onlyWeapon)).toBe(true);
+		expect(matchLootType(0, onlyWeapon)).toBe(false);
+		expect(matchLootType(4, onlyWeapon)).toBe(false);
+		expect(matchLootType(3, onlyWeapon)).toBe(false);
+	});
+
+	it('validateLootedItem：精炼/卡片下限仅对武器防具生效，消耗品跳过校验', () => {
+		const cfg = { refineMin: 5, cardMin: 2 };
+		// 武器：精炼 4 < 5 → 丢（refine 优先于 card）
+		expect(validateLootedItem({ type: 5, RefiningLevel: 4, slot: {} }, cfg)).toEqual({ keep: false, reason: 'refine' });
+		// 武器：精炼达标但卡片 1 < 2 → 丢
+		expect(validateLootedItem({ type: 5, RefiningLevel: 5, slot: { card1: 4002 } }, cfg)).toEqual({ keep: false, reason: 'card' });
+		// 武器：精炼与卡片达标 → 保留（slot 零项不计卡数）
+		expect(validateLootedItem({ type: 5, RefiningLevel: 7, slot: { card1: 4002, card2: 0, card3: 4033, card4: 0 } }, cfg).keep).toBe(true);
+		// 防具（含影子装备）同样校验
+		expect(validateLootedItem({ type: 4, RefiningLevel: 0, slot: {} }, cfg).keep).toBe(false);
+		expect(validateLootedItem({ type: 12, RefiningLevel: 9, slot: { card1: 4002, card2: 4033 } }, cfg).keep).toBe(true);
+		expect(validateLootedItem({ type: 12, RefiningLevel: 9, slot: {} }, cfg).keep).toBe(false); // 卡数不足仍会丢
+		// 消耗品跳过精炼/卡片校验
+		expect(validateLootedItem({ type: 0 }, cfg).keep).toBe(true);
+		expect(validateLootedItem({ type: 2, slot: {} }, cfg).keep).toBe(true);
+		// 下限 0 = 不校验
+		const off = { refineMin: 0, cardMin: 0 };
+		expect(validateLootedItem({ type: 5, RefiningLevel: 0, slot: {} }, off).keep).toBe(true);
+	});
+
+	it('loot 迁移：缺省开启全类型/0 下限/90 负重；非法值归缺省；布尔保留', () => {
+		const def = migrateSettings({}).loot;
+		expect(def.enabled).toBe(true);
+		expect(def.types).toEqual({ consumable: true, weapon: true, armor: true, etc: true });
+		expect(def.refineMin).toBe(0);
+		expect(def.cardMin).toBe(0);
+		expect(def.weightPausePct).toBe(90);
+		const s = migrateSettings({ loot: { enabled: false, types: { consumable: true }, refineMin: 99, cardMin: -3, weightPausePct: 500 } }).loot;
+		expect(s.enabled).toBe(false);
+		expect(s.types.consumable).toBe(true);
+		expect(s.types.weapon).toBe(true); // 未提供的类型归缺省勾选
+		expect(s.refineMin).toBe(10);
+		expect(s.cardMin).toBe(0);
+		expect(s.weightPausePct).toBe(100);
 	});
 
 	it('mobWhitelist 迁移：非法项过滤去重、空数组键丢弃、键截断', () => {

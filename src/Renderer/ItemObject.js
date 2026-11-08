@@ -40,6 +40,9 @@ class ItemObject {
 		/*var dropEffectPostition = [x, y, z];*/ // UNUSED
 		entity.GID = gid;
 		entity.objecttype = Entity.TYPE_ITEM;
+		entity.ITID = itemid; // T6: 捡拾过滤需要地面物品的种类 ID（display.name 不含类型信息）
+		entity.itemCount = count;
+		entity.itemIdentified = identify;
 		entity.position[0] = x;
 		entity.position[1] = y;
 		entity.position[2] = z;

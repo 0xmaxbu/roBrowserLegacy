@@ -35,7 +35,7 @@ import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_P
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import { createSettingsComponent } from './settings/SettingsWindow.js'; // T1: 官方样式设置窗口（GUIComponent，8 页签）
-import { migrateSettings, slotReady, evaluateThresholds, mobInWhitelist, decideNoMobAction, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2-T5: 纯函数（迁移/槽延迟/阈值/白名单/无怪回落链）
+import { migrateSettings, slotReady, evaluateThresholds, mobInWhitelist, decideNoMobAction, matchLootType, validateLootedItem, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2-T6: 纯函数
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
 import MAP_CONNECTIONS from './data/map-connections.json'; // 由 tools/client/generate-map-connections.mjs 生成
 import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
@@ -70,6 +70,7 @@ function _getPotionRestoreType(id) {
 
 import SkillInfo from 'DB/Skills/SkillInfo.js'; // 技能名解析 (SkillName 字段)
 import SK from 'DB/Skills/SkillConst.js'; // T5: AL_TELEPORT 瞬移技能常量
+import PACKETVER from 'Network/PacketVerManager.js'; // T6: 拾取封包版本判定（≥20180307 用 ITEM_PICKUP2）
 import SkillListUI from 'UI/Components/SkillList/SkillList.js'; // getUI().getList() 技能下拉数据源 (R4-问题6)
 
 // =====================================================================
@@ -291,6 +292,10 @@ class BotAutoHunt {
 		this._seenMobs = {}; // T4: 本会话见过的魔物清单（按地图，运行时内存，不持久化）
 		this.noMobSeconds = 5; // T5: 无怪触发秒数（1-60，回落链触发等待）
 		this.returnToMap = true; // T5: 被传送后返回挂机地图（关闭则就地继续）
+		this.loot = null; // T6: 捡拾配置（_applySettings 赋值）
+		this._lootTick = null; // T6: 捡拾循环定时器
+		this._lootPending = null; // T6: 待校验拾取 { gid, tick }
+		this._lootBlacklist = new Set(); // T6: 本会话不再拾取的地面物品 GID（防捡丢循环）
 		this._slotLastCast = {}; // 槽下标 → 上次施放时间戳
 		this._createFloatingButton();
 		this._startFloatLifecyclePoll();
@@ -1032,6 +1037,7 @@ class BotAutoHunt {
 			this._renderBasicTab();
 			this._renderMobTab();
 			this._renderMoveTab();
+			this._renderLootTab();
 		}
 		if (!this._panel) return;
 
@@ -1050,6 +1056,7 @@ class BotAutoHunt {
 			this._renderBasicTab();
 			this._renderMobTab();
 			this._renderMoveTab();
+			this._renderLootTab();
 		}
 	}
 
@@ -1393,6 +1400,8 @@ class BotAutoHunt {
 		this._renderBasicTab();
 		this._renderMobTab();
 		this._renderMoveTab();
+		this._renderLootTab();
+		this._hookInventoryAdd();
 	}
 
 	// =================================================================
@@ -1526,6 +1535,266 @@ class BotAutoHunt {
 		if (spVal) spVal.textContent = this.spThreshold + '%';
 		const ap = pane.querySelector('.basictab-auto-potion');
 		if (ap && ap.checked !== this.autoPotion) ap.checked = this.autoPotion;
+	}
+
+	// =================================================================
+	// 捡拾循环（T6：类型预筛 → 拾取 → 背包校验 → 自动丢弃 → 黑名单防循环；负重暂停）
+	// =================================================================
+
+	/** T6: 启动时对 Inventory 挂一次 addItem 钩子（拾取结果关联：新物品到达即校验） */
+	_hookInventoryAdd() {
+		const inv = Inventory.getUI ? Inventory.getUI() : null;
+		if (!inv || inv.__botLootHooked) return;
+		inv.__botLootHooked = true;
+		const self = this;
+		const origAdd = inv.addItem;
+		inv.addItem = function (item) {
+			const r = origAdd.apply(this, arguments);
+			self._onItemGained(item);
+			return r;
+		};
+	}
+
+	/**
+	 * T6: 新物品进入背包回调（仅在有待校验拾取时处理）
+	 * 校验不匹配 → 自动丢弃（ITEM_THROW）+ 黑名单该地面 GID（本会话不再拾取，防捡丢循环）
+	 */
+	_onItemGained(item) {
+		const pending = this._lootPending;
+		if (!pending) return;
+		this._lootPending = null;
+		if (!item) return;
+		const verdict = validateLootedItem(item, this.loot);
+		if (verdict.keep) return;
+		this._lootBlacklist.add(pending.gid);
+		try {
+			const pkt = new PACKET.CZ.ITEM_THROW();
+			pkt.Index = item.index;
+			pkt.count = item.count;
+			Network.sendPacket(pkt);
+		} catch (_) {
+			// 封包异常时已拉黑，不影响主流程
+		}
+	}
+
+	/**
+	 * T6: 捡拾循环（400ms，随挂机启停）
+	 * 负重达阈值暂停；一次只处理一个待校验拾取（3s 超时拉黑防无限重试）
+	 */
+	_lootLoop() {
+		if (!this.active || !this.loot || !this.loot.enabled) return;
+		if (!Session.Entity || Session.Entity.isDead()) return;
+
+		// 负重暂停：达阈值后不再发起新拾取（低于阈值自动恢复）
+		const maxW = Session.max_weight;
+		if (maxW > 0 && (Session.weight / maxW) * 100 >= this.loot.weightPausePct) return;
+
+		// 待校验拾取超时（3s）→ 拉黑该地面物品防无限重试（可能被他人拾走/异常）
+		if (this._lootPending) {
+			if (Date.now() - this._lootPending.tick > 3000) {
+				this._lootBlacklist.add(this._lootPending.gid);
+				this._lootPending = null;
+			}
+			return; // 一次只处理一个
+		}
+
+		// 扫描视野内地面物品：类型匹配 + 未拉黑 + 未消失，取最近
+		const src = Session.Entity;
+		let best = null;
+		let bestDistSq = Infinity;
+		EntityManager.forEach(entity => {
+			if (
+				(entity.objecttype !== Entity.TYPE_ITEM && entity.objecttype !== Entity.TYPE_ITEM2) ||
+				entity.remove_tick !== 0 ||
+				this._lootBlacklist.has(entity.GID) ||
+				!entity.ITID
+			) return;
+			const info = DB.getItemInfo(entity.ITID);
+			if (!info || !matchLootType(info.Type, this.loot.types)) return;
+			const dx = entity.position[0] - src.position[0];
+			const dy = entity.position[1] - src.position[1];
+			const distSq = dx * dx + dy * dy;
+			if (distSq < bestDistSq) {
+				bestDistSq = distSq;
+				best = entity;
+			}
+		});
+		if (!best) return;
+
+		// 距离 > 2 格 → 移动向物品（节流防刷包）；≤2 格 → 发拾取封包并挂待校验
+		const dx = best.position[0] - src.position[0];
+		const dy = best.position[1] - src.position[1];
+		if (dx * dx + dy * dy > 4) {
+			if (this._isOnCooldown('loot_move')) return;
+			this._markAction('loot_move', 600);
+			let move;
+			if (PACKETVER.value >= 20180307) {
+				move = new PACKET.CZ.REQUEST_MOVE2();
+			} else {
+				move = new PACKET.CZ.REQUEST_MOVE();
+			}
+			move.dest[0] = best.position[0];
+			move.dest[1] = best.position[1];
+			Network.sendPacket(move);
+			return;
+		}
+
+		let pkt;
+		if (PACKETVER.value >= 20180307) {
+			pkt = new PACKET.CZ.ITEM_PICKUP2();
+		} else {
+			pkt = new PACKET.CZ.ITEM_PICKUP();
+		}
+		pkt.ITAID = best.GID;
+		Network.sendPacket(pkt);
+		this._lootPending = { gid: best.GID, tick: Date.now() };
+	}
+
+	/** T6: 捡拾配置 → 就地同步捡拾设定页控件（本功能旧面板无对应控件） */
+	_syncLootTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(4);
+		if (!pane) return;
+		if (!this.loot) return;
+		const set = (sel, prop) => {
+			const el = pane.querySelector(sel);
+			if (!el) return;
+			if (el.type === 'checkbox') {
+				if (el.checked !== prop) el.checked = prop;
+			} else if (+el.value !== prop) {
+				el.value = String(prop);
+			}
+		};
+		set('.loottab-enabled', this.loot.enabled);
+		set('.loottab-type-consumable', this.loot.types.consumable);
+		set('.loottab-type-weapon', this.loot.types.weapon);
+		set('.loottab-type-armor', this.loot.types.armor);
+		set('.loottab-type-etc', this.loot.types.etc);
+		set('.loottab-refine-min', this.loot.refineMin);
+		set('.loottab-card-min', this.loot.cardMin);
+		set('.loottab-weight-pause', this.loot.weightPausePct);
+	}
+
+	/** 渲染捡拾设定页内容（存进 pane[4]） */
+	_renderLootTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(4);
+		if (!pane) return;
+		if (pane.contains(document.activeElement)) return; // 输入进行中不重建
+		pane.innerHTML = '';
+		pane.appendChild(this._buildLootTabContent());
+	}
+
+	/** 构建捡拾设定页（总开关 + 类型勾选 + 精炼/卡片下限 + 负重暂停阈值 + 语义说明） */
+	_buildLootTabContent() {
+		const self = this;
+		const cfg = this.loot;
+		const wrap = document.createElement('div');
+		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
+
+		// —— 总开关 ——
+		const enRow = document.createElement('label');
+		enRow.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;font-weight:bold;color:#2e4058;cursor:pointer;';
+		const enCb = document.createElement('input');
+		enCb.type = 'checkbox';
+		enCb.className = 'loottab-enabled';
+		enCb.checked = !!cfg.enabled;
+		enCb.addEventListener('change', function () {
+			self.loot.enabled = enCb.checked;
+			self._saveSettings();
+		});
+		enRow.appendChild(enCb);
+		enRow.appendChild(document.createTextNode('自动拾取（挂机中拾取地面掉落物）'));
+		wrap.appendChild(enRow);
+
+		// —— 类型勾选 ——
+		const typeHead = document.createElement('div');
+		typeHead.style.cssText = 'border-top:1px dotted #b9c6d2;padding-top:3px;font-size:11px;color:#2e4058;';
+		typeHead.textContent = '拾取类型：';
+		wrap.appendChild(typeHead);
+
+		const typeRow = document.createElement('div');
+		typeRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:#2e4058;';
+		const typeDefs = [
+			['consumable', 'loottab-type-consumable', '消耗品'],
+			['weapon', 'loottab-type-weapon', '武器'],
+			['armor', 'loottab-type-armor', '防具'],
+			['etc', 'loottab-type-etc', '其他']
+		];
+		typeDefs.forEach(function (td) {
+			const lab = document.createElement('label');
+			lab.style.cssText = 'display:flex;align-items:center;gap:3px;cursor:pointer;';
+			const cb = document.createElement('input');
+			cb.type = 'checkbox';
+			cb.className = td[1];
+			cb.checked = !!cfg.types[td[0]];
+			cb.addEventListener('change', function () {
+				self.loot.types[td[0]] = cb.checked;
+				self._saveSettings();
+			});
+			lab.appendChild(cb);
+			lab.appendChild(document.createTextNode(td[2]));
+			typeRow.appendChild(lab);
+		});
+		wrap.appendChild(typeRow);
+
+		// —— 精炼/卡片下限（仅武器/防具校验） ——
+		function numRow(labelText, cls, value, min, max) {
+			const row = document.createElement('div');
+			row.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:#2e4058;';
+			row.appendChild(document.createTextNode(labelText));
+			const input = document.createElement('input');
+			input.type = 'number';
+			input.className = cls;
+			input.min = String(min);
+			input.max = String(max);
+			input.value = String(value);
+			input.style.cssText = 'width:40px;height:14px;padding:0 1px;font-size:11px;border:1px solid #c7c7c7;border-radius:2px;background:#fff;';
+			input.addEventListener('mousedown', e => e.stopPropagation());
+			input.addEventListener('click', e => e.stopPropagation());
+			input.addEventListener('keydown', function (e) {
+				if (e.key.length === 1 && !/^[0-9]$/.test(e.key)) e.preventDefault();
+			});
+			input.addEventListener('change', function () {
+				const v = Math.min(max, Math.max(min, Math.round(+input.value || min)));
+				input.value = String(v);
+				self._saveSettings();
+			});
+			row.appendChild(input);
+			return { row: row, input: input };
+		}
+
+		const refine = numRow('精炼等级下限（0=不校验）：', 'loottab-refine-min', cfg.refineMin, 0, 10);
+		refine.input.addEventListener('change', function () {
+			self.loot.refineMin = Math.round(+refine.input.value) || 0;
+			self._saveSettings();
+		});
+		wrap.appendChild(refine.row);
+
+		const card = numRow('卡片数下限（0=不校验）：', 'loottab-card-min', cfg.cardMin, 0, 4);
+		card.input.addEventListener('change', function () {
+			self.loot.cardMin = Math.round(+card.input.value) || 0;
+			self._saveSettings();
+		});
+		wrap.appendChild(card.row);
+
+		const weight = numRow('负重暂停阈值（%）：', 'loottab-weight-pause', cfg.weightPausePct, 0, 100);
+		weight.input.addEventListener('change', function () {
+			self.loot.weightPausePct = Math.round(+weight.input.value) || 0;
+			self._saveSettings();
+		});
+		wrap.appendChild(weight.row);
+
+		// —— 语义说明 ——
+		const info = document.createElement('div');
+		info.style.cssText = 'border-top:1px dotted #b9c6d2;padding-top:3px;font-size:10px;color:#4a7ab5;line-height:1.4;';
+		info.innerHTML =
+			'拾取后按背包详情校验精炼/卡片（仅武器与防具），不匹配自动丢弃。<br/>' +
+			'被丢弃的掉落物本会话内不再拾取（防捡丢循环）。<br/>' +
+			'负重达到暂停阈值后暂停拾取，降回阈值下自动恢复。';
+		wrap.appendChild(info);
+
+		return wrap;
 	}
 
 	// =================================================================
@@ -2193,6 +2462,8 @@ class BotAutoHunt {
 		this.potionTick = setInterval(() => this._potionLoop(), 200);
 		this.buffTick = setInterval(() => this._buffLoop(), 1000);
 		this._timerTick = setInterval(() => this._timerLoop(), 1000);
+		this._lootTick = setInterval(() => this._lootLoop(), 400); // T6: 捡拾循环
+		this._hookInventoryAdd(); // T6: 拾取结果校验钩子（开设置窗口之外也要生效）
 	}
 
 	stopLoops() {
@@ -2200,10 +2471,12 @@ class BotAutoHunt {
 		if (this.potionTick) clearInterval(this.potionTick);
 		if (this.buffTick) clearInterval(this.buffTick);
 		if (this._timerTick) clearInterval(this._timerTick);
+		if (this._lootTick) clearInterval(this._lootTick);
 		this.combatTick = null;
 		this.potionTick = null;
 		this.buffTick = null;
 		this._timerTick = null;
+		this._lootTick = null;
 	}
 
 	// #13 fix: 独立自动药水 — 不依赖挂机开关 active
@@ -3184,6 +3457,7 @@ class BotAutoHunt {
 		this.mobWhitelist = s2.mobWhitelist;
 		this.noMobSeconds = s2.noMobSeconds;
 		this.returnToMap = s2.returnToMap;
+		this.loot = s2.loot;
 	}
 
 	_saveSettings() {
@@ -3204,7 +3478,8 @@ class BotAutoHunt {
 				normalAttack: this.normalAttack !== false,
 				mobWhitelist: this.mobWhitelist,
 				noMobSeconds: this.noMobSeconds,
-				returnToMap: this.returnToMap !== false
+				returnToMap: this.returnToMap !== false,
+				loot: this.loot
 			})
 		);
 	}

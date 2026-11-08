@@ -67,6 +67,49 @@ export function decideNoMobAction(opts) {
 }
 
 /**
+ * 地面掉落物类型匹配（纯函数，T6）
+ * 分类映射：消耗品 = HEALING(0)/USABLE(2)/DELAYCONSUME(11)/CASH(18)；
+ * 武器 = WEAPON(5)；防具 = ARMOR(4)/SHADOWGEAR(12)；其他 = 其余全部
+ *
+ * @param {number} itemType IT_* 类型
+ * @param {{consumable?: boolean, weapon?: boolean, armor?: boolean, etc?: boolean}} types 类型勾选
+ * @return {boolean}
+ */
+export function matchLootType(itemType, types) {
+	const t = types || {};
+	switch (itemType) {
+		case 0: case 2: case 11: case 18: return !!t.consumable;
+		case 5: return !!t.weapon;
+		case 4: case 12: return !!t.armor;
+		default: return !!t.etc;
+	}
+}
+
+/**
+ * 拾取后校验（纯函数，T6）：精炼/卡片下限仅对武器/防具生效（消耗品等无此属性）
+ * 卡片数 = slot.card1-4 中非零项数
+ *
+ * @param {{type: number, RefiningLevel?: number, slot?: {card1?: number, card2?: number, card3?: number, card4?: number}}} item 背包物品
+ * @param {{refineMin?: number, cardMin?: number}} lootCfg
+ * @return {{keep: boolean, reason?: 'refine'|'card'}}
+ */
+export function validateLootedItem(item, lootCfg) {
+	const cfg = lootCfg || {};
+	const it = item || {};
+	const refineMin = typeof cfg.refineMin === 'number' ? cfg.refineMin : 0;
+	const cardMin = typeof cfg.cardMin === 'number' ? cfg.cardMin : 0;
+	const isEquip = it.type === 5 || it.type === 4 || it.type === 12;
+	if (!isEquip) return { keep: true };
+	if (refineMin > 0 && (it.RefiningLevel || 0) < refineMin) return { keep: false, reason: 'refine' };
+	if (cardMin > 0) {
+		const s = it.slot || {};
+		const cards = [s.card1, s.card2, s.card3, s.card4].filter(c => typeof c === 'number' && c > 0).length;
+		if (cards < cardMin) return { keep: false, reason: 'card' };
+	}
+	return { keep: true };
+}
+
+/**
  * 魔物白名单判定（纯函数，T4）
  * 名单为空/未配置 → 不过滤（所有魔物可攻击）；非空 → 仅名单内可攻击
  *
@@ -136,6 +179,26 @@ export function migrateSettings(saved) {
 	// ---- T5: 无怪触发秒数（1-60 整数，缺省 5） ----
 	const rawNoMobSeconds = typeof src.noMobSeconds === 'number' && isFinite(src.noMobSeconds) ? Math.round(src.noMobSeconds) : 5;
 
+	// ---- T6: 捡拾配置（缺省：开启 + 全类型 + 不校验精炼卡片 + 90% 负重暂停） ----
+	const srcLoot = src.loot && typeof src.loot === 'object' && !Array.isArray(src.loot) ? src.loot : {};
+	const bool_ = v => typeof v === 'boolean' ? v : true;
+	const clampInt = (v, lo, hi, def) => {
+		const n = typeof v === 'number' && isFinite(v) ? Math.round(v) : def;
+		return Math.min(hi, Math.max(lo, n));
+	};
+	const loot = {
+		enabled: srcLoot.enabled !== undefined && typeof srcLoot.enabled === 'boolean' ? srcLoot.enabled : true,
+		types: {
+			consumable: bool_(srcLoot.types ? srcLoot.types.consumable : undefined),
+			weapon: bool_(srcLoot.types ? srcLoot.types.weapon : undefined),
+			armor: bool_(srcLoot.types ? srcLoot.types.armor : undefined),
+			etc: bool_(srcLoot.types ? srcLoot.types.etc : undefined)
+		},
+		refineMin: clampInt(srcLoot.refineMin, 0, 10, 0),
+		cardMin: clampInt(srcLoot.cardMin, 0, 4, 0),
+		weightPausePct: clampInt(srcLoot.weightPausePct, 0, 100, 90)
+	};
+
 	return {
 		v: SCHEMA_VERSION,
 		hp: typeof src.hp === 'number' ? src.hp : 70,
@@ -151,7 +214,8 @@ export function migrateSettings(saved) {
 		normalAttack: src.normalAttack !== false, // T2: 普通攻击开关（默认开启；旧档无字段=开启）
 		mobWhitelist: mobWhitelist, // T4: 魔物白名单（按地图记忆）
 		noMobSeconds: Math.min(60, Math.max(1, rawNoMobSeconds)), // T5: 无怪触发秒数（1-60）
-		returnToMap: src.returnToMap !== false // T5: 被传送后返回挂机地图（默认开启；旧档无字段=开启）
+		returnToMap: src.returnToMap !== false, // T5: 被传送后返回挂机地图（默认开启；旧档无字段=开启）
+		loot: loot // T6: 捡拾配置
 	};
 }
 
