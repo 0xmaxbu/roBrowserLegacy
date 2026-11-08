@@ -95,6 +95,36 @@ describe('SettingsWindow', () => {
 		expect(closed).toBe(true);
 	});
 
+	it('footer 含初始化按钮（官方窗口结构）', () => {
+		const root = buildRoot();
+		expect(root.querySelector('.botsw-reset')).toBeTruthy();
+		expect(root.querySelector('.botsw-reset').textContent).toBe('初始化');
+	});
+
+	it('点击初始化触发 onReset 并携带当前激活页签 index', () => {
+		const resets = [];
+		const root = document.createElement('div');
+		root.innerHTML = buildSettingsHTML(SETTINGS_TABS);
+		bindSettingsBehavior(root, null, index => resets.push(index));
+		root.querySelectorAll('.botsw-tab')[2].click(); // 切到技能设定
+		root.querySelector('.botsw-reset').click();
+		expect(resets).toEqual([2]);
+	});
+
+	it('未传 onReset 时点击初始化不报错', () => {
+		const root = buildRoot();
+		expect(() => root.querySelector('.botsw-reset').click()).not.toThrow();
+	});
+
+	it('getActiveIndex 追踪当前激活页签', () => {
+		const root = document.createElement('div');
+		root.innerHTML = buildSettingsHTML(SETTINGS_TABS);
+		const api = bindSettingsBehavior(root);
+		expect(api.getActiveIndex()).toBe(0);
+		api.setActive(2);
+		expect(api.getActiveIndex()).toBe(2);
+	});
+
 	it('createSettingsComponent 返回可开合的 GUIComponent 实例且标记 persistent', () => {
 		const comp = createSettingsComponent({ placeholder: 'x' });
 		expect(comp.name).toBe('BotAutoHuntSettings');

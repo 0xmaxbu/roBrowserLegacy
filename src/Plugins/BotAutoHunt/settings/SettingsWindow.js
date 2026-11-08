@@ -214,16 +214,20 @@ export function buildSettingsHTML(tabs, placeholder) {
 }
 
 /**
- * 為窗口根節點綁定頁籤切換/關閉行為（獨立導出，便於 jsdom 測試）
+ * 為窗口根節點綁定頁籤切換/關閉/初始化行為（獨立導出，便於 jsdom 測試）
  *
  * @param {HTMLElement} root        包含 .botsw-tabbar/.botsw-panel 的根元素
  * @param {Function}    [onClose]   關閉回調
+ * @param {Function}    [onReset]   初始化回調（參數：當前激活頁籤 index）
+ * @return {{ setActive: Function, getActiveIndex: Function }}
  */
-export function bindSettingsBehavior(root, onClose) {
+export function bindSettingsBehavior(root, onClose, onReset) {
 	const tabs = Array.from(root.querySelectorAll('.botsw-tab'));
 	const panes = Array.from(root.querySelectorAll('.botsw-pane'));
+	let activeIndex = 0;
 
 	function setActive(index) {
+		activeIndex = index;
 		tabs.forEach(function (tabEl, i) {
 			tabEl.classList.toggle('active', i === index);
 			if (panes[i]) panes[i].style.display = i === index ? '' : 'none';
@@ -249,7 +253,15 @@ export function bindSettingsBehavior(root, onClose) {
 		});
 	}
 
-	return { setActive: setActive };
+	// T2: 初始化按鈕（官方窗口底部左側；重置當前頁籤設定，未交付頁籤空實現）
+	const resetBtn = root.querySelector('.botsw-reset');
+	if (resetBtn) {
+		resetBtn.addEventListener('click', function () {
+			if (typeof onReset === 'function') onReset(activeIndex);
+		});
+	}
+
+	return { setActive: setActive, getActiveIndex: function () { return activeIndex; } };
 }
 
 /**
@@ -258,6 +270,7 @@ export function bindSettingsBehavior(root, onClose) {
  * @param {Object}   [opts]
  * @param {string}   [opts.placeholder] 頁籤佔位文案
  * @param {Function} [opts.onClose]     關閉回調
+ * @param {Function} [opts.onReset]     初始化回調（參數：當前激活頁籤 index）
  * @return {GUIComponent} 用 append() 打開、remove() 關閉
  */
 export function createSettingsComponent(opts) {
@@ -283,6 +296,8 @@ export function createSettingsComponent(opts) {
 		bindSettingsBehavior(root, function () {
 			comp.remove();
 			if (typeof opts_.onClose === 'function') opts_.onClose();
+		}, function (tabIndex) {
+			if (typeof opts_.onReset === 'function') opts_.onReset(tabIndex);
 		});
 	};
 

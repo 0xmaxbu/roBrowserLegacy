@@ -1349,7 +1349,8 @@ class BotAutoHunt {
 	_openSettings() {
 		if (!this._settingsComp) {
 			this._settingsComp = createSettingsComponent({
-				placeholder: '本页签建设中，将在后续工单逐步交付（T2-T8）'
+				placeholder: '本页签建设中，将在后续工单逐步交付（T2-T8）',
+				onReset: (tabIndex) => this._handleSettingsReset(tabIndex) // T2: footer 初始化按钮接线
 			});
 		}
 		this._settingsComp.append();
@@ -1369,97 +1370,132 @@ class BotAutoHunt {
 		pane.appendChild(this._buildSkillTabContent());
 	}
 
-	/** 构建 4+4 技能槽编辑器（攻击组 0-3 / 辅助组 4-7，每格含等级选择与延迟输入） */
+	/** 设置窗口初始化按钮回调（官方窗口 footer 左下：按当前页签重置；T2 仅技能页签有内容，其余页签空实现） */
+	_handleSettingsReset(tabIndex) {
+		if (tabIndex === 2) {
+			this._resetSkillTab();
+		}
+	}
+
+	/** 初始化技能页签：清空 8 槽技能与每槽延迟，双端刷新（新页签 + 旧面板过渡期同步） */
+	_resetSkillTab() {
+		for (let i = 0; i < TOTAL_SLOT_COUNT; i++) {
+			this.skillList[i] = null;
+			this.slotDelays[i] = 0;
+		}
+		this._saveSettings();
+		this._renderSkillTab();
+		this._refreshPanel();
+	}
+
+	/** 构建 4+4 技能槽编辑器（官方样式：顶部双行提示 + 盒装区块标题 + 图标格与每格下方延迟秒） */
 	_buildSkillTabContent() {
 		const self = this;
 		const wrap = document.createElement('div');
-		wrap.style.cssText = 'padding:8px;display:flex;flex-direction:column;gap:10px;text-align:left;';
+		wrap.style.cssText = 'padding:8px;display:flex;flex-direction:column;gap:8px;text-align:left;';
+
+		// 官方文案（对照 docs/assets/official-auto-battle/1d95a0f6 截图）
+		const hint = document.createElement('div');
+		hint.style.cssText = 'font-size:11px;font-weight:bold;color:#1a3a5c;text-align:center;';
+		hint.textContent = '请设定攻击/辅助技能。';
+		wrap.appendChild(hint);
+
+		const hintSub = document.createElement('div');
+		hintSub.style.cssText = 'font-size:10px;color:#5a8ab4;text-align:center;';
+		hintSub.textContent = '每个设定的延迟时间将左至右依序使用。';
+		wrap.appendChild(hintSub);
 
 		const groups = [
-			{ label: '攻击技能（对目标施放）', offset: 0 },
-			{ label: '辅助技能（增益自动维持）', offset: 4 }
+			{ label: '攻击技能设定', offset: 0 },
+			{ label: '辅助技能设定', offset: 4 }
 		];
 
 		groups.forEach(function (g) {
 			const label = document.createElement('div');
-			label.style.cssText = 'font-size:11px;font-weight:bold;color:#1a3a5c;margin-bottom:3px;';
+			label.style.cssText = 'border:1px solid #9db8d2;border-radius:3px;background:#f4f9fd;font-size:11px;font-weight:bold;color:#1a3a5c;text-align:center;padding:2px 0;';
 			label.textContent = g.label;
 			wrap.appendChild(label);
 
 			const cells = document.createElement('div');
-			cells.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px;';
+			cells.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:6px 12px;justify-items:center;padding:6px 0;';
 			for (let gi = 0; gi < 4; gi++) {
 				cells.appendChild(self._buildSkillSlotCell(g.offset + gi));
 			}
 			wrap.appendChild(cells);
 		});
 
-		const note = document.createElement('div');
-		note.style.cssText = 'font-size:10px;color:#7a94ad;';
-		note.textContent = '延迟 = 该槽施放间隔（毫秒，0 = 仅受引擎攻击间隔限制）';
-		wrap.appendChild(note);
 		return wrap;
 	}
 
-	/** 单个技能槽编辑器（点击选技能，含等级选择；延迟输入框实时生效） */
+	/** 单个技能槽编辑单元（官方样式：上=图标格，下=独立延迟输入行；延迟 UI 单位秒、存储毫秒） */
 	_buildSkillSlotCell(flatIdx) {
 		const self = this;
 		const skill = this.skillList[flatIdx];
-		const delay = this.slotDelays[flatIdx] || 0;
+		const delayMs = this.slotDelays[flatIdx] || 0;
+
+		const unit = document.createElement('div');
+		unit.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;';
 
 		const cell = document.createElement('div');
 		cell.className = 'skilltab-cell';
 		cell.style.cssText =
-			'border:1px solid #9db8d2;border-radius:4px;background:#f4f9fd;padding:4px;' +
-			'cursor:pointer;text-align:center;min-height:52px;user-select:none;';
-
-		const nameEl = document.createElement('div');
-		nameEl.style.cssText = 'font-size:10px;color:#1a3a5c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-		const lvlEl = document.createElement('div');
-		lvlEl.style.cssText = 'font-size:10px;color:#5a7a9c;';
+			'border:1px solid #9db8d2;border-radius:4px;background:#f4f9fd;padding:4px;width:40px;height:40px;' +
+			'cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;';
 
 		if (skill && skill.id) {
+			const info = SkillInfo[skill.id];
 			const available = this._getAvailableSkills().find(x => x.id === skill.id);
-			nameEl.textContent = available ? available.name : '技能 ' + skill.id;
-			const max = (available && available.level) || skill.maxLevel || skill.level || 1;
-			lvlEl.textContent = 'Lv ' + (skill.level || 1) + '/' + max;
+			cell.title = ((available && available.name) || (info && info.SkillName) || ('技能 ' + skill.id)) +
+				' Lv ' + (skill.level || 1);
 			cell.style.borderColor = '#6f94b8';
 			cell.style.background = '#eaf3fb';
+			// 官方格子显示技能图标（kRO 惯例：图标存于 user interface 的 item/ 目录，SkillList 同款）
+			const img = document.createElement('img');
+			img.width = 28;
+			img.height = 28;
+			img.draggable = false;
+			img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+			if (info && info.Name) {
+				Client.loadFile(DB.INTERFACE_PATH + 'item/' + info.Name + '.bmp', function (data) {
+					img.src = data;
+				});
+			}
+			cell.appendChild(img);
 		} else {
-			nameEl.textContent = '＋ 点击设置';
-			nameEl.style.color = '#9db8d2';
-			lvlEl.textContent = '';
+			cell.title = '点击设置技能';
+			const ph = document.createElement('div');
+			ph.textContent = '✕';
+			ph.style.cssText = 'font-size:18px;color:#c3d4e4;line-height:1;';
+			cell.appendChild(ph);
 		}
-		cell.appendChild(nameEl);
-		cell.appendChild(lvlEl);
 
+		// 延迟输入行：格子下方独立一行（官方样式），UI 秒 → 存储毫秒换算
 		const delayRow = document.createElement('div');
-		delayRow.style.cssText = 'display:flex;align-items:center;gap:2px;margin-top:2px;font-size:10px;color:#5a7a9c;';
-		delayRow.appendChild(document.createTextNode('延迟'));
+		delayRow.style.cssText = 'display:flex;align-items:center;gap:2px;font-size:10px;color:#5a7a9c;';
 		const input = document.createElement('input');
 		input.type = 'number';
 		input.min = '0';
-		input.step = '100';
-		input.value = String(delay);
+		input.step = '1';
+		input.value = String(delayMs / 1000);
 		input.style.cssText = 'width:46px;padding:0 2px;font-size:10px;border:1px solid #9db8d2;border-radius:2px;';
 		input.addEventListener('mousedown', e => e.stopPropagation());
 		input.addEventListener('click', e => e.stopPropagation());
 		input.addEventListener('change', function () {
-			const v = Math.max(0, Math.round(+input.value || 0));
-			input.value = String(v);
+			const v = Math.max(0, Math.round((+input.value || 0) * 1000));
 			self.slotDelays[flatIdx] = v;
 			self._saveSettings();
 		});
 		delayRow.appendChild(input);
-		delayRow.appendChild(document.createTextNode('ms'));
-		cell.appendChild(delayRow);
+		delayRow.appendChild(document.createTextNode('秒'));
 
-		cell.addEventListener('click', function (e) {
-			if (e.target === input) return;
+		unit.appendChild(cell);
+		unit.appendChild(delayRow);
+
+		cell.addEventListener('click', function () {
 			self._openDropdown('skill', flatIdx, cell);
 		});
 
-		return cell;
+		return unit;
 	}
 
 	/** 面板内开始/停止按钮 — 同一按钮的两个状态切换 */
