@@ -622,6 +622,16 @@ class BotAutoHunt {
 	// Slot 数据层 — 统一管理 skillList/auxList 的增删改查
 	// =====================================================================
 
+	/**
+	 * 技能类型判定（WR-03 单一权威源：HEAL → BUFF → ATTACK）
+	 * 存槽（_setSlotItem）、旧档迁移、下拉过滤共用；勿在其它处内联同样逻辑
+	 */
+	_classifySkillType(id) {
+		if (HEAL_SKILL_IDS.has(id)) return SKILL_TYPE_HEAL;
+		if (_isBuff('skills', id) || _isBuff('items', id)) return SKILL_TYPE_BUFF;
+		return SKILL_TYPE_ATTACK;
+	}
+
 	_getSlotList(slot) {
 		return slot === 'skill' ? this.skillList : this.auxList;
 	}
@@ -631,14 +641,8 @@ class BotAutoHunt {
 		let type;
 		let subtype = null;
 		if (slot === 'skill') {
-			// WR-03 fix: 优先级 HEAL → BUFF → ATTACK
-			if (HEAL_SKILL_IDS.has(id)) {
-				type = SKILL_TYPE_HEAL;
-			} else if (_isBuff('skills', id) || _isBuff('items', id)) {
-				type = SKILL_TYPE_BUFF;
-			} else {
-				type = SKILL_TYPE_ATTACK;
-			}
+			// WR-03 fix: 优先级 HEAL → BUFF → ATTACK（_classifySkillType 单一权威源）
+			type = this._classifySkillType(id);
 		} else {
 			// WR-04 fix: 消耗品区分 HP/SP/buff
 			if (_isBuff('skills', id) || _isBuff('items', id)) {
@@ -694,14 +698,28 @@ class BotAutoHunt {
 	 * @param index 0-5 格子下标
 	 * @param anchorCell 锚定格子 DOM 元素（用于定位）
 	 */
-	_openDropdown(slot, index, anchorCell) {
+	_openDropdown(slot, index, anchorCell, skillGroup) {
 		this._closeDropdown();
 		this._dropdownSlot = slot;
 		this._dropdownIndex = index;
 
-		const items = slot === 'skill' ? this._getAvailableSkills() : this._getAvailableConsumables();
+		let items = slot === 'skill' ? this._getAvailableSkills() : this._getAvailableConsumables();
+		// T2: 技能页签按组过滤（攻击组仅攻击型；辅助组=增益+治疗自施）。
+		// 旧面板混排不传 skillGroup，行为不变；引擎三循环本就按类型跨全部槽位判定，不受分组影响
+		if (slot === 'skill' && skillGroup) {
+			items = items.filter(it => {
+				const t = this._classifySkillType(it.id);
+				return skillGroup === 'attack' ? t === SKILL_TYPE_ATTACK : (t === SKILL_TYPE_BUFF || t === SKILL_TYPE_HEAL);
+			});
+		}
 		if (items.length === 0) {
-			this._showInfo(slot === 'skill' ? '无可选技能' : '无可选消耗品');
+			this._showInfo(
+				slot === 'skill'
+					? (skillGroup === 'attack' ? '无已学习的攻击技能'
+						: skillGroup === 'support' ? '无已学习的辅助技能（增益/治疗）'
+						: '无可选技能')
+					: '无可选消耗品'
+			);
 			return;
 		}
 
@@ -1508,7 +1526,8 @@ class BotAutoHunt {
 		unit.appendChild(delayRow);
 
 		cell.addEventListener('click', function () {
-			self._openDropdown('skill', flatIdx, cell);
+			// T2: 技能页签按组过滤（前 4 格攻击组，后 4 格辅助组）
+			self._openDropdown('skill', flatIdx, cell, flatIdx < 4 ? 'attack' : 'support');
 		});
 
 		return unit;

@@ -34,11 +34,11 @@ export const SETTINGS_TABS = [
  *  全部規則使用 :host 與純類名選擇器。 */
 const CSS_TEXT = `
 :host {
-	width: 443px; /* 官方窗口外框宽（1d95a0f6 截图逐像素测量 40→482） */
+	width: 480px; /* 8 页签单行无换行的最小宽度（官方 7 页签为 443px，多「挂机服务」页签） */
 	height: 360px;
 	top: 110px;
 	left: 36%;
-	min-width: 420px;
+	min-width: 460px;
 }
 
 .ui-component-root {
@@ -105,6 +105,7 @@ const CSS_TEXT = `
 	font-size: 12px;
 	font-family: inherit;
 	text-align: center;
+	white-space: nowrap; /* 页签文字禁止换行（窗口宽度已按 8 页签单行设计） */
 }
 
 .botsw-tab.active {
