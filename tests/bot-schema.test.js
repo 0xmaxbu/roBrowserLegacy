@@ -5,6 +5,7 @@ import {
 	migrateSettings,
 	slotReady,
 	evaluateThresholds,
+	mobInWhitelist,
 	SCHEMA_VERSION,
 	TOTAL_SLOT_COUNT
 } from '../src/Plugins/BotAutoHunt/settings/schema.js';
@@ -152,6 +153,31 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 		const d2 = evaluateThresholds(70.1, 30.1, {});
 		expect(d2.hpPotion).toBe(false);
 		expect(d2.spPotion).toBe(false);
+	});
+
+	it('mobInWhitelist：空白单/未配置 = 不过滤；非空只放行名单内', () => {
+		const wl = { 'prontera': [1002, 1113] };
+		expect(mobInWhitelist(1002, wl, 'prontera')).toBe(true);
+		expect(mobInWhitelist(1011, wl, 'prontera')).toBe(false);
+		// 空名单/未配置地图/损坏输入 → 不过滤
+		expect(mobInWhitelist(1002, { 'prontera': [] }, 'prontera')).toBe(true);
+		expect(mobInWhitelist(1002, wl, 'geffen')).toBe(true);
+		expect(mobInWhitelist(1002, null, 'prontera')).toBe(true);
+		expect(mobInWhitelist(1002, undefined, 'prontera')).toBe(true);
+	});
+
+	it('mobWhitelist 迁移：非法项过滤去重、空数组键丢弃、键截断', () => {
+		const s = migrateSettings({
+			mobWhitelist: {
+				'prontera': [1002, 1002, 'abc', -5, 1113, NaN],
+				'empty': [],
+				123: [1042]
+			}
+		});
+		expect(s.mobWhitelist['prontera']).toEqual([1002, 1113]); // 去重 + 非法过滤
+		expect(s.mobWhitelist['empty']).toBeUndefined(); // 空名单不落盘
+		expect(s.mobWhitelist['123']).toEqual([1042]); // 数字键转字符串
+		expect(migrateSettings(null).mobWhitelist).toEqual({});
 	});
 
 	it('无 id 的垃圾技能项 → 丢弃', () => {

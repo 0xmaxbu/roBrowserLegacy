@@ -53,6 +53,22 @@ export function evaluateThresholds(hpPct, spPct, opts) {
 }
 
 /**
+ * 魔物白名单判定（纯函数，T4）
+ * 名单为空/未配置 → 不过滤（所有魔物可攻击）；非空 → 仅名单内可攻击
+ *
+ * @param {number} jobId 魔物种族 ID（Entity.job，非 GID）
+ * @param {{[map: string]: number[]}|null|undefined} whitelistByMap 按地图记忆的白名单
+ * @param {string} mapName 当前地图名
+ * @return {boolean} true=可攻击
+ */
+export function mobInWhitelist(jobId, whitelistByMap, mapName) {
+	if (!whitelistByMap || typeof whitelistByMap !== 'object') return true;
+	const list = whitelistByMap[mapName];
+	if (!Array.isArray(list) || list.length === 0) return true;
+	return list.indexOf(jobId) !== -1;
+}
+
+/**
  * 结构迁移：任意输入 → 合法的 v2 设置对象
  *
  * @param {*} saved  localStorage 解析结果（可能损坏/缺字段/旧版本）
@@ -92,7 +108,18 @@ export function migrateSettings(saved) {
 		slotDelays.push(d);
 	}
 
-	return {
+	// ---- T4: 魔物白名单（按地图记忆：{ 地图名: [种族ID...] }，非法项过滤去重） ----
+	const mobWhitelist = {};
+	if (src.mobWhitelist && typeof src.mobWhitelist === 'object' && !Array.isArray(src.mobWhitelist)) {
+		for (const mapKey of Object.keys(src.mobWhitelist)) {
+			const arr = Array.isArray(src.mobWhitelist[mapKey])
+				? src.mobWhitelist[mapKey].filter(id => typeof id === 'number' && id > 0 && isFinite(id))
+				: [];
+			if (arr.length) mobWhitelist[String(mapKey).slice(0, 64)] = [...new Set(arr)];
+		}
+	}
+
+		return {
 		v: SCHEMA_VERSION,
 		hp: typeof src.hp === 'number' ? src.hp : 70,
 		sp: typeof src.sp === 'number' ? src.sp : 30,
@@ -104,7 +131,8 @@ export function migrateSettings(saved) {
 		flyNoMobs: !!src.flyNoMobs,
 		flyLowHp: !!src.flyLowHp,
 		autoPotion: !!src.autoPotion,
-		normalAttack: src.normalAttack !== false // T2: 普通攻击开关（默认开启；旧档无字段=开启）
+		normalAttack: src.normalAttack !== false, // T2: 普通攻击开关（默认开启；旧档无字段=开启）
+		mobWhitelist: mobWhitelist // T4: 魔物白名单（按地图记忆）
 	};
 }
 

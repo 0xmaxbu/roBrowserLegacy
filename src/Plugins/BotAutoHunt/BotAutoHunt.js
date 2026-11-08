@@ -35,7 +35,7 @@ import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_P
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import { createSettingsComponent } from './settings/SettingsWindow.js'; // T1: 官方样式设置窗口（GUIComponent，8 页签）
-import { migrateSettings, slotReady, evaluateThresholds, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2: schema v2 + T3: 用药阈值决策
+import { migrateSettings, slotReady, evaluateThresholds, mobInWhitelist, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2: schema v2 + T3: 阈值决策 + T4: 白名单判定
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
 import MAP_CONNECTIONS from './data/map-connections.json'; // 由 tools/client/generate-map-connections.mjs 生成
 import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
@@ -286,6 +286,8 @@ class BotAutoHunt {
 		// ---------- schema v2（T2）：8 槽（攻击组 0-3 / 辅助组 4-7）+ 每槽延迟 ----------
 		this.slotDelays = new Array(TOTAL_SLOT_COUNT).fill(0); // 每槽施放延迟 ms，0=仅引擎默认限速
 		this.normalAttack = true; // T2: 无技能可用时允许普通攻击（法系职业可关闭，避免近身普攻）
+		this.mobWhitelist = {}; // T4: 魔物白名单（按地图记忆 { 地图名: [种族ID...] }，空=不过滤）
+		this._seenMobs = {}; // T4: 本会话见过的魔物清单（按地图，运行时内存，不持久化）
 		this._slotLastCast = {}; // 槽下标 → 上次施放时间戳
 		this._createFloatingButton();
 		this._startFloatLifecyclePoll();
@@ -1023,6 +1025,7 @@ class BotAutoHunt {
 		if (this._settingsComp && this._settingsComp._host && this._settingsComp._host.parentNode) {
 			this._renderSkillTab();
 			this._renderBasicTab();
+			this._renderMobTab();
 		}
 		if (!this._panel) return;
 
@@ -1039,6 +1042,7 @@ class BotAutoHunt {
 		if (this._settingsComp && this._settingsComp._host && this._settingsComp._host.parentNode) {
 			this._renderSkillTab();
 			this._renderBasicTab();
+			this._renderMobTab();
 		}
 	}
 
@@ -1380,6 +1384,7 @@ class BotAutoHunt {
 		this._settingsComp.append();
 		this._renderSkillTab();
 		this._renderBasicTab();
+		this._renderMobTab();
 	}
 
 	// =================================================================
@@ -1513,6 +1518,177 @@ class BotAutoHunt {
 		if (spVal) spVal.textContent = this.spThreshold + '%';
 		const ap = pane.querySelector('.basictab-auto-potion');
 		if (ap && ap.checked !== this.autoPotion) ap.checked = this.autoPotion;
+	}
+
+	// =================================================================
+	// 魔物设定页（T4：白名单勾选/全选清空/按图记忆）
+	// =================================================================
+
+	/** T4: 当前地图是否配置了非空白名单（true = 需要过滤） */
+	_hasWhitelist(mapName) {
+		const list = this.mobWhitelist[mapName];
+		return Array.isArray(list) && list.length > 0;
+	}
+
+	/** T4: 魔物是否可攻击（委托纯函数 mobInWhitelist；名单空/未配置 = 可攻击） */
+	_isMobTargetable(entity, mapName) {
+		return mobInWhitelist(entity && entity.job, this.mobWhitelist, mapName);
+	}
+
+	/** T4: 视野内是否存在名单内活怪（无怪扫描用；"只剩名单外怪 = 无怪"） */
+	_hasTargetableMob(mapName) {
+		let found = false;
+		EntityManager.forEach(entity => {
+			if (
+				entity.objecttype === Entity.TYPE_MOB &&
+				entity.action !== entity.ACTION.DIE &&
+				entity.remove_tick === 0 &&
+				this._isMobTargetable(entity, mapName)
+			) {
+				found = true;
+				return false; // break
+			}
+		});
+		return found;
+	}
+
+	/** T4: 视野内最近的名单内活怪（欧氏最近；仅白名单非空时调用，空名单走原 getClosestEntity 路径） */
+	_findClosestTargetableMob(mapName) {
+		const src = Session.Entity;
+		if (!src) return null;
+		let closest = null;
+		let closestDistSq = Infinity;
+		EntityManager.forEach(entity => {
+			if (
+				entity.GID === src.GID ||
+				entity.objecttype !== Entity.TYPE_MOB ||
+				entity.action === entity.ACTION.DIE ||
+				entity.remove_tick !== 0 ||
+				!this._isMobTargetable(entity, mapName)
+			) return;
+			const dx = entity.position[0] - src.position[0];
+			const dy = entity.position[1] - src.position[1];
+			const distSq = dx * dx + dy * dy;
+			if (distSq < closestDistSq) {
+				closestDistSq = distSq;
+				closest = entity;
+			}
+		});
+		return closest;
+	}
+
+	/** T4: 累计本会话见过的魔物（按地图内存记录；魔物设定页清单数据源，不持久化） */
+	_catalogMob(entity, mapName) {
+		if (!entity || !entity.job || !mapName) return;
+		const seen = this._seenMobs[mapName] || (this._seenMobs[mapName] = {});
+		seen[entity.job] = (seen[entity.job] || 0) + 1;
+	}
+
+	/** 渲染魔物设定页内容（存进 pane[1]；清单 = 本会话见过的魔物，勾选按地图持久化） */
+	_renderMobTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(1);
+		if (!pane) return;
+		if (pane.contains(document.activeElement)) return; // 勾选/拖动进行中不重建
+		const currentMap = this._getCurrentMapName() || '';
+		// 现场扫描合并（窗口开着但未挂机时也能看到当前视野的怪）
+		EntityManager.forEach(entity => {
+			if (entity.objecttype === Entity.TYPE_MOB && entity.action !== entity.ACTION.DIE && entity.remove_tick === 0) {
+				this._catalogMob(entity, currentMap);
+			}
+		});
+		pane.innerHTML = '';
+		pane.appendChild(this._buildMobTabContent(currentMap));
+	}
+
+	/** 构建魔物设定页（地图名 + 全选/清空 + 勾选清单 + 语义说明） */
+	_buildMobTabContent(currentMap) {
+		const self = this;
+		const wrap = document.createElement('div');
+		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
+
+		if (!currentMap) {
+			const unknown = document.createElement('div');
+			unknown.style.cssText = 'font-size:10px;color:#4a7ab5;';
+			unknown.textContent = '无法识别当前地图，暂不能配置白名单。';
+			wrap.appendChild(unknown);
+			return wrap;
+		}
+
+		// 头部：地图名 + 全选/清空（仅作用于本图清单）
+		const head = document.createElement('div');
+		head.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;font-weight:bold;color:#2e4058;';
+		head.appendChild(document.createTextNode('当前地图：' + currentMap));
+		const spacer = document.createElement('span');
+		spacer.style.cssText = 'flex:1;';
+		head.appendChild(spacer);
+		const btnStyle = 'padding:1px 8px;font-size:10px;border:1px solid #9db8d2;border-radius:2px;background:linear-gradient(to bottom,#ffffff,#d5e2ee);cursor:pointer;color:#1a3a5c;';
+		const selAll = document.createElement('button');
+		selAll.textContent = '全选';
+		selAll.style.cssText = btnStyle;
+		selAll.addEventListener('click', function () {
+			const seen = self._seenMobs[currentMap] || {};
+			const jobs = Object.keys(seen).map(Number).filter(j => j > 0);
+			if (jobs.length) self.mobWhitelist[currentMap] = jobs;
+			self._saveSettings();
+			self._renderMobTab();
+		});
+		head.appendChild(selAll);
+		const clearAll = document.createElement('button');
+		clearAll.textContent = '清空';
+		clearAll.style.cssText = btnStyle;
+		clearAll.addEventListener('click', function () {
+			delete self.mobWhitelist[currentMap];
+			self._saveSettings();
+			self._renderMobTab();
+		});
+		head.appendChild(clearAll);
+		wrap.appendChild(head);
+
+		// 勾选清单（本会话视野内发现的魔物，按种族 ID 去重）
+		const seen = this._seenMobs[currentMap] || {};
+		const jobs = Object.keys(seen).map(Number).filter(j => j > 0).sort((a, b) => a - b);
+		const wl = this.mobWhitelist[currentMap] || [];
+
+		if (jobs.length === 0) {
+			const empty = document.createElement('div');
+			empty.style.cssText = 'font-size:10px;color:#4a7ab5;padding:4px 0;';
+			empty.textContent = '本会话尚未在此图发现魔物；走近魔物后自动加入清单。';
+			wrap.appendChild(empty);
+		} else {
+			const list = document.createElement('div');
+			list.style.cssText = 'display:flex;flex-direction:column;gap:1px;';
+			jobs.forEach(function (job) {
+				const row = document.createElement('label');
+				row.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;color:#2e4058;cursor:pointer;padding:1px 0;';
+				const cb = document.createElement('input');
+				cb.type = 'checkbox';
+				cb.checked = wl.indexOf(job) !== -1;
+				cb.addEventListener('change', function () {
+					const arr = self.mobWhitelist[currentMap] || (self.mobWhitelist[currentMap] = []);
+					const idx = arr.indexOf(job);
+					if (cb.checked && idx === -1) arr.push(job);
+					if (!cb.checked && idx !== -1) arr.splice(idx, 1);
+					if (arr.length === 0) delete self.mobWhitelist[currentMap]; // 空名单不落盘
+					self._saveSettings();
+				});
+				row.appendChild(cb);
+				row.appendChild(document.createTextNode(DB.getMonsterName(job) + '（×' + seen[job] + '）'));
+				list.appendChild(row);
+			});
+			wrap.appendChild(list);
+		}
+
+		// 语义说明
+		const info = document.createElement('div');
+		info.style.cssText = 'border-top:1px dotted #b9c6d2;padding-top:3px;font-size:10px;color:#4a7ab5;line-height:1.4;';
+		info.innerHTML =
+			'名单为空 = 不过滤，攻击所有魔物；勾选后只攻击名单内魔物。<br/>' +
+			'场上只剩名单外魔物时按无怪处理（触发飞翅/巡逻）。<br/>' +
+			'清单为本次会话在此图视野内发现的魔物；勾选按地图记忆。';
+		wrap.appendChild(info);
+
+		return wrap;
 	}
 
 	// =================================================================
@@ -2035,7 +2211,8 @@ class BotAutoHunt {
 					if (
 						target &&
 						target.objecttype === Entity.TYPE_MOB &&
-						!target.isDead()
+						!target.isDead() &&
+						this._isMobTargetable(target, currentMap) // T4: 名单外目标不选
 					) {
 						EntityManager.setFocusEntity(target);
 					}
@@ -2055,9 +2232,13 @@ class BotAutoHunt {
 					entity.remove_tick === 0
 				) {
 					hasMob = true;
-					return false; // break
+					this._catalogMob(entity, currentMap); // T4: 累计本会话见过的魔物（魔物设定页清单）
 				}
 			});
+			// T4: 白名单非空时，名单外魔物不计入 hasMob（"只剩名单外怪 = 无怪"语义）
+			if (hasMob && this._hasWhitelist(currentMap)) {
+				hasMob = this._hasTargetableMob(currentMap);
+			}
 
 			if (hasMob) {
 				this._lastMobSeenTick = Date.now();
@@ -2089,11 +2270,15 @@ class BotAutoHunt {
 			}
 		}
 
-		// 4. 获取当前目标，无目标则寻找最近怪物
+		// 4. 获取当前目标，无目标则寻找最近怪物（T4: 白名单非空时只锁名单内魔物）
 		let target = EntityManager.getFocusEntity();
-		if (!target || target.isDead() || target.objecttype !== Entity.TYPE_MOB) {
-			target = EntityManager.getClosestEntity(Session.Entity, Entity.TYPE_MOB);
-			if (!target) return; // 地图无怪
+		if (!target || target.isDead() || target.objecttype !== Entity.TYPE_MOB || !this._isMobTargetable(target, currentMap)) {
+			if (this._hasWhitelist(currentMap)) {
+				target = this._findClosestTargetableMob(currentMap);
+			} else {
+				target = EntityManager.getClosestEntity(Session.Entity, Entity.TYPE_MOB);
+			}
+			if (!target) return; // 地图无怪（或只剩名单外怪，走巡逻/飞翅分支）
 			EntityManager.setFocusEntity(target);
 		}
 
@@ -2831,6 +3016,7 @@ class BotAutoHunt {
 		this.flyLowHp = s2.flyLowHp;
 		this.autoPotion = s2.autoPotion;
 		this.normalAttack = s2.normalAttack !== false;
+		this.mobWhitelist = s2.mobWhitelist;
 	}
 
 	_saveSettings() {
@@ -2848,7 +3034,8 @@ class BotAutoHunt {
 				flyNoMobs: this.flyNoMobs,
 				flyLowHp: this.flyLowHp,
 				autoPotion: this.autoPotion,
-				normalAttack: this.normalAttack !== false
+				normalAttack: this.normalAttack !== false,
+				mobWhitelist: this.mobWhitelist
 			})
 		);
 	}
