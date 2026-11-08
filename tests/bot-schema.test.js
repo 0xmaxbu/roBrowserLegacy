@@ -125,6 +125,13 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 		expect(s.slotDelays[3]).toBe(2); // 四舍五入
 	});
 
+	it('normalAttack：缺省/损坏输入 → 默认开启；显式 false 保留；非布尔归一', () => {
+		expect(migrateSettings(null).normalAttack).toBe(true);
+		expect(migrateSettings({}).normalAttack).toBe(true);
+		expect(migrateSettings({ normalAttack: false }).normalAttack).toBe(false);
+		expect(migrateSettings({ normalAttack: 'no' }).normalAttack).toBe(true); // 非布尔非 false → 开启
+	});
+
 	it('无 id 的垃圾技能项 → 丢弃', () => {
 		const s = migrateSettings({ skills: [{ type: 'attack' }, { id: 5, type: 'attack', level: 1 }] });
 		expect(s.skills[0]).toEqual({ id: 5, type: 'attack', level: 1 });

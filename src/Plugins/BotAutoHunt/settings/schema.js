@@ -82,7 +82,8 @@ export function migrateSettings(saved) {
 		followTarget: typeof src.followTarget === 'string' ? src.followTarget : '',
 		flyNoMobs: !!src.flyNoMobs,
 		flyLowHp: !!src.flyLowHp,
-		autoPotion: !!src.autoPotion
+		autoPotion: !!src.autoPotion,
+		normalAttack: src.normalAttack !== false // T2: 普通攻击开关（默认开启；旧档无字段=开启）
 	};
 }
 

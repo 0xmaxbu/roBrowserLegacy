@@ -115,6 +115,17 @@ const CSS_TEXT = `
 	font-weight: bold;
 }
 
+/* T2: 数字输入去原生上下箭头（保持 type=number 整数语义，仅文本框） */
+.botsw-pane input[type='number']::-webkit-outer-spin-button,
+.botsw-pane input[type='number']::-webkit-inner-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+.botsw-pane input[type='number'] {
+	-moz-appearance: textfield;
+	appearance: textfield;
+}
+
 /* 白色圓角內容面板 + 藍色節標題條 */
 .botsw-panel {
 	flex: 1 1 auto;

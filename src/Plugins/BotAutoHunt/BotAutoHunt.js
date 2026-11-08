@@ -285,6 +285,7 @@ class BotAutoHunt {
 		this._toastTimer = null; // toast 消失定时器
 		// ---------- schema v2（T2）：8 槽（攻击组 0-3 / 辅助组 4-7）+ 每槽延迟 ----------
 		this.slotDelays = new Array(TOTAL_SLOT_COUNT).fill(0); // 每槽施放延迟 ms，0=仅引擎默认限速
+		this.normalAttack = true; // T2: 无技能可用时允许普通攻击（法系职业可关闭，避免近身普攻）
 		this._slotLastCast = {}; // 槽下标 → 上次施放时间戳
 		this._createFloatingButton();
 		this._startFloatLifecyclePoll();
@@ -1444,6 +1445,27 @@ class BotAutoHunt {
 			wrap.appendChild(cells);
 		});
 
+		// T2: 普通攻击开关（官方技能页底部勾选框位置；法系职业建议关闭）
+		const naRow = document.createElement('div');
+		naRow.style.cssText = 'display:flex;flex-direction:column;gap:2px;border-top:1px dotted #b9c6d2;padding-top:6px;';
+		const naLine = document.createElement('label');
+		naLine.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;font-weight:bold;color:#2e4058;cursor:pointer;';
+		const naCb = document.createElement('input');
+		naCb.type = 'checkbox';
+		naCb.checked = self.normalAttack !== false;
+		naCb.addEventListener('change', function () {
+			self.normalAttack = naCb.checked;
+			self._saveSettings();
+		});
+		naLine.appendChild(naCb);
+		naLine.appendChild(document.createTextNode('普通攻击'));
+		const naHint = document.createElement('div');
+		naHint.style.cssText = 'font-size:10px;color:#4a7ab5;padding-left:18px;';
+		naHint.textContent = '勾选时：无技能可用将接近魔物普通攻击；不勾选：仅使用设定技能（法系职业建议关闭）';
+		naRow.appendChild(naLine);
+		naRow.appendChild(naHint);
+		wrap.appendChild(naRow);
+
 		return wrap;
 	}
 
@@ -1458,10 +1480,11 @@ class BotAutoHunt {
 
 		const cell = document.createElement('div');
 		cell.className = 'skilltab-cell';
-		// 官方：白底 + 灰蓝边框 #adb7c0 圆角 5px，34×34，图标约 22×22 居中
+		// 官方格子：双层边框圆角（外框 #a8b3bd + 白圈 + 内线 #dce8f2），34×34
 		cell.style.cssText =
-			'border:1px solid #adb7c0;border-radius:5px;background:#ffffff;padding:0;width:34px;height:34px;' +
-			'cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;position:relative;';
+			'border:1px solid #a8b3bd;border-radius:7px;background:linear-gradient(to bottom,#fdfeff,#f6fafd);padding:0;width:34px;height:34px;' +
+			'cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;position:relative;' +
+			'box-shadow:inset 0 0 0 2px #ffffff, inset 0 0 0 3px #dce8f2;';
 
 		if (skill && skill.id) {
 			const info = SkillInfo[skill.id];
@@ -1497,10 +1520,16 @@ class BotAutoHunt {
 			}
 		} else {
 			cell.title = '点击设置技能';
-			const ph = document.createElement('div');
-			ph.textContent = '✕';
-			ph.style.cssText = 'font-size:16px;color:#b9c4ce;line-height:1;';
-			cell.appendChild(ph);
+			// 官方空格占位：中央白色粗圆角十字 + 蓝灰径向光晕（对照官方截图，非纯字符占位）
+			const glow = document.createElement('div');
+			glow.style.cssText = 'position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:radial-gradient(circle, rgba(176,190,206,0.5) 0%, rgba(216,230,243,0.28) 55%, rgba(255,255,255,0) 75%);pointer-events:none;';
+			const plusH = document.createElement('div');
+			plusH.style.cssText = 'position:absolute;left:50%;top:50%;width:15px;height:5px;margin:-2.5px 0 0 -7.5px;border-radius:2.5px;background:#ffffff;box-shadow:0 0 1px 1px rgba(150,168,190,0.55);pointer-events:none;';
+			const plusV = document.createElement('div');
+			plusV.style.cssText = 'position:absolute;left:50%;top:50%;width:5px;height:15px;margin:-7.5px 0 0 -2.5px;border-radius:2.5px;background:#ffffff;box-shadow:0 0 1px 1px rgba(150,168,190,0.55);pointer-events:none;';
+			cell.appendChild(glow);
+			cell.appendChild(plusH);
+			cell.appendChild(plusV);
 		}
 
 		// 延迟输入行：格子下方独立一行（官方 28×12px 居中），UI 秒 → 存储毫秒换算
@@ -1514,6 +1543,10 @@ class BotAutoHunt {
 		input.style.cssText = 'width:30px;height:14px;padding:0 1px;font-size:11px;border:1px solid #c7c7c7;border-radius:2px;background:#fff;';
 		input.addEventListener('mousedown', e => e.stopPropagation());
 		input.addEventListener('click', e => e.stopPropagation());
+		// 只允许数字输入：禁小数点/符号/字母等非数字字符（保持 type=number 整数秒语义）
+		input.addEventListener('keydown', function (e) {
+			if (e.key.length === 1 && !/^[0-9]$/.test(e.key)) e.preventDefault();
+		});
 		input.addEventListener('change', function () {
 			const v = Math.max(0, Math.round((+input.value || 0) * 1000));
 			self.slotDelays[flatIdx] = v;
@@ -1946,6 +1979,8 @@ class BotAutoHunt {
 		}
 
 		// 7. 无技能可用 → 普通攻击 (PACKET.CZ.REQUEST_ACT2 action=7)
+		// T2: 「普通攻击」开关关闭时跳过（法系职业避免接近魔物近身普攻）
+		if (this.normalAttack === false) return;
 		const pkt = new PACKET.CZ.REQUEST_ACT2();
 		pkt.action = 7;
 		pkt.targetGID = target.GID;
@@ -2648,6 +2683,7 @@ class BotAutoHunt {
 		this.flyNoMobs = s2.flyNoMobs;
 		this.flyLowHp = s2.flyLowHp;
 		this.autoPotion = s2.autoPotion;
+		this.normalAttack = s2.normalAttack !== false;
 	}
 
 	_saveSettings() {
@@ -2664,7 +2700,8 @@ class BotAutoHunt {
 				followTarget: this.followTarget,
 				flyNoMobs: this.flyNoMobs,
 				flyLowHp: this.flyLowHp,
-				autoPotion: this.autoPotion
+				autoPotion: this.autoPotion,
+				normalAttack: this.normalAttack !== false
 			})
 		);
 	}
