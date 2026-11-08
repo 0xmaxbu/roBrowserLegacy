@@ -71,33 +71,35 @@ describe('SettingsWindow', () => {
 		panes.forEach(p => expect(p.textContent).toBe('本页签建设中'));
 	});
 
-	it('官方标题栏：位图背景 + 系统按钮 + 关闭按钮齐备', () => {
+	it('顶部控制点条存在（官方窗口控制点样式）', () => {
 		const root = buildRoot();
-		const titlebar = root.querySelector('.titlebar');
-		expect(titlebar).toBeTruthy();
-		expect(titlebar.dataset.background).toBe('basic_interface/titlebar_mid.bmp');
-		expect(root.querySelector('.base.node')).toBeTruthy();
-		const closeBtn = root.querySelector('.base.close');
-		expect(closeBtn).toBeTruthy();
-		expect(closeBtn.dataset.background).toBe('basic_interface/sys_close_off.bmp');
+		const dots = root.querySelectorAll('.botsw-top .dot');
+		expect(dots.length).toBe(4);
 	});
 
-	it('点击官方关闭按钮触发 onClose 回调', () => {
+	it('白色内容面板 + 蓝色节标题条（官方布局）', () => {
+		const root = buildRoot();
+		expect(root.querySelector('.botsw-panel')).toBeTruthy();
+		const header = root.querySelector('.botsw-header');
+		expect(header.textContent).toBe('请设定自动战斗功能');
+	});
+
+	it('点击底部关闭按钮触发 onClose 回调', () => {
 		let closed = false;
 		const root = document.createElement('div');
 		root.innerHTML = buildSettingsHTML(SETTINGS_TABS);
 		bindSettingsBehavior(root, () => {
 			closed = true;
 		});
-		root.querySelector('.base.close').click();
+		root.querySelector('.botsw-close').click();
 		expect(closed).toBe(true);
 	});
 
-	it('createSettingsComponent 返回可开合的 GUIComponent 实例', () => {
+	it('createSettingsComponent 返回可开合的 GUIComponent 实例且标记 persistent', () => {
 		const comp = createSettingsComponent({ placeholder: 'x' });
 		expect(comp.name).toBe('BotAutoHuntSettings');
+		expect(comp.persistent).toBe(true);
 		expect(typeof comp.render).toBe('function');
 		expect(comp.render()).toContain('botsw-tabbar');
-		comp.prepare && comp.prepare();
 	});
 });
