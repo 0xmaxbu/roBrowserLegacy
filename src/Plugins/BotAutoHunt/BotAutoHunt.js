@@ -244,10 +244,9 @@ class BotAutoHunt {
 		// 值: Date.now() + 预估施法时间；战斗循环在此时间前不发送移动指令
 		this._castingUntil = 0;
 
-		// ---------- 加载设置（此时 GID 可能为 0，进游戏后按需重载） ----------
-		this._loadSettings();
-
 		// ---------- 安装 buff 追踪 ----------
+		// （T8 修复：加载设置移至构造器末尾——原位置先于字段默认值赋值，
+		//   存档加载后被 slotDelays/loot=null 等默认值覆盖，右键直开设置窗口即崩溃）
 		this._installBuffTracker();
 
 		// ---------- 协议级 buff 钩子（D-64 契约定义） ----------
@@ -297,6 +296,11 @@ class BotAutoHunt {
 		this._lootBlacklist = new Set(); // T6: 本会话不再拾取的地面物品 GID（防捡丢循环）
 		this.cureItems = { poison: 0, panacea: 0 }; // T7: 解除药槽位（物品 ID，0=空）
 		this._slotLastCast = {}; // 槽下标 → 上次施放时间戳
+
+		// ---------- 加载设置（必须在全部字段默认值就位之后——_applySettings 逐字段覆盖默认值） ----------
+		// 构造时 GID 可能为 0（key 固定串），进游戏/过图/开窗会按需重载
+		this._loadSettings();
+
 		this._createFloatingButton();
 		this._startFloatLifecyclePoll();
 
@@ -1987,9 +1991,9 @@ class BotAutoHunt {
 		selAll.textContent = '全选';
 		selAll.style.cssText = btnStyle;
 		selAll.addEventListener('click', function () {
-			const spawnJobs = Array.isArray(MAP_MOBS[currentMap]) ? MAP_MOBS[currentMap] : [];
-			const seenJobs = Object.keys(self._seenMobs[currentMap] || {}).map(Number).filter(j => j > 0);
-			const allJobs = [...new Set(spawnJobs.concat(seenJobs))];
+			const mapJobs = Array.isArray(MAP_MOBS[currentMap]) ? MAP_MOBS[currentMap] : [];
+			const seenNow = Object.keys(self._seenMobs[currentMap] || {}).map(Number).filter(j => j > 0);
+			const allJobs = [...new Set(mapJobs.concat(seenNow))];
 			if (allJobs.length) self.mobWhitelist[currentMap] = allJobs;
 			self._saveSettings();
 			self._renderMobTab();
