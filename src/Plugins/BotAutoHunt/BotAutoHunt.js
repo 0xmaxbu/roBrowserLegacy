@@ -2352,7 +2352,7 @@ class BotAutoHunt {
 		const secTp = this._officialSection('瞬间移动使用设定');
 		const tpRow = document.createElement('div');
 		tpRow.style.cssText = 'display:flex;justify-content:center;gap:46px;padding:2px 0;';
-		ttpRow.appendChild(slotGroup(this.teleport, 'item'));
+		tpRow.appendChild(slotGroup(this.teleport, 'item'));
 		tpRow.appendChild(slotGroup(this.teleport, 'skill'));
 		secTp.content.appendChild(tpRow);
 		wrap.appendChild(secTp.box);
