@@ -188,6 +188,18 @@ describe('药水循环 _potionLoopInner', () => {
 		expect(events.onToast).toHaveBeenCalledWith('登记的道具已用完，正在返回村庄');
 	});
 
+	it('T9.3 拉黑期内落到巡逻步走动（不再原地干等）', () => {
+		const { b, e } = makeEngine({ pathResult: 5 });
+		const mob = fakeMob(7, 1002, [60, 60]);
+		b._state.entities = [mob];
+		e._combatLoopInner();
+		e._focusWatch.since = Date.now() - 9000;
+		e._combatLoopInner(); // 触发拉黑
+		const movesBefore = b.calls.moveTo.length;
+		e._combatLoopInner(); // 拉黑期 → 巡逻步寻路走动
+		expect(b.calls.moveTo.length).toBe(movesBefore + 1);
+	});
+
 	it('BUFF 道具用尽 + onBuffEmpty 开 → 回村（官方道具页返回村庄设定）', () => {
 		const events = { onToast: vi.fn() };
 		const { b, e } = makeEngine({ itemCounts: {}, useItemOk: true }, events);
@@ -259,6 +271,23 @@ describe('T9.3 不可达目标看门狗（挂机时走到某些地方停止移�
 		const attacksMid = b.calls.attack.length;
 		e._combatLoopInner();
 		expect(b.calls.attack.length).toBe(attacksMid);
+	});
+
+	it('拉黑期的不可达怪不计入 hasMob → 无怪回落链触发瞬移解围', () => {
+		const { b, e } = makeEngine({});
+		const mob = fakeMob(7, 1002, [60, 60]);
+		b._state.entities = [mob];
+		e._combatLoopInner();
+		e._focusWatch.since = Date.now() - 9000;
+		e._combatLoopInner(); // 触发拉黑
+		expect(e._mobBlacklist.get(7)).toBeGreaterThan(Date.now());
+		const attacksAtBlacklist = b.calls.attack.length;
+		// 无怪计时拨到 20s 前 → flyNoMobs 开 → 瞬移解围（旧逻辑：怪滞留视野 → 永不触发）
+		e.applySettings(baseSettings({ flyNoMobs: true }));
+		e._lastMobSeenTick = Date.now() - 20000;
+		e._combatLoopInner();
+		expect(b.calls.castSkill).toContainEqual([26, 1, 100]); // AL_TELEPORT Lv1 对自己
+		expect(b.calls.attack.length).toBe(attacksAtBlacklist); // 拉黑期不再盲发攻击
 	});
 
 	it('目标/自身位移超 2 格 → 看门狗计时重置（有效追击不误拉黑）', () => {

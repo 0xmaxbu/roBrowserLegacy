@@ -310,6 +310,29 @@ class HuntEngine {
 		} catch (e) {
 			console.error('[BotAutoHunt] combat loop error:', e);
 		}
+		// T9.3 诊断：控制台 `__botDebug = true` 后每秒输出决策上下文（卡死排查用）
+		if (typeof window !== 'undefined' && window.__botDebug) {
+			const now = Date.now();
+			if (!this._dbgAt || now - this._dbgAt >= 1000) {
+				this._dbgAt = now;
+				const self = this.bindings.self();
+				const focus = this.bindings.focusEntity();
+				console.log('[BotAutoHunt][dbg]', JSON.stringify({
+					pos: self ? self.position : null,
+					walking: self ? self.walking : null,
+					dead: self ? self.dead : null,
+					hp: self && self.life ? self.life.hp : null,
+					map: this.bindings.mapState().name,
+					focusGid: focus ? focus.GID : null,
+					blacklist: Array.from(this._mobBlacklist.entries())
+						.filter(([, t]) => t > now)
+						.map(([gid, t]) => gid + '@' + Math.round((t - now) / 1000) + 's'),
+					noMobMs: now - this._lastMobSeenTick,
+					castBlockMs: Math.max(0, this._castingUntil - now),
+					portalAvoid: this._needMoveAwayFromPortal
+				}));
+			}
+		}
 	}
 
 	_combatLoopInner() {
@@ -440,6 +463,9 @@ class HuntEngine {
 					entity.action !== entity.ACTION.DIE &&
 					entity.remove_tick === 0
 				) {
+					// T9.3: 追击拉黑期（不可达目标）不计入 hasMob——否则怪滞留视野时
+					// 无怪回落链（瞬移/飞翅解围）永不触发，角色在盲发期与拉黑期之间永久站立
+					if ((this._mobBlacklist.get(entity.GID) || 0) > Date.now()) return;
 					hasMob = true;
 					mobCount++;
 					if (!mvpSeen && MVP_JOBS.indexOf(entity.job) !== -1) mvpSeen = true;
@@ -487,17 +513,7 @@ class HuntEngine {
 					// walk → 落到下方巡逻分支
 				}
 				// 巡逻：角色行走中不重复发指令；停下后立即寻路（短冷却防刷包）
-				if (self.walking) {
-					return; // 正在走，继续等待
-				}
-				// Bug 3 fix: buff 施法期间不移动，避免打断长施法（如能量外套 5s）
-				if (Date.now() < this._castingUntil) return;
-				if (Date.now() - this._lastPatrolMoveTick > 1500) {
-					this._lastPatrolMoveTick = Date.now();
-					const target = this._findPatrolTarget();
-					if (!target) return; // 无可行走目标，原地等待
-					this.bindings.moveTo(target[0], target[1]);
-				}
+				this._patrolStep();
 				return;
 			}
 		}
@@ -512,15 +528,7 @@ class HuntEngine {
 		if (spRule === 'stop-and-move') {
 			// 停止攻击后自动移动（同无怪巡逻：行走中等待；停下后每 1.5s 一步）
 			this.bindings.setFocusEntity(null);
-			if (self.walking) return;
-			if (Date.now() < this._castingUntil) return;
-			if (Date.now() - this._lastPatrolMoveTick > 1500) {
-				this._lastPatrolMoveTick = Date.now();
-				const ptarget = this._findPatrolTarget();
-				if (ptarget) {
-					this.bindings.moveTo(ptarget[0], ptarget[1]);
-				}
-			}
+			this._patrolStep();
 			return;
 		}
 
@@ -533,8 +541,8 @@ class HuntEngine {
 				target = this.bindings.closestMob();
 			}
 			if (!target) { this._focusWatch.gid = 0; return; } // 地图无怪（或只剩名单外怪，走巡逻/飞翅分支）
-			// T9.3: 追击拉黑期内不重选同一目标（等它走动/离开视野/黑名单过期）
-			if ((this._mobBlacklist.get(target.GID) || 0) > Date.now()) { this._focusWatch.gid = 0; return; }
+			// T9.3: 追击拉黑期内不重选同一目标，落到巡逻步走动（等它走动/离开视野/黑名单过期）
+			if ((this._mobBlacklist.get(target.GID) || 0) > Date.now()) { this._focusWatch.gid = 0; this._patrolStep(); return; }
 			this.bindings.setFocusEntity(target);
 		}
 
@@ -965,6 +973,20 @@ class HuntEngine {
 	 * 策略2: search A* 兜底 — range=8 接受目标附近可达点
 	 * @returns {number[]|null} [x, y] 可行走目标坐标，或 null
 	 */
+	/**
+	 * T9.3: 共享巡逻步（无怪分支/停止攻击转移动/追击拉黑期共用）：
+	 * 行走中等待 → buff 施法期等待 → 1.5s 节流 → 寻路移动
+	 */
+	_patrolStep() {
+		if (this.bindings.self().walking) return;
+		if (Date.now() < this._castingUntil) return;
+		if (Date.now() - this._lastPatrolMoveTick <= 1500) return;
+		this._lastPatrolMoveTick = Date.now();
+		const target = this._findPatrolTarget();
+		if (!target) return; // 无可行走目标，原地等待
+		this.bindings.moveTo(target[0], target[1]);
+	}
+
 	_findPatrolTarget() {
 		const self = this.bindings.self();
 		const cx = self.position[0] | 0;
