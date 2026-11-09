@@ -180,8 +180,13 @@ class HuntEngine {
 		this._lootBlacklist = new Set();
 	}
 
-	/** 设置快照喂入（壳层 _applySettings / _saveSettings 路径调用；引擎自持字段副本） */
-	applySettings(s) {
+	/** 设置快照喂入（壳层 _applySettings / _saveSettings 路径调用；深拷贝自持，不与壳层共享可变引用） */
+	applySettings(snap) {
+		// 设置对象均为 JSON 安全结构（migrateSettings 产物/壳层字段聚合）；
+		// 深拷贝隔离：壳层（UI）改到一半的中间态不会波及正在 tick 的引擎
+		const s = typeof structuredClone === 'function'
+			? structuredClone(snap)
+			: JSON.parse(JSON.stringify(snap));
 		this.skillList = s.skillList || s.skills || [];
 		this.auxList = s.auxList || s.aux || [];
 		this.slotDelays = s.slotDelays || [0, 0, 0, 0, 0, 0, 0, 0];
