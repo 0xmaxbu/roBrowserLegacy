@@ -35,7 +35,7 @@ import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_P
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import { createSettingsComponent } from './settings/SettingsWindow.js'; // T1: 官方样式设置窗口（GUIComponent，8 页签）
-import { migrateSettings, slotReady, evaluateThresholds, mobInWhitelist, decideNoMobAction, matchLootType, validateLootedItem, isCureStatusActive, evaluatePotionSlots, decideSpEconomy, CURE_WATCH_LISTS, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2-T9: 纯函数
+import { migrateSettings, slotReady, shouldLowHpFlyWing, mobInWhitelist, decideNoMobAction, matchLootType, validateLootedItem, isCureStatusActive, evaluatePotionSlots, decideSpEconomy, CURE_WATCH_LISTS, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2-T9: 纯函数
 import Sprite from 'Loaders/Sprite.js'; // T9: 魔物头像程序化渲染（官方魔物设定页行首图标）
 import Action from 'Loaders/Action.js'; // T9: 同上（ACT 动画帧索引）
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
@@ -3476,13 +3476,11 @@ class BotAutoHunt {
 		const spPct = (sp / spMax) * 100;
 
 		// 1-3. T9 官方药水四槽决策（纯函数：低血飞翅阈值 + 槽位自左向右命中）
-		const need = evaluateThresholds(hpPct, spPct, {
-			flyLowHp: this.flyLowHp
-		});
+		const lowHpFly = shouldLowHpFlyWing(hpPct, this.flyLowHp);
 
-		// 1. 低血飞翅 (D2 #12): HP<10% → 移动页「返回储存点」注册（道具→技能→兔底）
+		// 1. 低血飞翅 (D2 #12): HP<10% → 移动页「返回储存点」注册（道具→技能→兜底）
 		// 仅在挂机地图上使用（错误地图上飞翅会干扰返回逻辑）
-		if (onHuntMap && need.lowHpFlyWing) {
+		if (onHuntMap && lowHpFly) {
 			if (!this._isOnCooldown('retreat_lowhp')) {
 				this._executeRetreat('retreat_lowhp');
 				this._markAction('retreat_lowhp', 2000);

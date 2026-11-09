@@ -36,24 +36,18 @@ function isSupportGroupItem(item) {
 }
 
 /**
- * 用药阈值决策（纯函数，T3）：给定当前 HP/SP 百分比与设置，返回各触发项
- * 判定与 _potionLoopInner 一致：严格小于阈值才触发（等于不触发）；
- * 低血飞翅固定 10% 且需开关开启
+ * 低血飞翅决策（纯函数，T3 引入；T9 药水四槽上线后收窄为单一职责）：
+ * HP 严格小于 10% 且开关开启时触发（等于 10% 不触发）
+ *
+ * 历史：v2 时代本函数还输出 hpPotion/spPotion（顶栏共享阈值用药），
+ * T9 官方药水四槽模型由 evaluatePotionSlots 接管后这两个输出无消费方，已删。
  *
  * @param {number} hpPct 当前 HP 百分比（0-100）
- * @param {number} spPct 当前 SP 百分比（0-100）
- * @param {{ hpThreshold?: number, spThreshold?: number, flyLowHp?: boolean }} opts
- * @return {{ lowHpFlyWing: boolean, hpPotion: boolean, spPotion: boolean }}
+ * @param {boolean} flyLowHpEnabled 移动设定「低血飞翅」开关
+ * @return {boolean} true = 触发低血撤退（返回储存点）
  */
-export function evaluateThresholds(hpPct, spPct, opts) {
-	const o = opts || {};
-	const hpThreshold = typeof o.hpThreshold === 'number' ? o.hpThreshold : 70;
-	const spThreshold = typeof o.spThreshold === 'number' ? o.spThreshold : 30;
-	return {
-		lowHpFlyWing: !!(o.flyLowHp && hpPct < 10),
-		hpPotion: hpPct < hpThreshold,
-		spPotion: spPct < spThreshold
-	};
+export function shouldLowHpFlyWing(hpPct, flyLowHpEnabled) {
+	return !!(flyLowHpEnabled && hpPct < 10);
 }
 
 /**
@@ -197,10 +191,10 @@ export function mobInWhitelist(jobId, whitelistByMap, mapName) {
 }
 
 /**
- * 结构迁移：任意输入 → 合法的 v2 设置对象
+ * 结构迁移：任意输入 → 合法的 v3 设置对象
  *
  * @param {*} saved  localStorage 解析结果（可能损坏/缺字段/旧版本）
- * @return {Object}  v2 规范化对象（含 v/skills/slotDelays 及透传字段）
+ * @return {Object}  v3 规范化对象（含 v/skills/slotDelays 及透传字段）
  */
 export function migrateSettings(saved) {
 	const src = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
