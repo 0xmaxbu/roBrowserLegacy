@@ -286,6 +286,17 @@ class BotAutoHunt {
 				// 行走中——引擎得以重新发移动指令（服务器回包重建路径）自恢复，否则所有分支
 				// 永远等待、角色冻结
 				walking: e.action === e.ACTION.WALK && !!(e.walk && e.walk.total > 0),
+				walking: (() => {
+					const walkStuck = e.action === e.ACTION.WALK && !(e.walk && e.walk.total > 0);
+					if (walkStuck) {
+						// T9.3 运行时诊断：卡死态出现时给玩家一次性提示（60s 抑制重复）
+						if (!plugin._walkStuckNotifiedAt || Date.now() - plugin._walkStuckNotifiedAt > 60000) {
+							plugin._walkStuckNotifiedAt = Date.now();
+							plugin._showToast('检测到移动状态异常，已自动纠偏（如反复出现请截图反馈）');
+						}
+					}
+					return e.action === e.ACTION.WALK && !walkStuck;
+				})(),
 					amotionBusy: e.amotionTick > Date.now(),
 					life: life ? { hp: life.hp, hpMax: life.hp_max, sp: life.sp, spMax: life.sp_max } : null,
 					weightPct: Session.max_weight > 0 ? (Session.weight / Session.max_weight) * 100 : null,

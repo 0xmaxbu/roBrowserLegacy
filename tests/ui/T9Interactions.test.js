@@ -291,6 +291,9 @@ describe('T9.3 walking 绑定（上游 PR #607 卡死态自恢复）', () => {
 		Session.Entity = fake;
 		try {
 			expect(plugin.engine.bindings.self().walking).toBe(false);
+			// 卡死态出现时给玩家一次性 toast 提示（60s 抑制）
+			const toast = document.getElementById('bot-float-toast');
+			expect(toast && toast.textContent).toContain('检测到移动状态异常');
 			Session.Entity.walk.total = 120; // 正常行走路由
 			expect(plugin.engine.bindings.self().walking).toBe(true);
 		} finally {
