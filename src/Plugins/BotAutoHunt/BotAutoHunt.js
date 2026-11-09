@@ -35,7 +35,7 @@ import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_P
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import { createSettingsComponent } from './settings/SettingsWindow.js'; // T1: 官方样式设置窗口（GUIComponent，8 页签）
-import { migrateSettings, slotReady, shouldLowHpFlyWing, mobInWhitelist, decideNoMobAction, matchLootType, validateLootedItem, isCureStatusActive, evaluatePotionSlots, decideSpEconomy, CURE_WATCH_LISTS, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2-T9: 纯函数
+import { migrateSettings, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // 壳层仅用迁移与常量；决策纯函数已随引擎内迁（engine/HuntEngine.js）
 import HuntEngine, {
 	SKILL_TYPE_ATTACK, SKILL_TYPE_HEAL, SKILL_TYPE_BUFF,
 	AUX_TYPE_POTION, AUX_TYPE_BUFF_ITEM,
