@@ -329,24 +329,30 @@ export function migrateSettings(saved) {
 	};
 
 	// ---- T9: 移动四槽（官方移动设定页：瞬移/返回儲存點 × 道具/技能） ----
-	// v2 迁移：瞬移=苍蝇翅膀(601)+瞬间移动lv1、返回=蝴蝶翅肢(602)+瞬间移动lv2（原回落链硬编码）
+	// v2 迁移：瞬移=苍蝇翅膀(601)+瞬间移动lv1、返回=蝴蝶翅膀(602)+瞬间移动lv2（原回落链硬编码）
 	const srcTp = src.teleport && typeof src.teleport === 'object' && !Array.isArray(src.teleport) ? src.teleport : {};
 	const srcRt = src.retreat && typeof src.retreat === 'object' && !Array.isArray(src.retreat) ? src.retreat : {};
 	function normSlotCfg(raw, def) {
 		const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
 		const item = r.item && typeof r.item === 'object' ? r.item : {};
 		const skill = r.skill && typeof r.skill === 'object' ? r.skill : {};
+		// 存量归一：T9 初版技能槽默认值误写 28（=AL_HEAL 治愈术；正确为 26 AL_TELEPORT）。
+		// 移动技能下拉仅提供 AL_TELEPORT 一项，存档里的 28 只可能来自坏默认值 → 归一为 26。
+		// 注意：道具槽（item.id）不归一——道具 ID 28 是合法的红药水。
+		const rawSkillId = typeof skill.id === 'number' ? skill.id : def.skill.id;
+		const skillId = rawSkillId === 28 ? 26 : rawSkillId;
 		return {
 			item: { enabled: boolOr(item.enabled, def.item.enabled), id: normCureId(typeof item.id === 'number' ? item.id : def.item.id) },
 			skill: {
 				enabled: boolOr(skill.enabled, def.skill.enabled),
-				id: normCureId(typeof skill.id === 'number' ? skill.id : def.skill.id),
+				id: normCureId(skillId),
 				level: clampInt(skill.level, 1, 10, def.skill.level)
 			}
 		};
 	}
-	const teleport = normSlotCfg(srcTp, { item: { enabled: true, id: 601 }, skill: { enabled: true, id: 28, level: 1 } });
-	const retreat = normSlotCfg(srcRt, { item: { enabled: true, id: 602 }, skill: { enabled: true, id: 28, level: 2 } });
+	// 技能 id 26 = AL_TELEPORT 瞬间移动（DB/Skills/SkillConst.js:37；schema.js 保持零依赖故用字面量）
+	const teleport = normSlotCfg(srcTp, { item: { enabled: true, id: 601 }, skill: { enabled: true, id: 26, level: 1 } });
+	const retreat = normSlotCfg(srcRt, { item: { enabled: true, id: 602 }, skill: { enabled: true, id: 26, level: 2 } });
 
 	// ---- T9: SP 经济规则（官方基本设定页：规则1 仅一般攻击优先度高；规则2 停止攻击后自动移动） ----
 	const srcSpNa = src.spNormalAttack && typeof src.spNormalAttack === 'object' ? src.spNormalAttack : {};

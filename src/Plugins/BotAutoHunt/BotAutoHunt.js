@@ -308,8 +308,8 @@ class BotAutoHunt {
 		// T9: 官方模型字段（默认值；加载后被 _applySettings 覆盖）
 		this.cure = { enabled: true, poison: 0, panacea: 0 }; // 状态异常恢复（药水页分页2）
 		this.returnVillage = { enabled: false, onPotionsEmpty: false, onCureEmpty: false }; // 返回村庄设定
-		this.teleport = { item: { enabled: true, id: ITEM_FLY_WING }, skill: { enabled: true, id: 28, level: 1 } }; // 瞬间移动使用设定
-		this.retreat = { item: { enabled: true, id: ITEM_BUTTERFLY_WING }, skill: { enabled: true, id: 28, level: 2 } }; // 返回储存点使用设定
+		this.teleport = { item: { enabled: true, id: ITEM_FLY_WING }, skill: { enabled: true, id: SK.AL_TELEPORT, level: 1 } }; // 瞬间移动使用设定
+		this.retreat = { item: { enabled: true, id: ITEM_BUTTERFLY_WING }, skill: { enabled: true, id: SK.AL_TELEPORT, level: 2 } }; // 返回储存点使用设定（AL_TELEPORT Lv2=回存储点；T9 初版误写 28=AL_HEAL 已修）
 		this.spNormalAttack = { enabled: false, threshold: 10 }; // SP经济规则1：仅一般攻击（优先度高）
 		this.spStopAttackMove = { enabled: false, threshold: 5 }; // SP经济规则2：停止攻击后自动移动
 		this.flyOnMobCount = { enabled: false, count: 20 }; // 画面内魔物超过 X 只时瞬移
@@ -2773,9 +2773,9 @@ class BotAutoHunt {
 			return;
 		}
 		if (tabIndex === 5) {
-			// 移动设定：瞬移/返回四槽回默认（苍蝇翅肢+瞬间移动1 / 蝴蝶翅肢+瞬间移动2）
-			this.teleport = { item: { enabled: true, id: ITEM_FLY_WING }, skill: { enabled: true, id: 28, level: 1 } };
-			this.retreat = { item: { enabled: true, id: ITEM_BUTTERFLY_WING }, skill: { enabled: true, id: 28, level: 2 } };
+			// 移动设定：瞬移/返回四槽回默认（苍蝇翅膀+瞬间移动lv1 / 蝴蝶翅膀+瞬间移动lv2）
+			this.teleport = { item: { enabled: true, id: ITEM_FLY_WING }, skill: { enabled: true, id: SK.AL_TELEPORT, level: 1 } };
+			this.retreat = { item: { enabled: true, id: ITEM_BUTTERFLY_WING }, skill: { enabled: true, id: SK.AL_TELEPORT, level: 2 } };
 			this._saveSettings();
 			this._renderMoveTab();
 			return;
