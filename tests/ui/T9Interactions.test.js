@@ -342,20 +342,41 @@ describe('T9.1 道具设定页', () => {
 		expect(saved.aux).toHaveLength(8);
 	});
 
-	it('延迟输入 change → auxDelays 持久化（0-86400 夹取）', () => {
+	it('延迟输入以「分」为单位：显示分钟、存储秒（30 分 → 1800 秒持久化）', () => {
 		const plugin = getPlugin();
+		// 预存 1800 秒 → 显示 30 分
+		plugin.auxDelays[0] = 1800;
 		const wrap = plugin._buildItemTabContent();
 		const input = wrap.querySelector('input[type="number"]');
-		input.value = '1800';
+		expect(input.value).toBe('30');
+		// 输入框后有「分」单位
+		expect(input.parentElement.textContent).toContain('分');
+		// 30 分 → 存 1800 秒
+		input.value = '30';
 		input.dispatchEvent(new Event('change', { bubbles: true }));
 		expect(plugin.auxDelays[0]).toBe(1800);
 		let saved = JSON.parse(localStorage.getItem(plugin._getStorageKey()));
 		expect(saved.auxDelays[0]).toBe(1800);
+		// 超上限夹取：999999 分 → 1440 分 = 86400 秒
 		input.value = '999999';
 		input.dispatchEvent(new Event('change', { bubbles: true }));
-		expect(plugin.auxDelays[0]).toBe(86400); // 夹取上限
+		expect(plugin.auxDelays[0]).toBe(86400);
 		saved = JSON.parse(localStorage.getItem(plugin._getStorageKey()));
 		expect(saved.auxDelays[0]).toBe(86400);
+	});
+
+	it('T9.4 全界面数字输入框统一样式：左右 2px 内边距 + 右对齐（道具/技能/捡拾/基本页）', () => {
+		const plugin = getPlugin();
+		Inventory.__setInventory([]);
+		const cssChecks = input => {
+			expect(input.style.padding).toBe('0px 2px');
+			expect(input.style.textAlign).toBe('right');
+			expect(input.style.boxSizing).toBe('border-box');
+		};
+		cssChecks(plugin._buildItemTabContent().querySelector('input[type="number"]'));
+		cssChecks(plugin._buildSkillTabContent().querySelector('input[type="number"]'));
+		cssChecks(plugin._buildLootTabContent().querySelector('input[type="number"]'));
+		cssChecks(plugin._buildBasicTabContent().querySelector('input[type="number"]'));
 	});
 
 	it('返回村庄勾选点击 → returnVillage.onBuffEmpty 持久化', () => {

@@ -126,6 +126,12 @@ const TOWN_MAPS = new Set([
 	'moscovia', 'paramk', 'splendide', 'manuk', 'prontera_guild'
 ]);
 
+/** T9.4: 全界面统一数字输入框样式（验收：左右 2px 内边距 + text-align right，
+ *  所有页签的数字/时间输入共用；宽高由调用点按上下文附加） */
+const NUM_INPUT_CSS =
+	'box-sizing:border-box;height:15px;padding:0 2px;text-align:right;font-size:11px;' +
+	'border:1px solid #c7c7c7;border-radius:2px;background:#fff;color:#2e4058;margin:0;';
+
 /** 技能触发类型（开发时预分类，D-03c） */
 // BotAutoHunt 主类
 // =====================================================================
@@ -1572,7 +1578,7 @@ class BotAutoHunt {
 			input.type = 'number';
 			input.className = cls;
 			input.value = String(value);
-			input.style.cssText = 'width:34px;height:15px;margin:0 3px;padding:0 2px;font-size:11px;border:1px solid #c7c7c7;border-radius:2px;background:#fffdf5;text-align:center;';
+			input.style.cssText = NUM_INPUT_CSS + 'width:34px;margin:0 3px;'; // T9.4 统一样式;
 			input.addEventListener('mousedown', e => e.stopPropagation());
 			input.addEventListener('keydown', function (e) {
 				if (e.key.length === 1 && !/^[0-9]$/.test(e.key)) e.preventDefault();
@@ -2008,7 +2014,7 @@ class BotAutoHunt {
 
 		wrap.appendChild(this._officialHeaderStrip('请设定BUFF类道具。', '每设定的延迟时间时，使用登录于栏位的BUFF道具。'));
 
-		// 官方浅蓝容器：2 行 × 4 列，每格 = 道具格 + 延迟秒数输入
+		// 官方浅蓝容器：2 行 × 4 列，每格 = 道具格 + 延迟输入（T9.4：UI 单位分，存储层仍为秒）
 		const box = document.createElement('div');
 		box.style.cssText = 'background:#eaf2fb;border:1px solid #c7d6e3;border-radius:6px;padding:10px 8px;display:flex;justify-content:center;';
 		const grid = document.createElement('div');
@@ -2021,22 +2027,27 @@ class BotAutoHunt {
 			const input = document.createElement('input');
 			input.type = 'number';
 			input.min = '0';
-			input.max = '86400';
-			input.value = String((this.auxDelays && this.auxDelays[i]) || 0);
+			input.max = '1440'; // 分钟上限（= 86400 秒存储上限）
+			const savedSec = (this.auxDelays && this.auxDelays[i]) || 0;
+			input.value = String(Math.round(savedSec / 60)); // 显示分钟
 			input.dataset.auxIndex = String(i);
-			input.style.cssText = 'width:46px;font-size:11px;padding:1px 2px;border:1px solid #9db8d2;border-radius:2px;text-align:center;color:#2e4058;background:#ffffff;';
+			input.style.cssText = NUM_INPUT_CSS + 'width:30px;'; // T9.4 统一样式（同技能页）
 			input.addEventListener('mousedown', e => e.stopPropagation());
 			input.addEventListener('change', () => {
-				const v = Math.max(0, Math.min(86400, Math.round(+input.value || 0)));
-				input.value = String(v);
+				const minutes = Math.max(0, Math.min(1440, Math.round(+input.value || 0)));
+				input.value = String(minutes);
 				while (self.auxList.length < 8) self.auxList.push(null); // 旧档兜底
-				self.auxDelays[i] = v;
+				self.auxDelays[i] = minutes * 60; // 存储层仍为秒（schema/引擎不变）
 				self._saveSettings();
 			});
 			cell.appendChild(this._officialItemSlot(slot ? slot.id : 0, () => {
 				self._openBuffItemDropdown(i, cell.firstChild);
 			}));
-			cell.appendChild(input);
+			const delayRow = document.createElement('div');
+			delayRow.style.cssText = 'display:flex;align-items:center;gap:1px;';
+			delayRow.appendChild(input);
+			delayRow.appendChild(document.createTextNode('分'));
+			cell.appendChild(delayRow);
 			grid.appendChild(cell);
 		}
 		box.appendChild(grid);
@@ -2311,7 +2322,7 @@ class BotAutoHunt {
 			input.min = String(min);
 			input.max = String(max);
 			input.value = String(value);
-			input.style.cssText = 'width:40px;height:14px;padding:0 1px;font-size:11px;border:1px solid #c7c7c7;border-radius:2px;background:#fff;';
+			input.style.cssText = NUM_INPUT_CSS + 'width:40px;'; // T9.4 统一样式;
 			input.addEventListener('mousedown', e => e.stopPropagation());
 			input.addEventListener('click', e => e.stopPropagation());
 			input.addEventListener('keydown', function (e) {
@@ -3005,7 +3016,7 @@ class BotAutoHunt {
 		input.min = '0';
 		input.step = '1';
 		input.value = String(delayMs / 1000);
-		input.style.cssText = 'width:30px;height:14px;padding:0 1px;font-size:11px;border:1px solid #c7c7c7;border-radius:2px;background:#fff;';
+		input.style.cssText = NUM_INPUT_CSS + 'width:30px;'; // T9.4 统一样式;
 		input.addEventListener('mousedown', e => e.stopPropagation());
 		input.addEventListener('click', e => e.stopPropagation());
 		// 只允许数字输入：禁小数点/符号/字母等非数字字符（保持 type=number 整数秒语义）
