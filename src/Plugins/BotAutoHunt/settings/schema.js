@@ -8,9 +8,11 @@
  *   - slotDelays 数组 8 项，与 skills 下标对齐
  *   - potions：药水设定页官方四槽模型 hp×2 + sp×2，每槽 {id, threshold, enabled}
  *   - cure：状态异常恢复（解毒药/万能药 + 启用开关）
- *   - returnVillage：返回村庄设定（官方药水页分页2）
+ *   - returnVillage：返回村庄设定（药水页分页2 两项 + 道具页 BUFF 用尽项；官方无总开关）
+ *   - aux/auxDelays：道具设定页官方 BUFF 道具 8 槽 + 每格延迟秒数（官方公告 PDF 第 7 页）
  *   - teleport/retreat：移动设定页官方四槽（瞬移/返回 × 道具/技能）
  *   - SP 经济规则/画面怪数瞬移/MVP 瞬移：官方基本设定页行为清单
+ *   - 药水默认阈值：官方公告页 1 截图 HP/SP 四槽均显示 70%（2026-11-09 验收修正 SP 30→70）
  *
  * 分类迁移（attack→heal/buff 重分类）依赖游戏数据（HEAL_SKILL_IDS/efst-map），
  * 由 BotAutoHunt._loadSettings 在调用本模块前完成——本模块只做结构迁移。
@@ -283,7 +285,7 @@ export function migrateSettings(saved) {
 	});
 	const srcPotions = src.potions && typeof src.potions === 'object' && !Array.isArray(src.potions) ? src.potions : null;
 	const legacyHpThreshold = typeof src.hp === 'number' && isFinite(src.hp) ? Math.round(src.hp) : 70;
-	const legacySpThreshold = typeof src.sp === 'number' && isFinite(src.sp) ? Math.round(src.sp) : 30;
+	const legacySpThreshold = typeof src.sp === 'number' && isFinite(src.sp) ? Math.round(src.sp) : 70; // 官方默认 70%（页1 截图 SP 未满70%）
 	// T9: 全新用户（无 v2 autoPotion 字段）→ 官方默认启用；v2 autoPotion=false → 迁移保留旧意愿
 	const legacyAutoPotion = src.autoPotion === undefined ? true : !!src.autoPotion;
 	let hpSlots = null;
@@ -320,13 +322,35 @@ export function migrateSettings(saved) {
 		panacea: normCureId(typeof srcCureCfg.panacea === 'number' ? srcCureCfg.panacea : cureItems.panacea)
 	};
 
-	// ---- T9: 返回村庄设定（官方药水页分页2：药水用完→用返回道具/技能回村） ----
+	// ---- T9: 返回村庄设定（药水页分页2 两项 + 道具页 BUFF 用尽项） ----
+	// 官方无「总开关」：各勾选即各触发条件（旧字段 enabled 无 UI 且引擎从未正确消费，v3.1 移除）
 	const srcRv = src.returnVillage && typeof src.returnVillage === 'object' && !Array.isArray(src.returnVillage) ? src.returnVillage : {};
 	const returnVillage = {
-		enabled: boolOr(srcRv.enabled, false),
 		onPotionsEmpty: boolOr(srcRv.onPotionsEmpty, false),
-		onCureEmpty: boolOr(srcRv.onCureEmpty, false)
+		onCureEmpty: boolOr(srcRv.onCureEmpty, false),
+		onBuffEmpty: boolOr(srcRv.onBuffEmpty, true) // 官方道具页截图默认勾选
 	};
+
+	// ---- T9.1: 道具设定页官方 BUFF 道具 8 槽 + 每格延迟秒数（官方公告 PDF 第 7 页） ----
+	// v2 混排 aux 迁移：仅保留 buff_item 类型前 8 项（新模型不可表示的超出项丢弃，同技能 4+4 规则）
+	const AUX_SLOT_COUNT = 8;
+	const srcAuxAll = Array.isArray(src.aux) ? src.aux : [];
+	const buffItems = [];
+	for (const a of srcAuxAll) {
+		if (a && a.id && a.type === 'buff_item' && buffItems.length < AUX_SLOT_COUNT) {
+			buffItems.push({ id: normCureId(a.id), type: 'buff_item' });
+		}
+	}
+	const aux = [];
+	for (let i = 0; i < AUX_SLOT_COUNT; i++) aux.push(buffItems[i] || null);
+	const srcAuxDelays = Array.isArray(src.auxDelays) ? src.auxDelays : [];
+	const auxDelays = [];
+	for (let i = 0; i < AUX_SLOT_COUNT; i++) {
+		const d = typeof srcAuxDelays[i] === 'number' && srcAuxDelays[i] >= 0 && isFinite(srcAuxDelays[i])
+			? Math.min(86400, Math.round(srcAuxDelays[i]))
+			: 0;
+		auxDelays.push(d);
+	}
 
 	// ---- T9: 移动四槽（官方移动设定页：瞬移/返回儲存點 × 道具/技能） ----
 	// v2 迁移：瞬移=苍蝇翅膀(601)+瞬间移动lv1、返回=蝴蝶翅膀(602)+瞬间移动lv2（原回落链硬编码）
@@ -376,7 +400,8 @@ export function migrateSettings(saved) {
 	return {
 		v: SCHEMA_VERSION,
 		skills: skills,
-		aux: (Array.isArray(src.aux) ? src.aux : []).filter(it => it && it.type !== 'potion'), // T9: 仅存 BUFF 道具（potion 类型已分流至 potions 四槽；道具设定页 UI 待官方素材）
+		aux: aux, // T9.1: 道具设定页 BUFF 道具固定 8 槽（null=空）
+		auxDelays: auxDelays, // T9.1: 每格延迟秒数（0=无额外延迟，仅按 buff 消失门控）
 		slotDelays: slotDelays,
 		follow: !!src.follow,
 		followTarget: typeof src.followTarget === 'string' ? src.followTarget : '',

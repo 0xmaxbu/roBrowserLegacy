@@ -110,7 +110,8 @@ function baseSettings(over) {
 			sp: [{ id: 503, threshold: 30, enabled: true }, { id: 0, threshold: 30, enabled: true }]
 		},
 		cure: { enabled: true, poison: 506, panacea: 525 },
-		returnVillage: { enabled: false, onPotionsEmpty: false, onCureEmpty: false },
+		returnVillage: { onPotionsEmpty: false, onCureEmpty: false, onBuffEmpty: false }, // 具体/回村用例内显式开启
+		auxDelays: [0, 0, 0, 0, 0, 0, 0, 0],
 		teleport: { item: { enabled: true, id: ITEM_FLY_WING }, skill: { enabled: true, id: 26, level: 1 } },
 		retreat: { item: { enabled: true, id: ITEM_BUTTERFLY_WING }, skill: { enabled: true, id: 26, level: 2 } },
 		spNormalAttack: { enabled: false, threshold: 10 },
@@ -179,12 +180,61 @@ describe('药水循环 _potionLoopInner', () => {
 		const events = { onToast: vi.fn() };
 		const { b, e } = makeEngine({ itemCounts: {} }, events); // 所有登记道具数量 0
 		e.applySettings(baseSettings({
-			returnVillage: { enabled: true, onPotionsEmpty: true, onCureEmpty: false },
+			returnVillage: { onPotionsEmpty: true, onCureEmpty: false, onBuffEmpty: false },
 			cure: { enabled: false, poison: 0, panacea: 0 } // 关闭异常解除，聚焦回村分支
 		}));
 		e._potionLoopInner();
 		expect(b.calls.useItem).toEqual([ITEM_BUTTERFLY_WING]);
-		expect(events.onToast).toHaveBeenCalledWith('登记的药水已用完，正在返回村庄');
+		expect(events.onToast).toHaveBeenCalledWith('登记的道具已用完，正在返回村庄');
+	});
+
+	it('BUFF 道具用尽 + onBuffEmpty 开 → 回村（官方道具页返回村庄设定）', () => {
+		const events = { onToast: vi.fn() };
+		const { b, e } = makeEngine({ itemCounts: {}, useItemOk: true }, events);
+		e.applySettings(baseSettings({
+			aux: [{ id: 645, type: 'buff_item' }, null, null, null, null, null, null, null],
+			returnVillage: { onPotionsEmpty: false, onCureEmpty: false, onBuffEmpty: true },
+			cure: { enabled: false, poison: 0, panacea: 0 }
+		}));
+		e._potionLoopInner();
+		expect(b.calls.useItem).toContain(ITEM_BUTTERFLY_WING);
+		expect(events.onToast).toHaveBeenCalledWith('登记的道具已用完，正在返回村庄');
+	});
+});
+
+// ---------------------------------------------------------------------
+// Buff 循环（T9.1：道具页 BUFF 消耗品每格延迟）
+// ---------------------------------------------------------------------
+
+describe('Buff 循环 _buffLoopInner 道具页 BUFF 道具每格延迟', () => {
+	function buffEngine(over) {
+		const { b, e } = makeEngine({ itemCounts: { 645: 5 } });
+		e.applySettings(baseSettings(Object.assign({
+			aux: [{ id: 645, type: 'buff_item' }, null, null, null, null, null, null, null]
+		}, over)));
+		return { b, e };
+	}
+
+	it('延迟内（上次使用距今 < auxDelay）→ 不使用', () => {
+		const { b, e } = buffEngine({ auxDelays: [3600, 0, 0, 0, 0, 0, 0, 0] });
+		e._auxLastCast[0] = Date.now() - 1000; // 1s 前刚用过，延迟 3600s
+		e._buffLoopInner();
+		expect(b.calls.useItem).toEqual([]);
+	});
+
+	it('超过延迟（或从未使用）且 buff 未活跃 → 使用并记录槽时间戳', () => {
+		const { b, e } = buffEngine({ auxDelays: [3600, 0, 0, 0, 0, 0, 0, 0] });
+		e._buffLoopInner(); // 从未使用 → 立即使用
+		expect(b.calls.useItem).toEqual([645]);
+		expect(e._auxLastCast[0]).toBeGreaterThan(0);
+	});
+
+	describe('auxDelays 缺省为 0 时行为不变（buff 门控兼容旧档）', () => {
+		it('buff 未活跃 → 使用', () => {
+			const { b, e } = buffEngine({});
+			e._buffLoopInner();
+			expect(b.calls.useItem).toEqual([645]);
+		});
 	});
 });
 

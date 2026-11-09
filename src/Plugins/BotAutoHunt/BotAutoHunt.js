@@ -160,7 +160,8 @@ class BotAutoHunt {
 		this.flyLowHp = false; // HP<10%→苍蝇翅膀（自定义保留功能，官方无此控件）
 
 		// ---------- 药水循环（T9: 随挂机循环启停，官方无独立总开关） ----------
-		this.auxList = []; // T9: 仅存 BUFF 道具（buff 循环用；potion 类型已由 potions 四槽取代）
+		this.auxList = []; // 道具页 BUFF 道具 8 槽（加载后被 _applySettings 覆盖）
+		this.auxDelays = [0, 0, 0, 0, 0, 0, 0, 0]; // 道具页每格延迟秒数（T9.1）
 
 		// ---------- 防重复启停 ----------
 		this._lastCmdTime = 0;
@@ -220,7 +221,7 @@ class BotAutoHunt {
 		this.loot = null; // T6: 捡拾配置（_applySettings 赋值；循环定时器在引擎内）
 		// T9: 官方模型字段（默认值；加载后被 _applySettings 覆盖）
 		this.cure = { enabled: true, poison: 0, panacea: 0 }; // 状态异常恢复（药水页分页2）
-		this.returnVillage = { enabled: false, onPotionsEmpty: false, onCureEmpty: false }; // 返回村庄设定
+		this.returnVillage = { onPotionsEmpty: false, onCureEmpty: false, onBuffEmpty: true }; // 返回村庄设定（官方无总开关；BUFF 用尽项默认勾选）
 		this.teleport = { item: { enabled: true, id: ITEM_FLY_WING }, skill: { enabled: true, id: SK.AL_TELEPORT, level: 1 } }; // 瞬间移动使用设定
 		this.retreat = { item: { enabled: true, id: ITEM_BUTTERFLY_WING }, skill: { enabled: true, id: SK.AL_TELEPORT, level: 2 } }; // 返回储存点使用设定（AL_TELEPORT Lv2=回存储点；T9 初版误写 28=AL_HEAL 已修）
 		this.spNormalAttack = { enabled: false, threshold: 10 }; // SP经济规则1：仅一般攻击（优先度高）
@@ -836,6 +837,7 @@ class BotAutoHunt {
 			this._renderMoveTab();
 			this._renderLootTab();
 			this._renderPotionTab();
+			this._renderItemTab();
 			this._renderServiceTab();
 		}
 		// 同步悬浮开关高亮态（active 状态变更均会路过此处）
@@ -848,6 +850,7 @@ class BotAutoHunt {
 			this._renderMoveTab();
 			this._renderLootTab();
 			this._renderPotionTab();
+			this._renderItemTab();
 			this._renderServiceTab();
 		}
 	}
@@ -1108,6 +1111,7 @@ class BotAutoHunt {
 		this._renderMoveTab();
 		this._renderLootTab();
 		this._renderPotionTab();
+		this._renderItemTab();
 		this._renderServiceTab();
 		this._onSettingsTabChange(this._settingsComp.getActiveIndex ? this._settingsComp.getActiveIndex() : 0);
 		this._hookInventoryAdd();
@@ -1191,7 +1195,9 @@ class BotAutoHunt {
 			const offBtn = document.createElement('span');
 			onBtn.textContent = 'ON';
 			offBtn.textContent = 'OFF';
+			let switchOn = true; // 当前态闭包跟踪（点击即翻转移除重绘；初始值由 setOn 校正）
 			const paint = on => {
+				switchOn = !!on;
 				onBtn.style.cssText =
 					'font-size:9px;font-weight:bold;padding:2px 4px;' +
 					(on ? 'background:#2e5fa3;color:#ffffff;' : 'background:#ffffff;color:#a8b3bd;');
@@ -1201,7 +1207,8 @@ class BotAutoHunt {
 			};
 			switchBox.addEventListener('click', e => {
 				e.stopPropagation();
-				const next = offBtn.style.backgroundColor !== 'rgb(220, 232, 242)'; // OFF 当前高亮 → 切为开
+				const next = !switchOn;
+				paint(next); // 先重绘再回调：UI 状态不依赖 onToggle 是否写数据
 				if (typeof o.onToggle === 'function') o.onToggle(next);
 			});
 			setOn = on => paint(on);
@@ -1319,6 +1326,7 @@ class BotAutoHunt {
 		row.appendChild(trackWrap);
 		row.appendChild(arrow(1));
 		wrap.appendChild(row);
+		paintPos(); // 初始绘制：构造即按当前值铺底（修复：默认百分比已设但进度条空置 0）
 
 		const scale = document.createElement('div');
 		scale.style.cssText = 'display:flex;justify-content:space-between;font-size:10px;color:#5a7a9c;padding:0 14px;margin-top:-2px;';
@@ -1669,7 +1677,7 @@ class BotAutoHunt {
 		this._closeDropdown();
 		const all = this._getAvailableConsumables();
 		const items = all.filter(it => {
-			const t = this._getPotionRestoreType(it.id) || 'hp';
+			const t = _getPotionRestoreType(it.id) || 'hp'; // 模块级函数（2026-11-09 修复：误写 this. 致点击药水格抛 TypeError、下拉无法打开——玩家验收反馈根因）
 			return t === kind || t === 'both';
 		});
 		const dd = document.createElement('div');
@@ -1934,6 +1942,151 @@ class BotAutoHunt {
 		}
 
 		return wrap;
+	}
+
+	// =================================================================
+	// 道具设定页（T9.1：官方公告 PDF 第 7 页——请设定BUFF类道具 2×4 八格+每格延迟秒数+返回村庄）
+	// =================================================================
+
+	/** T9.1: 渲染道具设定页内容（存进 pane[6]） */
+	_renderItemTab() {
+		if (!this._settingsComp) return;
+		const pane = this._settingsComp.getPane(6);
+		if (!pane) return;
+		pane.innerHTML = '';
+		pane.appendChild(this._buildItemTabContent());
+	}
+
+	/** T9.1: 构建道具设定页（官方：标题条 + 浅蓝容器 2×4 格（BUFF 道具+延迟输入）+ 返回村庄勾选） */
+	_buildItemTabContent() {
+		const self = this;
+		const wrap = document.createElement('div');
+		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:5px;text-align:left;';
+
+		wrap.appendChild(this._officialHeaderStrip('请设定BUFF类道具。', '每设定的延迟时间时，使用登录于栏位的BUFF道具。'));
+
+		// 官方浅蓝容器：2 行 × 4 列，每格 = 道具格 + 延迟秒数输入
+		const box = document.createElement('div');
+		box.style.cssText = 'background:#eaf2fb;border:1px solid #c7d6e3;border-radius:6px;padding:10px 8px;display:flex;justify-content:center;';
+		const grid = document.createElement('div');
+		grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:8px 10px;';
+
+		for (let i = 0; i < 8; i++) {
+			const cell = document.createElement('div');
+			cell.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:2px;';
+			const slot = (this.auxList && this.auxList[i]) || null;
+			const input = document.createElement('input');
+			input.type = 'number';
+			input.min = '0';
+			input.max = '86400';
+			input.value = String((this.auxDelays && this.auxDelays[i]) || 0);
+			input.dataset.auxIndex = String(i);
+			input.style.cssText = 'width:46px;font-size:11px;padding:1px 2px;border:1px solid #9db8d2;border-radius:2px;text-align:center;color:#2e4058;background:#ffffff;';
+			input.addEventListener('mousedown', e => e.stopPropagation());
+			input.addEventListener('change', () => {
+				const v = Math.max(0, Math.min(86400, Math.round(+input.value || 0)));
+				input.value = String(v);
+				while (self.auxList.length < 8) self.auxList.push(null); // 旧档兜底
+				self.auxDelays[i] = v;
+				self._saveSettings();
+			});
+			cell.appendChild(this._officialItemSlot(slot ? slot.id : 0, () => {
+				self._openBuffItemDropdown(i, cell.firstChild);
+			}));
+			cell.appendChild(input);
+			grid.appendChild(cell);
+		}
+		box.appendChild(grid);
+		wrap.appendChild(box);
+
+		// 官方道具页「返回村庄设定」：BUFF 道具全部用完时自动回村（官方截图默认勾选）
+		const rv = document.createElement('div');
+		rv.style.cssText = 'background:#f2f5f8;border:1px solid #dfe7ee;border-radius:4px;padding:6px 8px;display:flex;flex-direction:column;gap:2px;';
+		const r1 = document.createElement('div');
+		r1.style.cssText = 'display:flex;align-items:center;font-size:11px;font-weight:bold;color:#2e4058;';
+		r1.appendChild(this._bmpCheckbox(this.returnVillage.onBuffEmpty !== false, v => {
+			self.returnVillage.onBuffEmpty = v;
+			self._saveSettings();
+		}));
+		r1.appendChild(document.createTextNode('返回村庄设定'));
+		rv.appendChild(r1);
+		const n1 = document.createElement('div');
+		n1.style.cssText = 'font-size:10px;color:#4a7ab5;padding-left:18px;';
+		n1.textContent = '所有装备的BUFF类道具用完时，自动返回村庄。';
+		rv.appendChild(n1);
+		wrap.appendChild(rv);
+
+		return wrap;
+	}
+
+	/**
+	 * T9.1: BUFF 道具专用下拉（数据源 = 背包消耗品 ∩ EFST 分类 buff；首项清空）
+	 * @param {number} index 槽下标 0-7
+	 * @param {HTMLElement} anchorCell 定位锚点
+	 */
+	_openBuffItemDropdown(index, anchorCell) {
+		this._closeDropdown();
+		const items = this._getAvailableConsumables().filter(it => _isBuff('items', it.id));
+		const dd = document.createElement('div');
+		Object.assign(dd.style, {
+			position: 'fixed',
+			zIndex: '300',
+			background: 'white',
+			border: '1px solid #c1c6c2',
+			borderRadius: '5px',
+			padding: '11px',
+			boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+			fontFamily: 'Gulim, Dotum, "Malgun Gothic", sans-serif',
+			maxWidth: '240px',
+			maxHeight: '260px',
+			overflowY: 'auto'
+		});
+		const title = document.createElement('div');
+		title.style.cssText = 'font-size:11px;font-weight:bold;color:#484848;margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid #eee;';
+		title.textContent = '选择 BUFF 道具';
+		dd.appendChild(title);
+
+		function row(label, onClick) {
+			const el = document.createElement('div');
+			el.style.cssText = 'font-size:11px;color:#333;padding:4px 6px;cursor:pointer;border-radius:2px;';
+			el.textContent = label;
+			el.addEventListener('mouseover', () => { el.style.background = '#e8f0f7'; });
+			el.addEventListener('mouseout', () => { el.style.background = ''; });
+			el.addEventListener('click', onClick);
+			dd.appendChild(el);
+		}
+
+		row('（清空登记）', () => {
+			while (this.auxList.length < 8) this.auxList.push(null);
+			this.auxList[index] = null;
+			this._saveSettings();
+			this._closeDropdown();
+			this._renderItemTab();
+		});
+		if (items.length === 0) {
+			const empty = document.createElement('div');
+			empty.style.cssText = 'font-size:11px;color:#999;padding:4px 6px;';
+			empty.textContent = '背包中无可用 BUFF 道具';
+			dd.appendChild(empty);
+		} else {
+			for (const it of items) {
+				row(it.name + (it.count ? ' ×' + it.count : ''), () => {
+					while (this.auxList.length < 8) this.auxList.push(null);
+					this.auxList[index] = { id: it.id, type: 'buff_item' };
+					this._saveSettings();
+					this._closeDropdown();
+					this._renderItemTab();
+				});
+			}
+		}
+
+		this._positionDropdown(dd, anchorCell);
+		document.body.appendChild(dd);
+		this._dropdown = dd;
+		this._dropdownClickHandler = e => {
+			if (!dd.contains(e.target) && !anchorCell.contains(e.target)) this._closeDropdown();
+		};
+		document.addEventListener('mousedown', this._dropdownClickHandler, true);
 	}
 
 	// =================================================================
@@ -2544,7 +2697,7 @@ class BotAutoHunt {
 
 		// —— 官方怪物行清单（勾选 = 只攻击勾选物种，按地图记忆；与官方交互一致） ——
 		const listBox = document.createElement('div');
-		listBox.style.cssText = 'display:flex;flex-direction:column;gap:3px;max-height:210px;overflow-y:auto;padding:1px;';
+		listBox.style.cssText = 'display:flex;flex-direction:column;gap:3px;padding:1px;'; // 官方单滚动：清单不设内层滚动，整面板随窗格滚动（验收反馈双滚动条修复）
 
 		if (jobs.length === 0) {
 			const empty = document.createElement('div');
@@ -2624,21 +2777,30 @@ class BotAutoHunt {
 			return;
 		}
 		if (tabIndex === 3) {
-			// 药水设定：四槽清空回默认阈值、解除药清空、回村关
+			// 药水设定：四槽清空回默认阈值（官方页1 HP/SP 均 70%）、解除药清空、回村两项关（BUFF 用尽项属道具页不动）
 			this.potions = {
 				hp: [
 					{ id: 0, threshold: 70, enabled: true },
 					{ id: 0, threshold: 70, enabled: true }
 				],
 				sp: [
-					{ id: 0, threshold: 30, enabled: true },
-					{ id: 0, threshold: 30, enabled: true }
+					{ id: 0, threshold: 70, enabled: true },
+					{ id: 0, threshold: 70, enabled: true }
 				]
 			};
 			this.cure = { enabled: true, poison: 0, panacea: 0 };
-			this.returnVillage = { enabled: false, onPotionsEmpty: false, onCureEmpty: false };
+			this.returnVillage = { onPotionsEmpty: false, onCureEmpty: false, onBuffEmpty: this.returnVillage.onBuffEmpty !== false };
 			this._saveSettings();
 			this._renderPotionTab();
+			return;
+		}
+		if (tabIndex === 6) {
+			// 道具设定：BUFF 道具 8 槽清空 + 每格延迟归零 + 回村勾选回官方默认（勾选）
+			this.auxList = [null, null, null, null, null, null, null, null];
+			this.auxDelays = [0, 0, 0, 0, 0, 0, 0, 0];
+			this.returnVillage.onBuffEmpty = true;
+			this._saveSettings();
+			this._renderItemTab();
 			return;
 		}
 		if (tabIndex === 5) {
@@ -3144,7 +3306,8 @@ class BotAutoHunt {
 	/** 应用规范化后的 v3 设置对象（T9 官方模型字段）—— 同步喂引擎快照 */
 	_applySettings(s2) {
 		this.skillList = s2.skills;
-		this.auxList = s2.aux; // 仅 BUFF 道具（potion 类型已分流至 potions）
+		this.auxList = s2.aux; // 道具页 BUFF 道具 8 槽（T9.1 归一化）
+		this.auxDelays = s2.auxDelays; // 道具页每格延迟秒数（T9.1）
 		this.slotDelays = s2.slotDelays;
 		this.followEnabled = s2.follow;
 		this.followTarget = s2.followTarget;
@@ -3167,6 +3330,7 @@ class BotAutoHunt {
 		if (this.engine) this.engine.applySettings({
 			skills: this.skillList,
 			aux: this.auxList,
+			auxDelays: this.auxDelays,
 			slotDelays: this.slotDelays,
 			follow: this.followEnabled,
 			followTarget: this.followTarget,
@@ -3194,6 +3358,7 @@ class BotAutoHunt {
 			v: SCHEMA_VERSION,
 			skills: this.skillList,
 			aux: this.auxList,
+			auxDelays: this.auxDelays,
 			slotDelays: this.slotDelays,
 			follow: this.followEnabled,
 			followTarget: this.followTarget,

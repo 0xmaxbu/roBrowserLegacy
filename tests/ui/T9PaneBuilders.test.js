@@ -88,6 +88,7 @@ describe('T9 回归：四页签构建器全部可实例化（无异常）', () =
 			['mob', () => plugin._buildMobTabContent('prontera')],
 			['potion(0)', () => plugin._buildPotionTabContent(0)],
 			['potion(1)', () => plugin._buildPotionTabContent(1)],
+			['item', () => plugin._buildItemTabContent()], // T9.1: 道具设定页（官方 PDF 第 7 页）
 			['move', () => plugin._buildMoveTabContent()],
 			['loot', () => plugin._buildLootTabContent()],
 			['service', () => plugin._buildServiceTabContent()]

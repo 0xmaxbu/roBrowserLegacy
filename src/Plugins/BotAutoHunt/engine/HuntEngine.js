@@ -14,6 +14,7 @@
  * 引擎对外的全部 interface（薄壳只依赖这些）：
  *   new HuntEngine(bindings, events)
  *   applySettings(v3Snapshot)   设置快照（migrateSettings 产物或壳层字段聚合）
+ *                               （v3.1：aux=8 槽 BUFF 道具 + auxDelays[8] 每格延迟秒数）
  *   start({huntMap}) / stop()   循环启停（内部持有 5 个 setInterval）
  *   setBuff(efst, state)        StatusIcons 钩子喂入的本地玩家 buff 状态
  *   onItemGained(item)          Inventory addItem 钩子喂入的拾取结果
@@ -137,7 +138,7 @@ class HuntEngine {
 		this.loot = null;
 		this.potions = { hp: [], sp: [] };
 		this.cure = { enabled: true, poison: 0, panacea: 0 };
-		this.returnVillage = { enabled: false, onPotionsEmpty: false, onCureEmpty: false };
+		this.returnVillage = { onPotionsEmpty: false, onCureEmpty: false, onBuffEmpty: true }; // 官方无总开关；BUFF 用尽回村默认勾选（官方道具页截图）
 		this.teleport = { item: { enabled: true, id: ITEM_FLY_WING }, skill: { enabled: true, id: 26, level: 1 } };
 		this.retreat = { item: { enabled: true, id: ITEM_BUTTERFLY_WING }, skill: { enabled: true, id: 26, level: 2 } };
 		this.spNormalAttack = { enabled: false, threshold: 10 };
@@ -171,6 +172,8 @@ class HuntEngine {
 		// ---------- 动作冷却系统（key: 'item_<id>'|'skill_<id>'|'buff_<efst>' → 到期时间戳） ----------
 		this._actionCooldowns = {};
 		this._slotLastCast = [];
+		this._auxLastCast = {}; // T9.1: 道具页 BUFF 槽下标 → 上次使用时间戳（每格延迟判定）
+		this.auxDelays = [0, 0, 0, 0, 0, 0, 0, 0]; // T9.1: 每格延迟秒数（applySettings 喂入）
 
 		// ---------- Buff 施法保护（防巡逻移动打断长施法） ----------
 		this._castingUntil = 0;
@@ -189,6 +192,7 @@ class HuntEngine {
 			: JSON.parse(JSON.stringify(snap));
 		this.skillList = s.skillList || s.skills || [];
 		this.auxList = s.auxList || s.aux || [];
+		this.auxDelays = Array.isArray(s.auxDelays) ? s.auxDelays : [0, 0, 0, 0, 0, 0, 0, 0];
 		this.slotDelays = s.slotDelays || [0, 0, 0, 0, 0, 0, 0, 0];
 		this.followEnabled = !!(s.followEnabled !== undefined ? s.followEnabled : s.follow);
 		this.followTarget = s.followTarget || '';
@@ -201,7 +205,7 @@ class HuntEngine {
 		this.loot = s.loot || null;
 		this.potions = s.potions || { hp: [], sp: [] };
 		this.cure = s.cure || { enabled: true, poison: 0, panacea: 0 };
-		this.returnVillage = s.returnVillage || { enabled: false, onPotionsEmpty: false, onCureEmpty: false };
+		this.returnVillage = s.returnVillage || { onPotionsEmpty: false, onCureEmpty: false, onBuffEmpty: true };
 		this.teleport = s.teleport || this.teleport;
 		this.retreat = s.retreat || this.retreat;
 		this.spNormalAttack = s.spNormalAttack || { enabled: false, threshold: 10 };
@@ -651,8 +655,8 @@ class HuntEngine {
 				return;
 			}
 		}
-		// 5. T9: 返回村庄设定（官方药水页分页2）——登记的药水/解除药全部用完 → 使用返回设定回村
-		if (onHuntMap && this.returnVillage.enabled && !this._isOnCooldown('return_village')) {
+		// 5. T9: 返回村庄设定（药水页分页2 两项 + 道具页 BUFF 用尽项；官方无总开关，各勾选即各触发条件）
+		if (onHuntMap && !this._isOnCooldown('return_village')) {
 			const potionsExhausted = this.returnVillage.onPotionsEmpty && this._allSlotsExhausted(
 				[].concat(this.potions.hp, this.potions.sp)
 			);
@@ -660,10 +664,13 @@ class HuntEngine {
 				{ id: this.cure.poison },
 				{ id: this.cure.panacea }
 			]);
-			if (potionsExhausted || cureExhausted) {
+			const buffExhausted = this.returnVillage.onBuffEmpty && this._allSlotsExhausted(
+				(Array.isArray(this.auxList) ? this.auxList : []).filter(a => a && a.type === AUX_TYPE_BUFF_ITEM)
+			);
+			if (potionsExhausted || cureExhausted || buffExhausted) {
 				this._markAction('return_village', 10000); // 触发后 10s 冷却防刷
 				this._executeRetreat('return_village');
-				if (this.events.onToast) this.events.onToast('登记的药水已用完，正在返回村庄');
+				if (this.events.onToast) this.events.onToast('登记的道具已用完，正在返回村庄');
 				return;
 			}
 		}
@@ -710,15 +717,19 @@ class HuntEngine {
 			return;
 		}
 
-		// 2. 辅助列表中的 buff 消耗品
-		for (const aux of this.auxList) {
+		// 2. 道具页 BUFF 消耗品（T9.1：buff 消失门控 + 每格延迟；delay=0 时与原行为一致）
+		for (let idx = 0; idx < this.auxList.length; idx++) {
+			const aux = this.auxList[idx];
 			if (!aux || aux.type !== AUX_TYPE_BUFF_ITEM) continue;
 			const efst = getPrimaryEfst('items', aux.id);
 			if (!efst) continue;
 			if (this._buffMap[efst]) continue;
 			const key = 'buff_' + efst;
 			if (this._isOnCooldown(key)) continue;
+			const auxDelay = Array.isArray(this.auxDelays) ? (this.auxDelays[idx] || 0) : 0;
+			if (!slotReady(Date.now(), this._auxLastCast[idx] || 0, auxDelay)) continue;
 			this.bindings.useItem(aux.id);
+			this._auxLastCast[idx] = Date.now();
 			this._markAction(key, 5000);
 			return;
 		}

@@ -26,15 +26,16 @@ describe('schema v3 结构迁移 migrateSettings', () => {
 			expect(s.skills.every(k => k === null)).toBe(true);
 			expect(s.slotDelays).toHaveLength(TOTAL_SLOT_COUNT);
 			expect(s.slotDelays.every(d => d === 0)).toBe(true);
-			expect(s.aux).toEqual([]);
+			expect(s.aux).toEqual([null, null, null, null, null, null, null, null]); // T9.1: 道具页 8 槽
+			expect(s.auxDelays).toEqual([0, 0, 0, 0, 0, 0, 0, 0]); // T9.1: 每格延迟默认 0
 			// T9 官方四槽默认（空登记 + 官方阈值 + 启用）
 			expect(s.potions.hp).toEqual([
 				{ id: 0, threshold: 70, enabled: true },
 				{ id: 0, threshold: 70, enabled: true }
 			]);
 			expect(s.potions.sp).toEqual([
-				{ id: 0, threshold: 30, enabled: true },
-				{ id: 0, threshold: 30, enabled: true }
+				{ id: 0, threshold: 70, enabled: true },
+				{ id: 0, threshold: 70, enabled: true }
 			]);
 			expect(s.cure).toEqual({ enabled: true, poison: 0, panacea: 0 });
 			expect(s.flyNoMobs).toBe(true); // 官方默认勾选
@@ -73,7 +74,8 @@ describe('schema v3 结构迁移 migrateSettings', () => {
 		expect(s.potions.hp[0]).toEqual({ id: 501, threshold: 60, enabled: true });
 		expect(s.potions.hp[1].id).toBe(0);
 		expect(s.potions.sp.every(sl => sl.id === 0)).toBe(true);
-		expect(s.aux).toEqual([]);
+		expect(s.aux).toEqual([null, null, null, null, null, null, null, null]); // T9.1: 非 buff_item 项不入道具页槽
+		expect(s.auxDelays).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
 		expect(s.flyNoMobs).toBe(true);
 		expect(s.follow).toBe(false);
 	});
@@ -289,7 +291,7 @@ describe('schema v3 结构迁移 migrateSettings', () => {
 		expect(s.teleport.skill).toEqual({ enabled: true, id: 26, level: 1 }); // AL_TELEPORT（2026-11-09 修复：T9 初版误写 28=AL_HEAL）
 		expect(s.retreat.item).toEqual({ enabled: true, id: 602 });
 		expect(s.retreat.skill).toEqual({ enabled: true, id: 26, level: 2 });
-		expect(s.returnVillage).toEqual({ enabled: false, onPotionsEmpty: false, onCureEmpty: false });
+		expect(s.returnVillage).toEqual({ onPotionsEmpty: false, onCureEmpty: false, onBuffEmpty: true }); // 官方无总开关；BUFF 用尽项默认勾选
 		// 非法值錯到默认
 		const bad = migrateSettings({
 			spNormalAttack: { threshold: 999 },
@@ -422,7 +424,8 @@ describe('migrateSettings 默认全形状钉死（防字段无察觉增删）', 
 	const FULL_DEFAULTS = {
 		v: SCHEMA_VERSION,
 		skills: [null, null, null, null, null, null, null, null],
-		aux: [],
+		aux: [null, null, null, null, null, null, null, null],
+		auxDelays: [0, 0, 0, 0, 0, 0, 0, 0],
 		slotDelays: [0, 0, 0, 0, 0, 0, 0, 0],
 		follow: false,
 		followTarget: '',
@@ -439,10 +442,10 @@ describe('migrateSettings 默认全形状钉死（防字段无察觉增删）', 
 		},
 		potions: {
 			hp: [{ id: 0, threshold: 70, enabled: true }, { id: 0, threshold: 70, enabled: true }],
-			sp: [{ id: 0, threshold: 30, enabled: true }, { id: 0, threshold: 30, enabled: true }]
+			sp: [{ id: 0, threshold: 70, enabled: true }, { id: 0, threshold: 70, enabled: true }]
 		},
 		cure: { enabled: true, poison: 0, panacea: 0 },
-		returnVillage: { enabled: false, onPotionsEmpty: false, onCureEmpty: false },
+		returnVillage: { onPotionsEmpty: false, onCureEmpty: false, onBuffEmpty: true },
 		teleport: { item: { enabled: true, id: 601 }, skill: { enabled: true, id: 26, level: 1 } },
 		retreat: { item: { enabled: true, id: 602 }, skill: { enabled: true, id: 26, level: 2 } },
 		spNormalAttack: { enabled: false, threshold: 10 },
@@ -495,7 +498,10 @@ describe('v2 aux 分流扩展与旧阈值语义', () => {
 			{ id: 502, threshold: 25, enabled: false },
 			{ id: 503, threshold: 25, enabled: false }
 		]);
-		expect(s.aux).toEqual([{ type: 'buff_item', id: 601 }]);
+		// T9.1: buff_item 项归一化到道具页 8 槽（首槽登记 601，其余空）
+		expect(s.aux[0]).toEqual({ id: 601, type: 'buff_item' });
+		expect(s.aux.slice(1)).toEqual([null, null, null, null, null, null, null]);
+		expect(s.auxDelays).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
 	});
 
 	it('v3 potions 直读：切片 2、id 四舍五入、阈值夹取、enabled 非法回默认', () => {
@@ -514,15 +520,15 @@ describe('v2 aux 分流扩展与旧阈值语义', () => {
 			{ id: 503, threshold: 100, enabled: true }
 		]);
 		expect(s.potions.sp).toEqual([
-			{ id: 0, threshold: 30, enabled: true },
-			{ id: 0, threshold: 30, enabled: true }
+			{ id: 0, threshold: 70, enabled: true },
+			{ id: 0, threshold: 70, enabled: true }
 		]);
 	});
 
 	it('v3 potions 直读时旧 hp/sp 顶栏阈值仅作空槽默认', () => {
 		const s = migrateSettings({ hp: 99, potions: { hp: [{ id: 501, threshold: 40 }], sp: [{ id: 503 }] } });
 		expect(s.potions.hp[0].threshold).toBe(40);
-		expect(s.potions.sp[0].threshold).toBe(30); // src.sp 缺 → 默认 30，非 hp 的 99
+		expect(s.potions.sp[0].threshold).toBe(70); // src.sp 缺 → 官方默认 70，非 hp 的 99
 	});
 });
 
@@ -596,9 +602,11 @@ describe('决策函数边界补充', () => {
 		expect(bad.flyLowHp).toBe(false);
 	});
 
-	it('returnVillage 显式开启透传', () => {
+	it('returnVillage 新形状透传（旧 enabled 字段被忽略丢弃；onBuffEmpty 缺省回官方默认开）', () => {
 		const s = migrateSettings({ returnVillage: { enabled: true, onPotionsEmpty: true, onCureEmpty: true } });
-		expect(s.returnVillage).toEqual({ enabled: true, onPotionsEmpty: true, onCureEmpty: true });
+		expect(s.returnVillage).toEqual({ onPotionsEmpty: true, onCureEmpty: true, onBuffEmpty: true });
+		const s2 = migrateSettings({ returnVillage: { onBuffEmpty: false } });
+		expect(s2.returnVillage).toEqual({ onPotionsEmpty: false, onCureEmpty: false, onBuffEmpty: false });
 	});
 
 	it('loot.enabled 非布尔回默认 true；白名单地图名截断 64 字符', () => {
