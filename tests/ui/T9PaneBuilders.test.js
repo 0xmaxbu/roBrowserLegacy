@@ -59,6 +59,10 @@ vi.mock('Network/PacketVerManager.js', () => ({ default: 20191223 }));
 vi.mock('UI/Components/SkillList/SkillList.js', () => ({ default: { getUI: () => null } }));
 vi.mock('Loaders/Sprite.js', () => ({ default: class {} }));
 vi.mock('Loaders/Action.js', () => ({ default: class {} }));
+vi.mock('UI/CursorManager.js', () => ({
+	// 游戏内光标：测试只需记录 setType 调用（真实模块依赖渲染器/canvas）
+	default: { ACTION: { DEFAULT: 0, CLICK: 2 }, setType: vi.fn(), getActualType: () => 0 }
+}));
 vi.mock('UI/GUIComponent.js', () => ({
 	default: class GuiComponentStub {
 		constructor(name, css) {

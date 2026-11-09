@@ -2,6 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 
 // SettingsWindow 的窗口骨架依赖 GUIComponent（游戏重型依赖）——mock 掉，
 // 页签构建/切换/关闭逻辑在 buildSettingsHTML + bindSettingsBehavior 纯函数上测试
+vi.mock('UI/CursorManager.js', () => ({
+	// 游戏内光标：测试只需记录 setType 调用（真实模块依赖渲染器/canvas）
+	default: { ACTION: { DEFAULT: 0, CLICK: 2 }, setType: vi.fn(), getActualType: () => 0 }
+}));
 vi.mock('UI/GUIComponent.js', () => ({
 	default: class GuiComponentStub {
 		constructor(name, css) {

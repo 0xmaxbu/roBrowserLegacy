@@ -46,6 +46,8 @@ import MAP_MOBS from './data/map-mobs.json'; // T4: 魔物设定页清单数据�
 import Sprite from 'Loaders/Sprite.js'; // T9: 魔物头像程序化渲染（官方魔物设定页行首图标）
 import Action from 'Loaders/Action.js'; // T9: 同上（ACT 动画帧索引）
 import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
+import Cursor from 'UI/CursorManager.js'; // T9.2: body 级下拉行的游戏内光标手型（ItemInfo 同款接线）
+import SkillListUI from 'UI/Components/SkillList/SkillList.js'; // getUI().getList() 技能下拉数据源（R4-问题6；2026-11-09 恢复——引擎抽取时误删 import，ReferenceError 被 catch 吞成空清单，玩家报「无法选择技能」）
 import Altitude from 'Renderer/Map/Altitude.js'; // getCellType + TYPE.WALKABLE — 巡逻可行走验证
 import PathFinding from 'Utils/PathFinding.js'; // search() — 巡逻路径验证
 import SkillInfo from 'DB/Skills/SkillInfo.js'; // 技能名解析（SkillName/SpAmount 字段；sed 边界误删后回补）
@@ -417,6 +419,8 @@ class BotAutoHunt {
 		if (this._dropdown) {
 			this._dropdown.remove();
 			this._dropdown = null;
+			// 下拉关闭时光标还原（防 hover 中关闭残留手型；下一次游戏 mousemove 会重新按悬停对象刷新）
+			try { Cursor.setType(Cursor.ACTION.DEFAULT); } catch (_) { /* 光标模块未就绪时忽略 */ }
 		}
 	}
 
@@ -544,6 +548,7 @@ class BotAutoHunt {
 		const currentLevel = isFilled ? (list[index].level || 1) : null;
 
 		const dd = this._buildDropdownDOM(slot, items, selectedIds, isFilled, currentId, currentLevel);
+		this._shieldDropdown(dd); // T9.2: 光标手型（点击拦截已由 _bindDropdownEvents 覆盖，重复无害）
 		this._positionDropdown(dd, anchorCell);
 		this._bindDropdownEvents(dd, slot, index, items);
 		document.body.appendChild(dd);
@@ -1095,6 +1100,33 @@ class BotAutoHunt {
 		}, 2500);
 	}
 
+	/** 错误提示（红色）：旧面板已退役，统一走悬浮开关旁 toast（任何场景可见；2026-11-09 恢复——引擎抽取时随旧面板误删，14 处调用点悬空） */
+	_showError(msg) {
+		this._showToast(msg);
+	}
+
+	/** 信息提示（灰色）：同上 */
+	_showInfo(msg) {
+		this._showToast(msg);
+	}
+
+	/**
+	 * T9.2: 下拉点击防穿透 + 游戏内光标手型（全部 body 级下拉统一走本方法）
+	 * - MapControl 在 window 级绑 mousedown/mouseup（jQuery .map 命名空间），下拉内点击
+	 *   冒泡到 window 会触发点击移动/地面交互——在 dd 层拦截全部鼠标事件冒泡
+	 * - 游戏 UI 光标为引擎绘制贴图（CursorManager），CSS cursor 在游戏内无效；
+	 *   hover 下拉行时切 CLICK（手型），离开/关闭时还原（ItemInfo 同款接线）
+	 */
+	_shieldDropdown(dd) {
+		['mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu', 'wheel', 'mousemove'].forEach(evt =>
+			dd.addEventListener(evt, e => e.stopPropagation(), false)
+		);
+		dd.addEventListener('mouseover', () => Cursor.setType(Cursor.ACTION.CLICK));
+		dd.addEventListener('mouseout', e => {
+			if (!dd.contains(e.relatedTarget)) Cursor.setType(Cursor.ACTION.DEFAULT);
+		});
+	}
+
 	/** 右键打开设置窗口（GUIComponent，懒创建；append 打开 / remove 关闭） */
 	_openSettings() {
 		if (!this._settingsComp) {
@@ -1188,9 +1220,12 @@ class BotAutoHunt {
 
 		let setOn = null;
 		if (o.toggle) {
-			const switchBox = document.createElement('div');
+			// T9.2: 用真实 button——GUIComponent 游戏内光标白名单（_setupShadowCursorEvents）
+			// 只认 button/input 等元素，div 的 CSS cursor 在游戏内无效（悬停手型验收项）
+			const switchBox = document.createElement('button');
+			switchBox.type = 'button';
 			switchBox.style.cssText =
-				'position:absolute;right:4px;top:4px;display:flex;border:1px solid #9db8d2;border-radius:2px;overflow:hidden;line-height:1;cursor:pointer;background:#ffffff;';
+				'padding:0;position:absolute;right:4px;top:4px;display:flex;border:1px solid #9db8d2;border-radius:2px;overflow:hidden;line-height:1;cursor:pointer;background:#ffffff;font-family:inherit;';
 			const onBtn = document.createElement('span');
 			const offBtn = document.createElement('span');
 			onBtn.textContent = 'ON';
@@ -1351,10 +1386,12 @@ class BotAutoHunt {
 	 * @return {HTMLElement}
 	 */
 	_officialItemSlot(itemId, onClick) {
-		const cell = document.createElement('div');
+		// T9.2: 真实 button——游戏内光标白名单命中（悬停手型）；点击登记下拉（药水/移动/道具页共用）
+		const cell = document.createElement('button');
+		cell.type = 'button';
 		cell.style.cssText =
 			'box-sizing:border-box;width:34px;height:34px;border:1px solid #a8b3bd;border-radius:6px;background:#ffffff;' +
-			'position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;overflow:hidden;';
+			'padding:0;position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;overflow:hidden;font-family:inherit;';
 		const shadow = document.createElement('div');
 		shadow.style.cssText =
 			'position:absolute;left:50%;bottom:5px;width:20px;height:7px;margin-left:-10px;border-radius:50%;' +
@@ -1731,6 +1768,7 @@ class BotAutoHunt {
 			}
 		}
 
+		this._shieldDropdown(dd); // T9.2: 防穿透 + 光标手型
 		this._positionDropdown(dd, anchorCell);
 		document.body.appendChild(dd);
 		this._dropdown = dd;
@@ -1811,6 +1849,7 @@ class BotAutoHunt {
 			}
 		}
 
+		this._shieldDropdown(dd); // T9.2: 防穿透 + 光标手型
 		this._positionDropdown(dd, anchorCell);
 		document.body.appendChild(dd);
 		this._dropdown = dd;
@@ -2080,6 +2119,7 @@ class BotAutoHunt {
 			}
 		}
 
+		this._shieldDropdown(dd); // T9.2: 防穿透 + 光标手型
 		this._positionDropdown(dd, anchorCell);
 		document.body.appendChild(dd);
 		this._dropdown = dd;
@@ -2505,6 +2545,7 @@ class BotAutoHunt {
 			}
 		}
 
+		this._shieldDropdown(dd); // T9.2: 防穿透 + 光标手型
 		this._positionDropdown(dd, anchorCell);
 		document.body.appendChild(dd);
 		this._dropdown = dd;
@@ -2585,6 +2626,7 @@ class BotAutoHunt {
 			dd.appendChild(empty);
 		}
 
+		this._shieldDropdown(dd); // T9.2: 防穿透 + 光标手型
 		this._positionDropdown(dd, anchorCell);
 		document.body.appendChild(dd);
 		this._dropdown = dd;
@@ -2895,7 +2937,8 @@ class BotAutoHunt {
 		const unit = document.createElement('div');
 		unit.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:2px;';
 
-		const cell = document.createElement('div');
+		const cell = document.createElement('button');
+		cell.type = 'button';
 		cell.className = 'skilltab-cell';
 		// 官方格子：双层边框圆角（外框 #a8b3bd + 白圈 + 内线 #dce8f2），34×34（含边框，border-box）
 		cell.style.cssText =

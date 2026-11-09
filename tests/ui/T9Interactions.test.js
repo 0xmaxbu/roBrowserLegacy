@@ -56,12 +56,30 @@ vi.mock('DB/Items/ItemType.js', () => ({ default: { HEALING: 0, USABLE: 2, CASH:
 vi.mock('Renderer/MapRenderer.js', () => ({ default: { loading: false, currentMap: 'prontera' } }));
 vi.mock('Renderer/Map/Altitude.js', () => ({ default: { getCellType: vi.fn(), TYPE: { WALKABLE: 0 } } }));
 vi.mock('Utils/PathFinding.js', () => ({ default: { search: vi.fn() } }));
-vi.mock('DB/Skills/SkillInfo.js', () => ({ default: { 26: { Name: 'AL_TELEPORT', SkillName: 'Teleport' } } }));
+vi.mock('DB/Skills/SkillInfo.js', () => ({
+	default: {
+		5: { Name: 'Bash', SkillName: '狂击', MaxLevel: 10 },
+		26: { Name: 'AL_TELEPORT', SkillName: 'Teleport' }
+	}
+}));
 vi.mock('DB/Skills/SkillConst.js', () => ({ default: { AL_TELEPORT: 26 } }));
 vi.mock('Network/PacketVerManager.js', () => ({ default: 20191223 }));
-vi.mock('UI/Components/SkillList/SkillList.js', () => ({ default: { getUI: () => null } }));
+vi.mock('UI/Components/SkillList/SkillList.js', () => ({
+	// 可变数据源：用例内注入已学技能清单（SkillList.getList 同形状）
+	default: {
+		getUI: () => ({
+			getList: () => [
+				{ SKID: 5, level: 5, type: 1, spcost: 20 }
+			]
+		})
+	}
+}));
 vi.mock('Loaders/Sprite.js', () => ({ default: class {} }));
 vi.mock('Loaders/Action.js', () => ({ default: class {} }));
+vi.mock('UI/CursorManager.js', () => ({
+	// 游戏内光标：测试只需记录 setType 调用（真实模块依赖渲染器）
+	default: { ACTION: { DEFAULT: 0, CLICK: 2 }, setType: vi.fn(), getActualType: () => 0 }
+}));
 vi.mock('UI/GUIComponent.js', () => ({
 	default: class GuiComponentStub {
 		constructor() {
@@ -174,6 +192,85 @@ describe('T9 交互回归：药水格登记全链路', () => {
 		expect(dd).toBeTruthy();
 		expect(dd.textContent).not.toContain('红色药水'); // hp 类被过滤
 		expect(dd.textContent).toContain('Item 518'); // both 类保留（未入 DB mock → 回退名）
+	});
+});
+
+describe('T9.2 交互回归：技能下拉选择全链路（玩家报「无法选择技能」）', () => {
+
+	it('点击技能格 → 下拉列出已学技能 → 选择后写槽+持久化+重绘', () => {
+		const plugin = getPlugin();
+		const wrap = plugin._buildSkillTabContent();
+		const cell = wrap.querySelector('.skilltab-cell');
+		expect(cell).toBeTruthy();
+		click(cell);
+		const dd = Array.from(document.body.children).find(el => el.querySelector && el.querySelector('.dd-item'));
+		expect(dd).toBeTruthy();
+		const row = Array.from(dd.querySelectorAll('.dd-item')).find(el => el.textContent.includes('狂击'));
+		expect(row).toBeTruthy();
+		click(row);
+		expect(plugin.skillList[0] && plugin.skillList[0].id).toBe(5);
+		expect(plugin.skillList[0].type).toBe('attack');
+		const saved = JSON.parse(localStorage.getItem(plugin._getStorageKey()));
+		expect(saved.skills[0] && saved.skills[0].id).toBe(5);
+		// 下拉已关闭
+		expect(Array.from(document.body.children).some(el => el.querySelector && el.querySelector('.dd-item'))).toBe(false);
+	});
+
+	it('下拉内点击不穿透到 window（防护 MapControl 的 window 级 mousedown/mouseup）', () => {
+		const plugin = getPlugin();
+		const events = [];
+		const spy = e => events.push(e.target);
+		window.addEventListener('click', spy);
+		window.addEventListener('mousedown', spy);
+		try {
+			// 技能下拉（_bindDropdownEvents 原生拦截，对照组）
+			let wrap = plugin._buildSkillTabContent();
+			click(wrap.querySelector('.skilltab-cell'));
+			let dd = Array.from(document.body.children).find(el => el.querySelector && el.querySelector('.dd-item'));
+			expect(dd).toBeTruthy();
+			click(dd.querySelector('.dd-item'));
+			// 药水下拉
+			Inventory.__setInventory([{ ITID: 501, type: 0, count: 5, index: 0 }]);
+			wrap = plugin._buildPotionTabContent(0);
+			click(wrap.querySelector('[title="点击登记道具"]'));
+			dd = Array.from(document.body.children).find(el => el.textContent.includes('选择 HP 恢复道具'));
+			expect(dd).toBeTruthy();
+			click(dd);
+			// BUFF 道具下拉
+			Inventory.__setInventory([{ ITID: 645, type: 2, count: 2, index: 0 }]);
+			wrap = plugin._buildItemTabContent();
+			click(wrap.querySelector('[title="点击登记道具"]'));
+			dd = Array.from(document.body.children).find(el => el.textContent.includes('选择 BUFF 道具'));
+			expect(dd).toBeTruthy();
+			click(dd);
+			// 移动页道具下拉
+			wrap = plugin._buildMoveTabContent();
+			click(wrap.querySelector('[title="点击登记道具"]'));
+			dd = Array.from(document.body.children).find(el => el.textContent.includes('选择移动道具'));
+			expect(dd).toBeTruthy();
+			click(dd);
+			expect(events).toEqual([]); // window 层未收到任何来自下拉内部的点击
+		} finally {
+			window.removeEventListener('click', spy);
+			window.removeEventListener('mousedown', spy);
+		}
+	});
+});
+
+describe('T9.2 交互回归：悬停手型（游戏内光标白名单只认 button/input 等元素）', () => {
+	it('药水页 ON/OFF 开关容器、道具格、技能格均为 BUTTON 元素', () => {
+		const plugin = getPlugin();
+		Inventory.__setInventory([]);
+		// 开关：OFF span 的最近 button 祖先 = 开关容器
+		const potion = plugin._buildPotionTabContent(0);
+		const offSpan = Array.from(potion.querySelectorAll('span')).find(s => s.textContent === 'OFF');
+		expect(offSpan.closest('button')).toBeTruthy();
+		// 道具格（药水/移动/道具页共用 _officialItemSlot）
+		const slot = potion.querySelector('[title="点击登记道具"]');
+		expect(slot && slot.tagName).toBe('BUTTON');
+		// 技能格
+		const cell = plugin._buildSkillTabContent().querySelector('.skilltab-cell');
+		expect(cell && cell.tagName).toBe('BUTTON');
 	});
 });
 
