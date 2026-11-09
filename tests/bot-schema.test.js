@@ -10,13 +10,15 @@ import {
 	matchLootType,
 	validateLootedItem,
 	isCureStatusActive,
+	evaluatePotionSlots,
+	decideSpEconomy,
 	CURE_WATCH_LISTS,
 	SCHEMA_VERSION,
 	TOTAL_SLOT_COUNT
 } from '../src/Plugins/BotAutoHunt/settings/schema.js';
 
-describe('schema v2 结构迁移 migrateSettings', () => {
-	it('空/损坏输入 → v2 默认值（8 空槽 + 0 延迟）', () => {
+describe('schema v3 结构迁移 migrateSettings', () => {
+	it('空/损坏输入 → v3 默认值（8 空槽 + 0 延迟 + 官方四槽/触发器默认）', () => {
 		for (const bad of [null, undefined, 'garbage', 42, []]) {
 			const s = migrateSettings(bad);
 			expect(s.v).toBe(SCHEMA_VERSION);
@@ -24,13 +26,24 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 			expect(s.skills.every(k => k === null)).toBe(true);
 			expect(s.slotDelays).toHaveLength(TOTAL_SLOT_COUNT);
 			expect(s.slotDelays.every(d => d === 0)).toBe(true);
-			expect(s.hp).toBe(70);
-			expect(s.sp).toBe(30);
 			expect(s.aux).toEqual([]);
+			// T9 官方四槽默认（空登记 + 官方阈值 + 启用）
+			expect(s.potions.hp).toEqual([
+				{ id: 0, threshold: 70, enabled: true },
+				{ id: 0, threshold: 70, enabled: true }
+			]);
+			expect(s.potions.sp).toEqual([
+				{ id: 0, threshold: 30, enabled: true },
+				{ id: 0, threshold: 30, enabled: true }
+			]);
+			expect(s.cure).toEqual({ enabled: true, poison: 0, panacea: 0 });
+			expect(s.flyNoMobs).toBe(true); // 官方默认勾选
+			expect(s.flyOnMvp).toBe(true); // 官方默认勾选
+			expect(s.noMobSeconds).toBe(10); // 官方默认 10 秒
 		}
 	});
 
-	it('v1 旧格式（无 v/delay 字段）→ 规范化：数据保留、延迟补 0、版本置 2', () => {
+	it('v1 旧格式（无 v/delay 字段）→ 规范化：数据保留、延迟补 0、药水链分流四槽', () => {
 		const v1 = {
 			hp: 60,
 			sp: 25,
@@ -46,7 +59,7 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 			autoPotion: true
 		};
 		const s = migrateSettings(v1);
-		expect(s.v).toBe(2);
+		expect(s.v).toBe(SCHEMA_VERSION);
 		// 攻击组在前（attack/heal 保序）：5, 28, 6 → 槽 0/1/2
 		expect(s.skills[0]).toEqual({ id: 5, type: 'attack', level: 5, maxLevel: 10, spcost: 20 });
 		expect(s.skills[1]).toEqual({ id: 28, type: 'heal', level: 3, maxLevel: 10, spcost: 15 });
@@ -56,12 +69,12 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 		expect(s.skills[4]).toEqual({ id: 66, type: 'buff', level: 8, maxLevel: 10, spcost: 30 });
 		// 延迟全部补 0
 		expect(s.slotDelays).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
-		// 透传字段保留
-		expect(s.hp).toBe(60);
-		expect(s.sp).toBe(25);
-		expect(s.aux).toEqual(v1.aux);
+		// T9: v2 药水 potion 项分流到 potions.hp 槽（继承旧阈值/开关），aux 只剩非 potion 项
+		expect(s.potions.hp[0]).toEqual({ id: 501, threshold: 60, enabled: true });
+		expect(s.potions.hp[1].id).toBe(0);
+		expect(s.potions.sp.every(sl => sl.id === 0)).toBe(true);
+		expect(s.aux).toEqual([]);
 		expect(s.flyNoMobs).toBe(true);
-		expect(s.autoPotion).toBe(true);
 		expect(s.follow).toBe(false);
 	});
 
@@ -98,7 +111,7 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 		expect(kept).toEqual([61, 62, 63, 64]);
 	});
 
-	it('v2 已迁移数据 → 幂等透传（重排不改变合法布局）', () => {
+	it('v2 已迁移数据 → 幂等透传（重排不改变合法布局，旧共享阈值入槽）', () => {
 		const v2 = {
 			v: 2,
 			hp: 80,
@@ -117,11 +130,13 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 			autoPotion: true
 		};
 		const s = migrateSettings(v2);
-		expect(s.v).toBe(2);
+		expect(s.v).toBe(SCHEMA_VERSION);
 		expect(s.skills[0]).toEqual({ id: 5, type: 'attack', level: 5, delay: 800 });
 		expect(s.skills[4]).toEqual({ id: 66, type: 'buff', level: 8 });
 		expect(s.slotDelays).toEqual([800, 0, 0, 0, 500, 0, 0, 0]);
-		expect(s.hp).toBe(80);
+		// T9: v2 共享阈值 → 四槽默认阈值（未登记 id 时也保留阈值）
+		expect(s.potions.hp.every(sl => sl.threshold === 80 && sl.enabled === true)).toBe(true);
+		expect(s.potions.sp.every(sl => sl.threshold === 40 && sl.enabled === true)).toBe(true);
 	});
 
 	it('slotDelays 非法值（负数/非数/NaN）→ 归 0', () => {
@@ -179,12 +194,12 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 		expect(decideNoMobAction({})).toBe('walk');
 	});
 
-	it('noMobSeconds/returnToMap 迁移：秒数钳 1-60 并取整，返回开关缺省开启', () => {
+	it('noMobSeconds/returnToMap 迁移：秒数钳 1-60 并取整，返回开关缺省开启，缺省 10 秒', () => {
 		expect(migrateSettings({ noMobSeconds: 0 }).noMobSeconds).toBe(1);
 		expect(migrateSettings({ noMobSeconds: 100 }).noMobSeconds).toBe(60);
 		expect(migrateSettings({ noMobSeconds: 7.6 }).noMobSeconds).toBe(8);
-		expect(migrateSettings({}).noMobSeconds).toBe(5);
-		expect(migrateSettings({ noMobSeconds: 'x' }).noMobSeconds).toBe(5);
+		expect(migrateSettings({}).noMobSeconds).toBe(10); // T9: 官方默认 10 秒
+		expect(migrateSettings({ noMobSeconds: 'x' }).noMobSeconds).toBe(10);
 		expect(migrateSettings({}).returnToMap).toBe(true);
 		expect(migrateSettings({ returnToMap: false }).returnToMap).toBe(false);
 	});
@@ -267,10 +282,82 @@ describe('schema v2 结构迁移 migrateSettings', () => {
 		expect(isCureStatusActive(CURE_WATCH_LISTS.poison, ch4)).toBe(false); // 解毒药不覆盖诅咒
 	});
 
-	it('cureItems 迁移：缺省 0/非法归 0/合法保留', () => {
-		expect(migrateSettings({}).cureItems).toEqual({ poison: 0, panacea: 0 });
-		expect(migrateSettings({ cureItems: { poison: 506, panacea: 525 } }).cureItems).toEqual({ poison: 506, panacea: 525 });
-		expect(migrateSettings({ cureItems: { poison: -1, panacea: 'x' } }).cureItems).toEqual({ poison: 0, panacea: 0 });
+	it('cure 迁移：v2 cureItems 分流 + 启用开关缺省开/非法归 0/合法保留', () => {
+		expect(migrateSettings({}).cure).toEqual({ enabled: true, poison: 0, panacea: 0 });
+		expect(migrateSettings({ cureItems: { poison: 506, panacea: 525 } }).cure).toEqual({ enabled: true, poison: 506, panacea: 525 });
+		expect(migrateSettings({ cureItems: { poison: -1, panacea: 'x' } }).cure).toEqual({ enabled: true, poison: 0, panacea: 0 });
+		expect(migrateSettings({ cure: { enabled: false, poison: 506 } }).cure).toEqual({ enabled: false, poison: 506, panacea: 0 });
+	});
+
+	it('T9 新字段迁移：SP 规则/画面怪数/MVP/移动四槽/返回村庄', () => {
+		const s = migrateSettings({});
+		expect(s.spNormalAttack).toEqual({ enabled: false, threshold: 10 });
+		expect(s.spStopAttackMove).toEqual({ enabled: false, threshold: 5 });
+		expect(s.flyOnMobCount).toEqual({ enabled: false, count: 20 });
+		expect(s.flyOnMvp).toBe(true);
+		expect(s.teleport.item).toEqual({ enabled: true, id: 601 });
+		expect(s.teleport.skill).toEqual({ enabled: true, id: 28, level: 1 });
+		expect(s.retreat.item).toEqual({ enabled: true, id: 602 });
+		expect(s.retreat.skill).toEqual({ enabled: true, id: 28, level: 2 });
+		expect(s.returnVillage).toEqual({ enabled: false, onPotionsEmpty: false, onCureEmpty: false });
+		// 非法值錯到默认
+		const bad = migrateSettings({
+			spNormalAttack: { threshold: 999 },
+			flyOnMobCount: { count: -5 },
+			teleport: { item: { id: 'x' }, skill: { level: 99 } }
+		});
+		expect(bad.spNormalAttack.threshold).toBe(100);
+		expect(bad.flyOnMobCount.count).toBe(1);
+		expect(bad.teleport.item.id).toBe(601); // 非法 id → 回默认登记（不丢官方默认）
+		expect(bad.teleport.skill.level).toBe(10);
+	});
+
+	it('evaluatePotionSlots：同类型自左向右第一个命中（启用+已登记+低于阈值；严格小于）', () => {
+		const potions = {
+			hp: [
+				{ id: 501, threshold: 70, enabled: true },
+				{ id: 502, threshold: 50, enabled: true }
+			],
+			sp: [
+				{ id: 503, threshold: 30, enabled: false },
+				{ id: 504, threshold: 40, enabled: true }
+			]
+		};
+		expect(evaluatePotionSlots(potions, 69.9, 39.9)).toEqual({ hpSlot: 0, spSlot: 1 });
+		expect(evaluatePotionSlots(potions, 69, 40)).toEqual({ hpSlot: 0, spSlot: -1 }); // 等于不触发（40<40 为假）
+		const potions2 = {
+			hp: [
+				{ id: 501, threshold: 40, enabled: true },
+				{ id: 502, threshold: 50, enabled: true }
+			],
+			sp: []
+		};
+		// 槽1 未命中（45≥40）→ 落槽2（45<50）
+		expect(evaluatePotionSlots(potions2, 45, 100)).toEqual({ hpSlot: 1, spSlot: -1 });
+		// 全未命中
+		expect(evaluatePotionSlots(potions, 80, 100)).toEqual({ hpSlot: -1, spSlot: -1 });
+		// 未登记 id 的槽不计入
+		expect(evaluatePotionSlots({ hp: [{ id: 0, threshold: 100, enabled: true }], sp: [] }, 1, 1)).toEqual({ hpSlot: -1, spSlot: -1 });
+		// 损坏输入
+		expect(evaluatePotionSlots(null, 50, 50)).toEqual({ hpSlot: -1, spSlot: -1 });
+	});
+
+	it('decideSpEconomy：规则1（仅一般攻击）优先度高，命中即短路；都不命中回 normal', () => {
+		const cfg = {
+			normalAttack: { enabled: true, threshold: 10 },
+			stopAttackMove: { enabled: true, threshold: 5 }
+		};
+		expect(decideSpEconomy(9.9, cfg)).toBe('normal-attack-only');
+		expect(decideSpEconomy(6, cfg)).toBe('normal-attack-only'); // 规则1 优先（其命中域覆盖规则2）
+		// 规则1 关闭时规则2 才可达（官方：规则1 优先度高，开启时覆盖规则2）
+		const onlyRule2 = { normalAttack: { enabled: false, threshold: 10 }, stopAttackMove: { enabled: true, threshold: 5 } };
+		expect(decideSpEconomy(4.9, onlyRule2)).toBe('stop-and-move');
+		expect(decideSpEconomy(5, onlyRule2)).toBe('normal'); // 等于不触发
+		expect(decideSpEconomy(50, cfg)).toBe('normal');
+		// 开关关闭 → 不触发
+		expect(decideSpEconomy(1, { normalAttack: { enabled: false, threshold: 10 }, stopAttackMove: { enabled: false, threshold: 5 } })).toBe('normal');
+		expect(decideSpEconomy(1, {})).toBe('normal');
+		expect(decideSpEconomy(1, null)).toBe('normal');
 	});
 
 	it('mobWhitelist 迁移：非法项过滤去重、空数组键丢弃、键截断', () => {

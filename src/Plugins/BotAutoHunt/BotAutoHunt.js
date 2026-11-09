@@ -35,10 +35,14 @@ import DB from 'DB/DBManager.js'; // getItemInfo() 解析物品名 / INTERFACE_P
 import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import { createSettingsComponent } from './settings/SettingsWindow.js'; // T1: 官方样式设置窗口（GUIComponent，8 页签）
-import { migrateSettings, slotReady, evaluateThresholds, mobInWhitelist, decideNoMobAction, matchLootType, validateLootedItem, isCureStatusActive, CURE_WATCH_LISTS, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2-T7: 纯函数
+import { migrateSettings, slotReady, evaluateThresholds, mobInWhitelist, decideNoMobAction, matchLootType, validateLootedItem, isCureStatusActive, evaluatePotionSlots, decideSpEconomy, CURE_WATCH_LISTS, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // T2-T9: 纯函数
+import Sprite from 'Loaders/Sprite.js'; // T9: 魔物头像程序化渲染（官方魔物设定页行首图标）
+import Action from 'Loaders/Action.js'; // T9: 同上（ACT 动画帧索引）
 import EFST_MAP from './data/efst-map.json'; // 由 tools/client/generate-efst-map.mjs 生成
 import MAP_CONNECTIONS from './data/map-connections.json'; // 由 tools/client/generate-map-connections.mjs 生成
 import MAP_MOBS from './data/map-mobs.json'; // T4: 地图→魔物种族表（tools/client/generate-map-mobs.mjs 构建期生成）
+// T9: MVP 首领魔物种族表（同生成器产出，读服务端 mob_db.yml Modes.Mvp 标记；键 'mvp' 非地图名）
+const MVP_JOBS = Array.isArray(MAP_MOBS.mvp) ? MAP_MOBS.mvp : [];
 import MapRenderer from 'Renderer/MapRenderer.js'; // currentMap — 当前地图名（Bug 2 fix: 替代不存在的 Session.Entity.mapname）
 import Altitude from 'Renderer/Map/Altitude.js'; // getCellType + TYPE.WALKABLE — 巡逻可行走验证
 import PathFinding from 'Utils/PathFinding.js'; // search() — 巡逻路径验证
@@ -176,27 +180,34 @@ class BotAutoHunt {
 		this.currentPoints = 0;
 		this.timerSec = 0;
 
-		// ---------- 阈值 ----------
-		this.hpThreshold = 70; // HP 百分比，低于此值触发药水/治疗
-		this.spThreshold = 30; // SP 百分比
+		// ---------- 阈值（T9: 官方药水页四槽模型，v2 共享阈值已迁移至 potions 槽位） ----------
+		this.potions = {
+			hp: [
+				{ id: 0, threshold: 70, enabled: true },
+				{ id: 0, threshold: 70, enabled: true }
+			],
+			sp: [
+				{ id: 0, threshold: 30, enabled: true },
+				{ id: 0, threshold: 30, enabled: true }
+			]
+		};
 
 		// ---------- 两列表（D2 #8 修订: 6 技能格 + 6 辅助格） ----------
 		// skillList: [{id, type, level}, ...]  type: 'attack'|'heal'|'buff'
-		// auxList:   [{id, type}, ...]          type: 'potion'|'buff_item'
+		// T9: auxList（v2 混排药水链）已由 potions.hp/sp 四槽取代，字段移除
 		this.skillList = [];
-		this.auxList = [];
 
 		// ---------- 跟随队友（D2 #11） ----------
 		this.followEnabled = false;
 		this.followTarget = ''; // 队友 GID（字符串）
 
-		// ---------- 飞翅（D2 #12） ----------
-		this.flyNoMobs = false; // 四周无怪→苍蝇翅膀
-		this.flyLowHp = false; // HP<10%→苍蝇翅膀
+		// ---------- 飞翅（D2 #12 / T9 官方基本设定页） ----------
+		this.flyNoMobs = true; // 官方行3：[X秒]内没进行战斗时使用瞬移（默认开启同官方勾选）
+		this.flyLowHp = false; // HP<10%→苍蝇翅膀（自定义保留功能，官方无此控件）
 
-		// ---------- #13 fix: 独立自动药水 ----------
-		this.autoPotion = false; // 独立开关，不依赖 active(挂机)
-		this._autoPotionTick = null; // 独立药水循环定时器
+		// ---------- #13 fix: 药水循环（T9: 随挂机循环启停，官方无独立总开关） ----------
+		this._autoPotionTick = null; // 兼容旧字段名（独立药水循环已退役）
+		this.auxList = []; // T9: 仅存 BUFF 道具（buff 循环用；potion 类型已由 potions 四槽取代）
 
 		// ---------- 防重复启停 ----------
 		this._lastCmdTime = 0;
@@ -288,13 +299,24 @@ class BotAutoHunt {
 		this.normalAttack = true; // T2: 无技能可用时允许普通攻击（法系职业可关闭，避免近身普攻）
 		this.mobWhitelist = {}; // T4: 魔物白名单（按地图记忆 { 地图名: [种族ID...] }，空=不过滤）
 		this._seenMobs = {}; // T4: 本会话见过的魔物清单（按地图，运行时内存，不持久化）
-		this.noMobSeconds = 5; // T5: 无怪触发秒数（1-60，回落链触发等待）
+		this.noMobSeconds = 10; // T5: 无怪触发秒数（1-60，官方默认 10）
 		this.returnToMap = true; // T5: 被传送后返回挂机地图（关闭则就地继续）
 		this.loot = null; // T6: 捡拾配置（_applySettings 赋值）
 		this._lootTick = null; // T6: 捡拾循环定时器
 		this._lootPending = null; // T6: 待校验拾取 { gid, tick }
 		this._lootBlacklist = new Set(); // T6: 本会话不再拾取的地面物品 GID（防捡丢循环）
-		this.cureItems = { poison: 0, panacea: 0 }; // T7: 解除药槽位（物品 ID，0=空）
+		// T9: 官方模型字段（默认值；加载后被 _applySettings 覆盖）
+		this.cure = { enabled: true, poison: 0, panacea: 0 }; // 状态异常恢复（药水页分页2）
+		this.returnVillage = { enabled: false, onPotionsEmpty: false, onCureEmpty: false }; // 返回村庄设定
+		this.teleport = { item: { enabled: true, id: ITEM_FLY_WING }, skill: { enabled: true, id: 28, level: 1 } }; // 瞬间移动使用设定
+		this.retreat = { item: { enabled: true, id: ITEM_BUTTERFLY_WING }, skill: { enabled: true, id: 28, level: 2 } }; // 返回储存点使用设定
+		this.spNormalAttack = { enabled: false, threshold: 10 }; // SP经济规则1：仅一般攻击（优先度高）
+		this.spStopAttackMove = { enabled: false, threshold: 5 }; // SP经济规则2：停止攻击后自动移动
+		this.flyOnMobCount = { enabled: false, count: 20 }; // 画面内魔物超过 X 只时瞬移
+		this.flyOnMvp = true; // MVP 首领魔物登场时瞬移（官方默认勾选）
+		this._potionPage = 0; // 药水页当前分页（0=页1 四槽，1=页2 解除/回村）
+		this._mobPortraits = []; // 魔物头像动画注册表（[{canvas, frames, delay, idx}]）
+		this._mobPortraitTimer = null; // 头像动画共享定时器
 		this._slotLastCast = {}; // 槽下标 → 上次施放时间戳
 
 		// ---------- 加载设置（必须在全部字段默认值就位之后——_applySettings 逐字段覆盖默认值） ----------
@@ -1063,7 +1085,8 @@ class BotAutoHunt {
 		if (!this._settingsComp) {
 			this._settingsComp = createSettingsComponent({
 				placeholder: '本页签建设中，将在后续工单逐步交付（T2-T8）',
-				onReset: (tabIndex) => this._handleSettingsReset(tabIndex) // T2: footer 初始化按钮接线
+				onReset: (tabIndex) => this._handleSettingsReset(tabIndex), // T2: footer 初始化按钮接线
+				onTabChange: (tabIndex) => this._onSettingsTabChange(tabIndex) // T9: 分页器随页签显隐
 			});
 		}
 		this._settingsComp.append();
@@ -1074,14 +1097,383 @@ class BotAutoHunt {
 		this._renderLootTab();
 		this._renderPotionTab();
 		this._renderServiceTab();
+		this._onSettingsTabChange(this._settingsComp.getActiveIndex ? this._settingsComp.getActiveIndex() : 0);
 		this._hookInventoryAdd();
 	}
 
+	/** T9: 页签切换 → 分页器显隐（官方：药水页两页，页脚中间 « 1 / 2 »） */
+	_onSettingsTabChange(tabIndex) {
+		if (!this._settingsComp || !this._settingsComp.setPager) return;
+		if (tabIndex === 3) {
+			this._settingsComp.setPager(this._potionPage, 2, (delta) => this._switchPotionPage(delta));
+		} else {
+			this._settingsComp.setPager(0, 0, null);
+		}
+	}
+
 	// =================================================================
-	// 设置窗口基本设定页（T3：HP/SP 阈值滑杆 + 自动吃药 + 固定行为说明）
+	// 官方 UI 共用组件（T9：《RO乐园》公告 PDF 逐页截图对齐）
 	// =================================================================
 
-	/** 渲染基本设定页内容（存进 pane[0]；与旧面板阈值控件双向同步，过渡期共存） */
+	/**
+	 * 官方窗口级标题条：浅蓝细纹背景 + 两侧 ✦ 装饰 + 居中深蓝粗体标题 + 可选蓝色副行
+	 * 对照官方截图（基本设定「请设定自动狩猎功能。」/ 药水「请设定要使用的恢复道具。」）
+	 */
+	_officialHeaderStrip(title, subtitle) {
+		const strip = document.createElement('div');
+		strip.style.cssText =
+			'position:relative;padding:7px 18px 6px;text-align:center;' +
+			'background:repeating-linear-gradient(to bottom,#eaf3fb 0px,#eaf3fb 1px,#dfeaf5 1px,#dfeaf5 3px);' +
+			'border:1px solid #b9c9d8;border-radius:3px;border-bottom:1px dotted #9db8d2;';
+		const dia = document.createElement('span');
+		dia.textContent = '✦';
+		dia.style.cssText = 'position:absolute;left:8px;top:50%;transform:translateY(-60%);color:#4a7ab5;font-size:11px;';
+		const dia2 = dia.cloneNode(true);
+		dia2.style.left = 'auto';
+		dia2.style.right = '8px';
+		const t = document.createElement('div');
+		t.textContent = title;
+		t.style.cssText = 'font-size:12px;font-weight:bold;color:#1a3a8c;';
+		strip.appendChild(dia);
+		strip.appendChild(dia2);
+		strip.appendChild(t);
+		if (subtitle) {
+			const sub = document.createElement('div');
+			sub.textContent = subtitle;
+			sub.style.cssText = 'font-size:11px;color:#4a7ab5;margin-top:2px;';
+			strip.appendChild(sub);
+		}
+		return strip;
+	}
+
+	/**
+	 * 官方区块盒：标题条（浅蓝渐变圆角，同技能页标题条测量值）+ 可选 ON/OFF 切换开关 + 白底内容区
+	 * 官方截图参照：恢复HP/恢复SP/状态异常恢复/瞬间移动使用设定 等区块
+	 *
+	 * @param {string} title 区块标题
+	 * @param {{toggle?: boolean, onToggle?: function(boolean), contentPadding?: string}} opts
+	 * @return {{box: HTMLElement, content: HTMLElement, setOn: function(boolean)}}
+	 */
+	_officialSection(title, opts) {
+		const o = opts || {};
+		const box = document.createElement('div');
+		box.style.cssText = 'border:1px solid #b9c9d8;border-radius:4px;background:#ffffff;overflow:hidden;';
+
+		const strip = document.createElement('div');
+		strip.style.cssText =
+			'position:relative;height:24px;line-height:22px;background:linear-gradient(to bottom,#e3f5ff,#fdffff);' +
+			'border-bottom:1px solid #c7d6e3;font-size:12px;font-weight:bold;color:#2e4058;text-align:center;';
+		strip.textContent = title;
+		box.appendChild(strip);
+
+		const content = document.createElement('div');
+		content.style.cssText = 'padding:' + (o.contentPadding || '5px 8px') + ';';
+		box.appendChild(content);
+
+		let setOn = null;
+		if (o.toggle) {
+			const switchBox = document.createElement('div');
+			switchBox.style.cssText =
+				'position:absolute;right:4px;top:4px;display:flex;border:1px solid #9db8d2;border-radius:2px;overflow:hidden;line-height:1;cursor:pointer;background:#ffffff;';
+			const onBtn = document.createElement('span');
+			const offBtn = document.createElement('span');
+			onBtn.textContent = 'ON';
+			offBtn.textContent = 'OFF';
+			const paint = on => {
+				onBtn.style.cssText =
+					'font-size:9px;font-weight:bold;padding:2px 4px;' +
+					(on ? 'background:#2e5fa3;color:#ffffff;' : 'background:#ffffff;color:#a8b3bd;');
+				offBtn.style.cssText =
+					'font-size:9px;font-weight:bold;padding:2px 4px;border-left:1px solid #c7d6e3;' +
+					(!on ? 'background:#dce8f2;color:#5a7a9c;' : 'background:#ffffff;color:#a8b3bd;');
+			};
+			switchBox.addEventListener('click', e => {
+				e.stopPropagation();
+				const next = offBtn.style.backgroundColor !== 'rgb(220, 232, 242)'; // OFF 当前高亮 → 切为开
+				if (typeof o.onToggle === 'function') o.onToggle(next);
+			});
+			setOn = on => paint(on);
+			paint(true);
+			switchBox.appendChild(onBtn);
+			switchBox.appendChild(offBtn);
+			strip.appendChild(switchBox);
+		}
+
+		return { box: box, content: content, setOn: setOn };
+	}
+
+	/**
+	 * 任务面板同款位图勾选框（checkbox_0/1.bmp，EquipmentV4/Quest 同一素材与接线方式）
+	 *
+	 * @param {boolean} checked 初始勾选态
+	 * @param {function(boolean)} [onChange] 勾选变更回调
+	 * @return {HTMLButtonElement}
+	 */
+	_bmpCheckbox(checked, onChange) {
+		const btn = document.createElement('button');
+		btn.className = 'bot-checkbox';
+		btn.style.cssText =
+			'width:10px;height:12px;border:none;background-color:transparent;background-repeat:no-repeat;' +
+			'vertical-align:middle;cursor:pointer;padding:0;margin:0 4px 0 0;flex:0 0 auto;';
+		let state = !!checked;
+		const paint = () => {
+			Client.loadFile(DB.INTERFACE_PATH + 'checkbox_' + (state ? '1' : '0') + '.bmp', data => {
+				btn.style.backgroundImage = 'url(' + data + ')';
+			});
+		};
+		btn.addEventListener('click', e => {
+			e.stopPropagation();
+			state = !state;
+			paint();
+			if (typeof onChange === 'function') onChange(state);
+		});
+		paint();
+		btn.isChecked = () => state;
+		btn.setChecked = v => {
+			if (!!v !== state) {
+				state = !!v;
+				paint();
+			}
+		};
+		return btn;
+	}
+
+	/**
+	 * 官方阈值滑杆：◀ 圆角轨道（填充色随 HP蓝/SP绿）圆钮 ▶ + 0/50/100 刻度
+	 * 官方截图参照：恢复HP/恢复SP/重量设定 滑杆
+	 *
+	 * @param {{value: number, color: string, onInput: function(number)}} opts
+	 * @return {{el: HTMLElement, setValue: function(number)}}
+	 */
+	_officialSlider(opts) {
+		const o = opts || {};
+		const color = o.color || '#7ba7d7';
+		const wrap = document.createElement('div');
+		wrap.style.cssText = 'display:flex;flex-direction:column;gap:0;';
+
+		const row = document.createElement('div');
+		row.style.cssText = 'display:flex;align-items:center;gap:3px;';
+		const trackWrap = document.createElement('div');
+		trackWrap.style.cssText = 'position:relative;flex:1;height:14px;';
+		const fill = document.createElement('div');
+		fill.style.cssText =
+			'position:absolute;left:0;top:3px;height:8px;border-radius:4px 0 0 4px;background:' + color + ';' +
+			'border:1px solid rgba(0,0,0,0.25);border-right:none;box-sizing:border-box;';
+		const rest = document.createElement('div');
+		rest.style.cssText =
+			'position:absolute;right:0;top:3px;height:8px;border-radius:0 4px 4px 0;background:#eef3f8;' +
+			'border:1px solid #b9c9d8;border-left:none;box-sizing:border-box;';
+		const thumb = document.createElement('div');
+		thumb.style.cssText =
+			'position:absolute;top:2px;width:10px;height:10px;border-radius:50%;background:linear-gradient(to bottom,#ffffff,#c9d8e6);' +
+			'border:1px solid #6f8aa5;box-sizing:border-box;transform:translateX(-50%);pointer-events:none;';
+		const range = document.createElement('input');
+		range.type = 'range';
+		range.min = '0';
+		range.max = '100';
+		range.value = String(o.value != null ? o.value : 0);
+		range.style.cssText = 'position:absolute;inset:0;width:100%;height:14px;margin:0;opacity:0;cursor:pointer;';
+		const paintPos = () => {
+			const v = +range.value;
+			fill.style.width = 'calc(' + v + '% - 1px)';
+			fill.style.left = v >= 100 ? '-1px' : '0';
+			rest.style.width = 'calc(' + (100 - v) + '% - 1px)';
+			thumb.style.left = 'calc(' + v + '% + ' + (5 - (v * 10) / 100) + 'px)';
+		};
+		range.addEventListener('input', () => {
+			paintPos();
+			if (typeof o.onInput === 'function') o.onInput(+range.value);
+		});
+		range.addEventListener('mousedown', e => e.stopPropagation());
+		trackWrap.appendChild(fill);
+		trackWrap.appendChild(rest);
+		trackWrap.appendChild(thumb);
+		trackWrap.appendChild(range);
+
+		function arrow(dir) {
+			const b = document.createElement('button');
+			b.textContent = dir < 0 ? '◀' : '▶';
+			b.style.cssText =
+				'border:none;background:transparent;color:#4a7ab5;font-size:13px;cursor:pointer;padding:0;line-height:1;';
+			b.addEventListener('click', e => {
+				e.stopPropagation();
+				range.value = String(Math.min(100, Math.max(0, +range.value + dir)));
+				paintPos();
+				if (typeof o.onInput === 'function') o.onInput(+range.value);
+			});
+			return b;
+		}
+		row.appendChild(arrow(-1));
+		row.appendChild(trackWrap);
+		row.appendChild(arrow(1));
+		wrap.appendChild(row);
+
+		const scale = document.createElement('div');
+		scale.style.cssText = 'display:flex;justify-content:space-between;font-size:10px;color:#5a7a9c;padding:0 14px;margin-top:-2px;';
+		scale.innerHTML = '<span>0</span><span>50</span><span>100</span>';
+		wrap.appendChild(scale);
+
+		return {
+			el: wrap,
+			setValue: v => {
+				range.value = String(Math.min(100, Math.max(0, Math.round(v))));
+				paintPos();
+			}
+		};
+	}
+
+	/**
+	 * 官方空道具格：白底圆角方格 + 底部浅蓝椭圆投影（官方药水/道具格空态）
+	 * 已登记时显示道具图标（kRO 惯例 item/<Name>.bmp，同技能格接线）
+	 *
+	 * @param {number} itemId 已登记道具 ID（0 = 空）
+	 * @param {function} [onClick] 点击回调（弹下拉）
+	 * @return {HTMLElement}
+	 */
+	_officialItemSlot(itemId, onClick) {
+		const cell = document.createElement('div');
+		cell.style.cssText =
+			'box-sizing:border-box;width:34px;height:34px;border:1px solid #a8b3bd;border-radius:6px;background:#ffffff;' +
+			'position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;overflow:hidden;';
+		const shadow = document.createElement('div');
+		shadow.style.cssText =
+			'position:absolute;left:50%;bottom:5px;width:20px;height:7px;margin-left:-10px;border-radius:50%;' +
+			'background:radial-gradient(ellipse at center,rgba(140,170,200,0.45) 0%,rgba(255,255,255,0) 70%);pointer-events:none;';
+		cell.appendChild(shadow);
+		if (itemId) {
+			const info = DB.getItemInfo(itemId);
+			const img = document.createElement('img');
+			img.width = 28;
+			img.height = 28;
+			img.draggable = false;
+			img.style.cssText = 'position:relative;z-index:1;';
+			img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+			if (info && info.identifiedResourceName) {
+				Client.loadFile(DB.INTERFACE_PATH + 'item/' + info.identifiedResourceName + '.bmp', data => {
+					img.src = data;
+				});
+			}
+			cell.appendChild(img);
+			cell.title = (info && info.identifiedDisplayName) || 'Item ' + itemId;
+		} else {
+			cell.title = '点击登记道具';
+		}
+		if (typeof onClick === 'function') {
+			cell.addEventListener('click', e => {
+				e.stopPropagation();
+				onClick(cell);
+			});
+		}
+		return cell;
+	}
+
+	// =================================================================
+	// 魔物头像程序化渲染（T9：官方魔物设定页行首图标）
+	// 客户端无魔物头像素材——用已有怪物 sprite（data/sprite/몬스터/<name>.spr/.act）
+	// 离屏渲染待机动画帧序列，共享定时器逐帧播放（玩家确认方案）
+	// =================================================================
+
+	/**
+	 * 为行盒生成魔物头像 canvas（异步加载 sprite 后自动开始播放待机动画）
+	 * @param {number} job 魔物种族 ID
+	 */
+	_mountMonsterPortrait(container, job) {
+		const path = DB.getBodyPath(job, 0); // data/sprite/몬스터/<sprite>
+		if (!path) return;
+		Client.loadFile(path + '.act', actBuf => {
+			Client.loadFile(path + '.spr', sprBuf => {
+				if (!actBuf || !sprBuf) return;
+				let action, sprite;
+				try {
+					action = new Action(actBuf);
+					sprite = new Sprite(sprBuf);
+				} catch (e) {
+					return; // 损坏 sprite 静默跳过（行盒仍保留斜纹格）
+				}
+				const anim = action.actions[0]; // 待机朝南（action*8+direction → 0）
+				if (!anim || !anim.animations || !anim.animations.length) return;
+
+				// 预渲染每帧（含图层偏移合成），统一包围盒避免播放抖动
+				const frames = [];
+				let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+				const raw = [];
+				for (const af of anim.animations) {
+					const parts = [];
+					for (const layer of af.layers) {
+						if (layer.sprindex == null || layer.sprindex < 0) continue;
+						const fc = sprite.getCanvasFromFrame(layer.sprindex);
+						if (!fc || fc.width <= 0) continue;
+						parts.push({ c: fc, x: layer.x, y: layer.y });
+						minX = Math.min(minX, layer.x - fc.width / 2);
+						maxX = Math.max(maxX, layer.x + fc.width / 2);
+						minY = Math.min(minY, -layer.y - fc.height / 2);
+						maxY = Math.max(maxY, -layer.y + fc.height / 2);
+					}
+					raw.push(parts);
+				}
+				if (!raw.length || minX === Infinity) return;
+				const bw = Math.ceil(maxX - minX);
+				const bh = Math.ceil(maxY - minY);
+				const box = 28; // 行盒图标格内容尺寸
+				const scale = Math.min(1, box / Math.max(bw, bh));
+				for (const parts of raw) {
+					const c = document.createElement('canvas');
+					c.width = Math.max(1, Math.round(bw * scale));
+					c.height = Math.max(1, Math.round(bh * scale));
+					const ctx = c.getContext('2d');
+					ctx.scale(scale, scale);
+					for (const p of parts) {
+						ctx.drawImage(p.c, p.x - p.c.width / 2 - minX, -p.y - p.c.height / 2 - minY);
+					}
+					frames.push(c);
+				}
+				if (!frames.length) return;
+
+				const view = document.createElement('canvas');
+				view.width = frames[0].width;
+				view.height = frames[0].height;
+				view.style.cssText = 'position:relative;z-index:1;image-rendering:pixelated;';
+				container.appendChild(view);
+				const reg = {
+					canvas: view,
+					frames: frames,
+					delay: anim.delay || 150,
+					idx: 0,
+					last: 0
+				};
+				this._mobPortraits.push(reg);
+				this._ensureMobPortraitTimer();
+			});
+		});
+	}
+
+	/** 头像动画共享定时器（150ms 步进；pane 重建后自动清理已脱离 DOM 的注册项） */
+	_ensureMobPortraitTimer() {
+		if (this._mobPortraitTimer) return;
+		this._mobPortraitTimer = setInterval(() => {
+			const now = Date.now();
+			this._mobPortraits = this._mobPortraits.filter(r => r.canvas.isConnected);
+			if (!this._mobPortraits.length) {
+				clearInterval(this._mobPortraitTimer);
+				this._mobPortraitTimer = null;
+				return;
+			}
+			for (const r of this._mobPortraits) {
+				if (now - r.last < r.delay) continue;
+				r.last = now;
+				r.idx = (r.idx + 1) % r.frames.length;
+				const ctx = r.canvas.getContext('2d');
+				ctx.clearRect(0, 0, r.canvas.width, r.canvas.height);
+				ctx.drawImage(r.frames[r.idx], 0, 0);
+			}
+		}, 60);
+	}
+
+	// =================================================================
+	// 基本设定页（T9 官方对齐：请设定自动狩猎功能 + 复选框行为清单）
+	// =================================================================
+
+	/** 渲染基本设定页内容（存进 pane[0]；输入进行中不重建） */
 	_renderBasicTab() {
 		if (!this._settingsComp) return;
 		const pane = this._settingsComp.getPane(0);
@@ -1092,165 +1484,251 @@ class BotAutoHunt {
 		pane.appendChild(this._buildBasicTabContent());
 	}
 
-	/** 构建基本设定页（紧凑单列：阈值滑杆×2 + 自动吃药开关 + 固定行为说明） */
+	/** 构建基本设定页（官方逐行复刻：复选框行为清单 + 自定义功能补充区） */
 	_buildBasicTabContent() {
 		const self = this;
 		const wrap = document.createElement('div');
-		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
+		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:4px;text-align:left;';
 
-		// —— HP 用药阈值滑杆 ——
-		const hpRow = document.createElement('div');
-		hpRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:#2e4058;';
-		hpRow.appendChild(document.createTextNode('HP 用药阈值：'));
-		const hpVal = document.createElement('span');
-		hpVal.className = 'basictab-hp-val';
-		hpVal.textContent = self.hpThreshold + '%';
-		hpRow.appendChild(hpVal);
-		const hpSlider = document.createElement('input');
-		hpSlider.type = 'range';
-		hpSlider.className = 'basictab-hp-slider';
-		hpSlider.min = '0';
-		hpSlider.max = '100';
-		hpSlider.value = String(self.hpThreshold);
-		hpSlider.style.cssText = 'flex:1;height:14px;';
-		hpSlider.addEventListener('input', function () {
-			self.hpThreshold = +hpSlider.value;
-			hpVal.textContent = self.hpThreshold + '%';
+		wrap.appendChild(this._officialHeaderStrip('请设定自动狩猎功能。'));
+
+		// 官方灰色提示块（双行居中，「移动设定」为蓝字链接色）
+		const tip = document.createElement('div');
+		tip.style.cssText = 'background:#f2f5f8;border:1px solid #dfe7ee;border-radius:3px;padding:5px 6px;text-align:center;font-size:11px;color:#2e4058;line-height:1.6;';
+		tip.innerHTML =
+			'瞬间移动于<span style="color:#2e5fa3;font-weight:bold;">「移动设定」</span>页签设定。<br/>' +
+			'各角色分别储存自动狩猎设定。';
+		wrap.appendChild(tip);
+
+		// 官方复选框行工厂：文字含 [输入框] 内嵌
+		function rowLine() {
+			const row = document.createElement('div');
+			row.style.cssText = 'display:flex;align-items:center;gap:0;font-size:11px;color:#2e4058;padding:1px 2px;flex-wrap:wrap;';
+			return row;
+		}
+		function numInput(cls, value, onChange) {
+			const input = document.createElement('input');
+			input.type = 'number';
+			input.className = cls;
+			input.value = String(value);
+			input.style.cssText = 'width:34px;height:15px;margin:0 3px;padding:0 2px;font-size:11px;border:1px solid #c7c7c7;border-radius:2px;background:#fffdf5;text-align:center;';
+			input.addEventListener('mousedown', e => e.stopPropagation());
+			input.addEventListener('keydown', function (e) {
+				if (e.key.length === 1 && !/^[0-9]$/.test(e.key)) e.preventDefault();
+			});
+			input.addEventListener('change', function () {
+				input.value = String(Math.max(0, Math.round(+input.value || 0)));
+				onChange(+input.value);
+			});
+			return input;
+		}
+		function subNote(text) {
+			const note = document.createElement('div');
+			note.style.cssText = 'font-size:10px;color:#4a7ab5;padding-left:18px;line-height:1.3;';
+			note.textContent = text;
+			return note;
+		}
+
+		// —— 官方行1：角色SP为[X]%以下时，仅使用一般攻击。(优先度高) ——
+		const row1 = rowLine();
+		const cb1 = this._bmpCheckbox(this.spNormalAttack.enabled, v => {
+			self.spNormalAttack.enabled = v;
 			self._saveSettings();
 		});
-		hpRow.appendChild(hpSlider);
-		wrap.appendChild(hpRow);
-
-		// —— SP 用药阈值滑杆 ——
-		const spRow = document.createElement('div');
-		spRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:#2e4058;';
-		spRow.appendChild(document.createTextNode('SP 用药阈值：'));
-		const spVal = document.createElement('span');
-		spVal.className = 'basictab-sp-val';
-		spVal.textContent = self.spThreshold + '%';
-		spRow.appendChild(spVal);
-		const spSlider = document.createElement('input');
-		spSlider.type = 'range';
-		spSlider.className = 'basictab-sp-slider';
-		spSlider.min = '0';
-		spSlider.max = '100';
-		spSlider.value = String(self.spThreshold);
-		spSlider.style.cssText = 'flex:1;height:14px;';
-		spSlider.addEventListener('input', function () {
-			self.spThreshold = +spSlider.value;
-			spVal.textContent = self.spThreshold + '%';
+		row1.appendChild(cb1);
+		row1.appendChild(document.createTextNode('角色SP为'));
+		row1.appendChild(numInput('basictab-sp-na', this.spNormalAttack.threshold, v => {
+			self.spNormalAttack.threshold = Math.min(100, v);
 			self._saveSettings();
-		});
-		spRow.appendChild(spSlider);
-		wrap.appendChild(spRow);
+		}));
+		row1.appendChild(document.createTextNode('%以下时，仅使用一般攻击。(优先度高)'));
+		wrap.appendChild(row1);
+		wrap.appendChild(subNote('需勾选技能设定的「普通攻击」才可使用一般攻击。'));
 
-		// —— 自动吃药开关 ——
-		const apRow = document.createElement('label');
-		apRow.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;font-weight:bold;color:#2e4058;cursor:pointer;';
-		const apCb = document.createElement('input');
-		apCb.type = 'checkbox';
-		apCb.className = 'basictab-auto-potion';
-		apCb.checked = self.autoPotion;
-		apCb.addEventListener('change', function () {
-			self.autoPotion = apCb.checked;
+		// —— 官方行2：角色SP为[X]%以下时，停止攻击后自动移动。——
+		const row2 = rowLine();
+		row2.appendChild(this._bmpCheckbox(this.spStopAttackMove.enabled, v => {
+			self.spStopAttackMove.enabled = v;
 			self._saveSettings();
-			if (self.autoPotion) self._startAutoPotion();
-			else self._stopAutoPotion();
-		});
-		apRow.appendChild(apCb);
-		apRow.appendChild(document.createTextNode('自动吃药（低于阈值自动使用设定药水/治疗技能）'));
-		wrap.appendChild(apRow);
+		}));
+		row2.appendChild(document.createTextNode('角色SP为'));
+		row2.appendChild(numInput('basictab-sp-sa', this.spStopAttackMove.threshold, v => {
+			self.spStopAttackMove.threshold = Math.min(100, v);
+			self._saveSettings();
+		}));
+		row2.appendChild(document.createTextNode('%以下时，停止攻击后自动移动。'));
+		wrap.appendChild(row2);
 
-		// —— 固定行为说明（与代码实际行为一致，勿臆写） ——
-		const info = document.createElement('div');
-		info.style.cssText = 'border-top:1px dotted #b9c6d2;padding-top:3px;font-size:10px;color:#4a7ab5;line-height:1.5;';
-		info.innerHTML =
-			'固定行为说明：<br/>' +
-			'· 城镇内无法开启自动战斗<br/>' +
-			'· 角色死亡时自动停止挂机<br/>' +
-			'· 过图后自动重置并给予约 1.5 秒宽限再恢复行动';
-		wrap.appendChild(info);
+		// —— 官方行3：[X]秒内没进行战斗时，使用瞬间移动。——
+		const row3 = rowLine();
+		row3.appendChild(this._bmpCheckbox(this.flyNoMobs, v => {
+			self.flyNoMobs = v;
+			self._saveSettings();
+		}));
+		row3.appendChild(numInput('basictab-nomob-sec', this.noMobSeconds, v => {
+			self.noMobSeconds = Math.min(60, Math.max(1, v || 10));
+			self._saveSettings();
+		}));
+		row3.appendChild(document.createTextNode('秒内没进行战斗时，使用瞬间移动。'));
+		wrap.appendChild(row3);
+
+		// —— 官方行4：画面内魔物超过[X]只时，使用瞬间移动。——
+		const row4 = rowLine();
+		row4.appendChild(this._bmpCheckbox(this.flyOnMobCount.enabled, v => {
+			self.flyOnMobCount.enabled = v;
+			self._saveSettings();
+		}));
+		row4.appendChild(document.createTextNode('画面内魔物超过'));
+		row4.appendChild(numInput('basictab-mob-count', this.flyOnMobCount.count, v => {
+			self.flyOnMobCount.count = Math.min(99, Math.max(1, v || 20));
+			self._saveSettings();
+		}));
+		row4.appendChild(document.createTextNode('只时，使用瞬间移动。'));
+		wrap.appendChild(row4);
+
+		// —— 官方行5：MVP首领魔物登场时使用瞬间移动 ——
+		const row5 = rowLine();
+		row5.appendChild(this._bmpCheckbox(this.flyOnMvp, v => {
+			self.flyOnMvp = v;
+			self._saveSettings();
+		}));
+		row5.appendChild(document.createTextNode('MVP首领魔物登场时使用瞬间移动'));
+		wrap.appendChild(row5);
+
+		// —— 自定义功能补充区（玩家决定保留；官方无此控件，按官方视觉语言排底部） ——
+		const customHead = document.createElement('div');
+		customHead.style.cssText = 'font-size:10px;color:#8aa5c0;border-bottom:1px dotted #b9c6d2;padding:3px 0 1px;margin-top:2px;';
+		customHead.textContent = '— 扩展设定（服务器私有功能）—';
+		wrap.appendChild(customHead);
+
+		const rowC1 = rowLine();
+		rowC1.appendChild(this._bmpCheckbox(this.flyLowHp, v => {
+			self.flyLowHp = v;
+			self._saveSettings();
+		}));
+		rowC1.appendChild(document.createTextNode('低血保命飞翅（HP<10%：优先苍蝇，次选蝴蝶）'));
+		wrap.appendChild(rowC1);
+
+		const rowC2 = rowLine();
+		rowC2.appendChild(this._bmpCheckbox(this.returnToMap, v => {
+			self.returnToMap = v;
+			self._saveSettings();
+		}));
+		rowC2.appendChild(document.createTextNode('被传送后返回挂机地图（关闭则就地继续挂机）'));
+		wrap.appendChild(rowC2);
 
 		return wrap;
-	}
-
-
-	/** T3: 旧面板 → 同步基本设定页控件（就地更新，不重建避免打断拖拽） */
-	_syncThresholdsToBasicTab() {
-		if (!this._settingsComp) return;
-		const pane = this._settingsComp.getPane(0);
-		if (!pane) return;
-		const hpSlider = pane.querySelector('.basictab-hp-slider');
-		if (hpSlider && +hpSlider.value !== this.hpThreshold) hpSlider.value = String(this.hpThreshold);
-		const hpVal = pane.querySelector('.basictab-hp-val');
-		if (hpVal) hpVal.textContent = this.hpThreshold + '%';
-		const spSlider = pane.querySelector('.basictab-sp-slider');
-		if (spSlider && +spSlider.value !== this.spThreshold) spSlider.value = String(this.spThreshold);
-		const spVal = pane.querySelector('.basictab-sp-val');
-		if (spVal) spVal.textContent = this.spThreshold + '%';
-		const ap = pane.querySelector('.basictab-auto-potion');
-		if (ap && ap.checked !== this.autoPotion) ap.checked = this.autoPotion;
 	}
 
 	// =================================================================
 	// 药水设定页（T7：异常状态解除——解毒药/万能药槽位）
 	// =================================================================
 
-	/** T7: 渲染药水设定页内容（存进 pane[3]；解除药槽位，HP/SP 药水格过渡期仍在旧面板） */
+	/** T9: 渲染药水设定页内容（官方两分页：页1 HP/SP 四槽；页2 状态异常恢复+返回村庄） */
 	_renderPotionTab() {
 		if (!this._settingsComp) return;
 		const pane = this._settingsComp.getPane(3);
 		if (!pane) return;
 		if (pane.contains(document.activeElement)) return;
 		pane.innerHTML = '';
-		pane.appendChild(this._buildPotionTabContent());
+		pane.appendChild(this._buildPotionTabContent(this._potionPage));
 	}
 
-	/** T8: 单个 HP/SP 药水格（名称+数量显示；点击弹消耗品下拉） */
-	_buildAuxSlotCell(index) {
-		const self = this;
-		const aux = this.auxList[index];
-		const cell = document.createElement('div');
-		cell.style.cssText = 'box-sizing:border-box;border:1px solid #a8b3bd;border-radius:5px;background:#f6fafd;padding:2px;width:36px;height:36px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;user-select:none;';
-		if (aux && aux.id) {
-			const info = DB.getItemInfo(aux.id);
-			const name = document.createElement('span');
-			name.style.cssText = 'font-size:9px;color:#1a3a5c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32px;';
-			name.textContent = (info && info.identifiedDisplayName) || ('Item ' + aux.id);
-			cell.title = name.textContent;
-			const count = document.createElement('span');
-			count.style.cssText = 'font-size:9px;color:#5a7a9c;';
-			count.textContent = '×' + (aux.count != null ? aux.count : '?');
-			cell.appendChild(name);
-			cell.appendChild(count);
-		} else {
-			cell.title = '点击设置药水';
-			const ph = document.createElement('div');
-			ph.textContent = '＋';
-			ph.style.cssText = 'font-size:16px;color:#9db8d2;line-height:1;';
-			cell.appendChild(ph);
+	/** T9: 分页器翻页（delta=±1，循环切换） */
+	_switchPotionPage(delta) {
+		this._potionPage = (this._potionPage + delta + 2) % 2;
+		const pane = this._settingsComp && this._settingsComp.getPane(3);
+		if (pane) {
+			pane.innerHTML = '';
+			pane.appendChild(this._buildPotionTabContent(this._potionPage));
 		}
-		cell.addEventListener('click', function () {
-			self._openDropdown('aux', index, cell);
+		if (this._settingsComp && this._settingsComp.setPager) {
+			this._settingsComp.setPager(this._potionPage, 2, d => this._switchPotionPage(d));
+		}
+	}
+
+	/**
+	 * T9: 药水四槽专用下拉（官方槽位语义：HP 槽列 HP 恢复品、SP 槽列 SP 恢复品；首项清空）
+	 * @param {{id: number}} slotObj potions.hp/sp 槽位对象（直接改写）
+	 * @param {'hp'|'sp'} kind 槽位类型（过滤恢复类型）
+	 * @param {HTMLElement} anchorCell 定位锚点
+	 */
+	_openPotionSlotDropdown(slotObj, kind, anchorCell) {
+		this._closeDropdown();
+		const all = this._getAvailableConsumables();
+		const items = all.filter(it => {
+			const t = this._getPotionRestoreType(it.id) || 'hp';
+			return t === kind || t === 'both';
 		});
-		return cell;
+		const dd = document.createElement('div');
+		Object.assign(dd.style, {
+			position: 'fixed',
+			zIndex: '300',
+			background: 'white',
+			border: '1px solid #c1c6c2',
+			borderRadius: '5px',
+			padding: '11px',
+			boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+			fontFamily: 'Gulim, Dotum, "Malgun Gothic", sans-serif',
+			maxWidth: '240px',
+			maxHeight: '260px',
+			overflowY: 'auto'
+		});
+		const title = document.createElement('div');
+		title.style.cssText = 'font-size:11px;font-weight:bold;color:#484848;margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid #eee;';
+		title.textContent = kind === 'hp' ? '选择 HP 恢复道具' : '选择 SP 恢复道具';
+		dd.appendChild(title);
+
+		function row(label, onClick) {
+			const el = document.createElement('div');
+			el.style.cssText = 'font-size:11px;color:#333;padding:4px 6px;cursor:pointer;border-radius:2px;';
+			el.textContent = label;
+			el.addEventListener('mouseover', () => { el.style.background = '#e8f0f7'; });
+			el.addEventListener('mouseout', () => { el.style.background = ''; });
+			el.addEventListener('click', onClick);
+			dd.appendChild(el);
+		}
+
+		row('（清空登记）', () => {
+			slotObj.id = 0;
+			this._saveSettings();
+			this._closeDropdown();
+			this._renderPotionTab();
+		});
+		if (items.length === 0) {
+			const empty = document.createElement('div');
+			empty.style.cssText = 'font-size:11px;color:#999;padding:4px 6px;';
+			empty.textContent = '背包中无可用恢复道具';
+			dd.appendChild(empty);
+		} else {
+			for (const it of items) {
+				row(it.name + (it.count ? ' ×' + it.count : ''), () => {
+					slotObj.id = it.id;
+					this._saveSettings();
+					this._closeDropdown();
+					this._renderPotionTab();
+				});
+			}
+		}
+
+		this._positionDropdown(dd, anchorCell);
+		document.body.appendChild(dd);
+		this._dropdown = dd;
+		this._dropdownClickHandler = e => {
+			if (!dd.contains(e.target) && !anchorCell.contains(e.target)) this._closeDropdown();
+		};
+		document.addEventListener('mousedown', this._dropdownClickHandler, true);
 	}
 
-	/** T7: 刷新解除药槽位显示（配置变更后就地更新） */
+	/** T9: 刷新药水页（下拉/开关变更后重绘当前页） */
 	_syncPotionTab() {
-		if (!this._settingsComp) return;
-		const pane = this._settingsComp.getPane(3);
-		if (!pane) return;
-		const poisonCell = pane.querySelector('.curetab-cell-poison .curetab-name');
-		if (poisonCell) poisonCell.textContent = this._getCureSlotLabel('poison');
-		const panaceaCell = pane.querySelector('.curetab-cell-panacea .curetab-name');
-		if (panaceaCell) panaceaCell.textContent = this._getCureSlotLabel('panacea');
+		this._renderPotionTab();
 	}
 
-	/** T7: 解除药槽位显示文本 */
+	/** T9: 解除药槽位显示文本 */
 	_getCureSlotLabel(key) {
-		const id = this.cureItems[key];
-		if (!id) return '＋ 点击设置';
+		const id = this.cure[key];
+		if (!id) return '＋ 点击登记';
 		const info = DB.getItemInfo(id);
 		return (info && info.identifiedDisplayName) || ('Item ' + id);
 	}
@@ -1291,8 +1769,8 @@ class BotAutoHunt {
 			dd.appendChild(el);
 		}
 
-		row('（清空设置）', () => {
-			this.cureItems[key] = 0;
+		row('（清空登记）', () => {
+			this.cure[key] = 0;
 			this._saveSettings();
 			this._closeDropdown();
 			this._syncPotionTab();
@@ -1305,7 +1783,7 @@ class BotAutoHunt {
 		} else {
 			for (const it of items) {
 				row(it.name + (it.count ? ' ×' + it.count : ''), () => {
-					this.cureItems[key] = it.id;
+					this.cure[key] = it.id;
 					this._saveSettings();
 					this._closeDropdown();
 					this._syncPotionTab();
@@ -1322,63 +1800,126 @@ class BotAutoHunt {
 		document.addEventListener('mousedown', this._dropdownClickHandler, true);
 	}
 
-	/** T7: 构建药水设定页（异常状态解除双槽 + 语义说明） */
-	_buildPotionTabContent() {
+	/** T9: 构建药水设定页（官方两分页：页1 四槽区块盒；页2 状态异常恢复+返回村庄） */
+	_buildPotionTabContent(page) {
 		const self = this;
 		const wrap = document.createElement('div');
-		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
+		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:4px;text-align:left;';
 
-		// —— T8: HP/SP 药水格迁入（原旧面板消耗品格，自动吃药/阈值触发使用） ——
-		const auxHead = document.createElement('div');
-		auxHead.style.cssText = 'font-size:11px;font-weight:bold;color:#2e4058;';
-		auxHead.textContent = 'HP/SP 药水格（自动吃药与阈值触发使用）：';
-		wrap.appendChild(auxHead);
+		if (page === 0) {
+			// —— 页1：官方「请设定要使用的恢复道具。」四槽 2×2 ——
+			wrap.appendChild(this._officialHeaderStrip('请设定要使用的恢复道具。', '若登录的栏位恢复比例相同，自左侧开始使用。'));
 
-		const auxGrid = document.createElement('div');
-		auxGrid.style.cssText = 'display:grid;grid-template-columns:repeat(6,1fr);gap:4px;justify-items:center;padding:2px 0;';
-		for (let i = 0; i < 6; i++) {
-			auxGrid.appendChild(self._buildAuxSlotCell(i));
-		}
-		wrap.appendChild(auxGrid);
+			const grid = document.createElement('div');
+			grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:4px;';
 
-		const auxNote = document.createElement('div');
-		auxNote.style.cssText = 'font-size:10px;color:#4a7ab5;';
-		auxNote.textContent = '格子按顺序作为自动吃药的候选（依次尝试直到成功）；点击更换物品。';
-		wrap.appendChild(auxNote);
+			const defs = [
+				{ kind: 'hp', idx: 0, title: '恢复HP', color: '#7ba7d7', stat: 'HP' },
+				{ kind: 'hp', idx: 1, title: '恢复HP', color: '#7ba7d7', stat: 'HP' },
+				{ kind: 'sp', idx: 0, title: '恢复SP', color: '#7fbf7f', stat: 'SP' },
+				{ kind: 'sp', idx: 1, title: '恢复SP', color: '#7fbf7f', stat: 'SP' }
+			];
+			for (const d of defs) {
+				const slot = this.potions[d.kind][d.idx];
+				const sec = this._officialSection(d.title, {
+					toggle: true,
+					onToggle: v => {
+						slot.enabled = v;
+						self._saveSettings();
+					}
+				});
+				if (sec.setOn) sec.setOn(slot.enabled);
+				sec.content.style.cssText += 'display:flex;flex-direction:column;gap:4px;';
 
-				const head = document.createElement('div');
-		head.style.cssText = 'font-size:11px;font-weight:bold;color:#2e4058;';
-		head.textContent = '异常状态解除（挂机中检测到即自动使用）：';
-		wrap.appendChild(head);
+				const line = document.createElement('div');
+				line.style.cssText = 'font-size:11px;color:#2e4058;';
+				line.innerHTML = d.stat + '未满<span style="color:#d43c3c;font-weight:bold;">' + slot.threshold + '%</span>时自动恢复';
+				sec.content.appendChild(line);
 
-		const slotDefs = [
-			['poison', 'curetab-cell-poison', '解毒药（中毒/沉默/黑暗/混乱/幻觉）'],
-			['panacea', 'curetab-cell-panacea', '万能药（在解毒基础上增加诅咒）']
-		];
-		slotDefs.forEach(function (sd) {
-			const row = document.createElement('div');
-			row.className = 'curetab-cell-' + sd[0];
-			row.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:#2e4058;';
-			const cell = document.createElement('div');
-			cell.style.cssText = 'border:1px solid #a8b3bd;border-radius:4px;background:#f6fafd;padding:3px 6px;width:150px;font-size:10px;cursor:pointer;text-align:center;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-			const name = document.createElement('span');
-			name.className = 'curetab-name';
-			name.textContent = self._getCureSlotLabel(sd[0]);
-			cell.appendChild(name);
-			cell.addEventListener('click', function () {
-				self._openCureDropdown(sd[0], cell);
+				const body = document.createElement('div');
+				body.style.cssText = 'display:flex;align-items:center;gap:6px;';
+				const slider = this._officialSlider({
+					value: slot.threshold,
+					color: d.color,
+					onInput: v => {
+						slot.threshold = v;
+						self._saveSettings();
+						line.innerHTML = d.stat + '未满<span style="color:#d43c3c;font-weight:bold;">' + v + '%</span>时自动恢复';
+					}
+				});
+				slider.el.style.cssText += 'flex:1;min-width:0;';
+				body.appendChild(slider.el);
+				body.appendChild(this._officialItemSlot(slot.id, () => {
+					self._openPotionSlotDropdown(slot, d.kind, body.lastChild);
+				}));
+				sec.content.appendChild(body);
+				grid.appendChild(sec.box);
+			}
+			wrap.appendChild(grid);
+		} else {
+			// —— 页2：官方「状态异常恢复」+「返回村庄设定」 ——
+			wrap.appendChild(this._officialHeaderStrip('请设定要使用的恢复道具。', '若登录的栏位恢复比例相同，自左侧开始使用。'));
+
+			const sec = this._officialSection('状态异常恢复', {
+				toggle: true,
+				onToggle: v => {
+					self.cure.enabled = v;
+					self._saveSettings();
+				}
 			});
-			row.appendChild(cell);
-			row.appendChild(document.createTextNode(sd[2]));
-			wrap.appendChild(row);
-		});
+			if (sec.setOn) sec.setOn(this.cure.enabled);
+			sec.content.style.cssText += 'display:flex;gap:8px;';
 
-		const info = document.createElement('div');
-		info.style.cssText = 'border-top:1px dotted #b9c6d2;padding-top:3px;font-size:10px;color:#4a7ab5;line-height:1.4;';
-		info.innerHTML =
-			'状态检测覆盖图标态与 Opt 态（中毒/沉默/黑暗/混乱/诅咒/幻觉等）。<br/>' +
-			'触发后 1 秒冷却防刷；HP/SP 药水格过渡期仍在旧面板（T8 迁移）。';
-		wrap.appendChild(info);
+			const textCol = document.createElement('div');
+			textCol.style.cssText = 'flex:1;font-size:11px;color:#2e4058;line-height:1.6;';
+			textCol.innerHTML =
+				'<span style="color:#2e5fa3;font-weight:bold;">依照登记的药水区分可恢复的状态</span><br/>' +
+				'<span style="color:#3f8f3f;">绿色药水</span>：中毒 / 沉默 / 黑暗 / 混乱 / 幻觉<br/>' +
+				'<span style="color:#3f8f3f;">万能药</span>：中毒 / 沉默 / 黑暗 / 混乱 / 幻觉 / 诅咒<br/>' +
+				'自动狩猎中若中了状态异常效果自动使用。';
+			sec.content.appendChild(textCol);
+
+			const cureCol = document.createElement('div');
+			cureCol.style.cssText = 'display:flex;flex-direction:column;gap:2px;align-items:center;';
+			const slotDefs = [
+				['poison', '解毒药'],
+				['panacea', '万能药']
+			];
+			for (const sd of slotDefs) {
+				cureCol.appendChild(this._officialItemSlot(this.cure[sd[0]], () => {
+					self._openCureDropdown(sd[0], cureCol.lastChild);
+				}));
+				const lb = document.createElement('div');
+				lb.style.cssText = 'font-size:9px;color:#5a7a9c;';
+				lb.textContent = sd[1];
+				cureCol.appendChild(lb);
+			}
+			sec.content.appendChild(cureCol);
+			wrap.appendChild(sec.box);
+
+			// —— 官方灰色返回村庄设定盒 ——
+			const rv = document.createElement('div');
+			rv.style.cssText = 'background:#f2f5f8;border:1px solid #dfe7ee;border-radius:4px;padding:6px 8px;display:flex;flex-direction:column;gap:2px;';
+			function rvRow(cbText, note, get, set) {
+				const r1 = document.createElement('div');
+				r1.style.cssText = 'display:flex;align-items:center;font-size:11px;font-weight:bold;color:#2e4058;';
+				r1.appendChild(self._bmpCheckbox(get(), v => {
+					set(v);
+					self._saveSettings();
+				}));
+				r1.appendChild(document.createTextNode(cbText));
+				rv.appendChild(r1);
+				const n = document.createElement('div');
+				n.style.cssText = 'font-size:10px;color:#4a7ab5;padding-left:18px;';
+				n.textContent = note;
+				rv.appendChild(n);
+			}
+			rvRow('返回村庄设定', '所有登记的药水道具用完时，自动返回村庄。',
+				() => self.returnVillage.onPotionsEmpty, v => (self.returnVillage.onPotionsEmpty = v));
+			rvRow('用完所有状态异常恢复道具时，返回村庄', '若不勾选，仅于用完HP、SP恢复道具后返回。',
+				() => self.returnVillage.onCureEmpty, v => (self.returnVillage.onCureEmpty = v));
+			wrap.appendChild(rv);
+		}
 
 		return wrap;
 	}
@@ -1719,16 +2260,18 @@ class BotAutoHunt {
 		pane.appendChild(this._buildMoveTabContent());
 	}
 
-	/** T5: 瞬移技能是否就绪（AL_TELEPORT 已学且当前 SP ≥ 对应等级消耗；施放固定 lv1 随机传送） */
-	_isTeleportReady() {
+	/** T5/T9: 技能是否就绪（指定 SKID 已学指定等级且当前 SP ≥ 对应等级消耗；缺省 AL_TELEPORT Lv1） */
+	_isTeleportReady(skillId, skillLevel) {
+		const id = typeof skillId === 'number' && skillId > 0 ? skillId : SK.AL_TELEPORT;
+		const lv = Math.max(1, skillLevel || 1);
 		try {
 			const ui = SkillListUI.getUI();
 			if (!ui || typeof ui.getList !== 'function') return false;
 			const skills = ui.getList();
 			if (!Array.isArray(skills)) return false;
 			for (const s of skills) {
-				if (s && s.SKID === SK.AL_TELEPORT && s.level > 0) {
-					const cost = (SkillInfo[SK.AL_TELEPORT] && SkillInfo[SK.AL_TELEPORT].SpAmount[s.level - 1]) || 10;
+				if (s && s.SKID === id && s.level >= lv) {
+					const cost = (SkillInfo[id] && SkillInfo[id].SpAmount[lv - 1]) || 10;
 					const sp = Session.Entity && Session.Entity.life ? Session.Entity.life.sp : 0;
 					return sp >= cost;
 				}
@@ -1739,101 +2282,247 @@ class BotAutoHunt {
 		}
 	}
 
-
-	/** T5: 旧面板 → 就地同步移动设定页控件（不重建） */
-	_syncMoveTab() {
-		if (!this._settingsComp) return;
-		const pane = this._settingsComp.getPane(5);
-		if (!pane) return;
-		const noMobSec = pane.querySelector('.movetab-nomob-seconds');
-		if (noMobSec && +noMobSec.value !== this.noMobSeconds) noMobSec.value = String(this.noMobSeconds);
-		const nm = pane.querySelector('.movetab-fly-nomobs');
-		if (nm && nm.checked !== this.flyNoMobs) nm.checked = this.flyNoMobs;
-		const fl = pane.querySelector('.movetab-fly-lowhp');
-		if (fl && fl.checked !== this.flyLowHp) fl.checked = this.flyLowHp;
-		const rt = pane.querySelector('.movetab-return-map');
-		if (rt && rt.checked !== this.returnToMap) rt.checked = this.returnToMap;
-	}
-
-	/** 构建移动设定页（回落链说明 + 无怪秒数 + 三开关） */
+	/** T9: 构建移动设定页（官方逐行复刻：瞬间移动/返回储存点两区块 + 扩展说明） */
 	_buildMoveTabContent() {
 		const self = this;
 		const wrap = document.createElement('div');
-		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:3px;text-align:left;';
+		wrap.style.cssText = 'padding:2px 4px;display:flex;flex-direction:column;gap:4px;text-align:left;';
 
-		// —— 回落链说明 + 无怪秒数 ——
-		const chain = document.createElement('div');
-		chain.style.cssText = 'font-size:11px;color:#2e4058;line-height:1.4;';
-		chain.innerHTML = '无怪动作回落链：瞬移（已学且 SP 足够）→ 苍蝇翅膀 → 随机步行';
-		wrap.appendChild(chain);
+		wrap.appendChild(this._officialHeaderStrip('请设定移动道具', '可以设定瞬间移动与返回储存点方式。'));
 
-		const secRow = document.createElement('div');
-		secRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:#2e4058;';
-		secRow.appendChild(document.createTextNode('无怪触发等待：'));
-		const secInput = document.createElement('input');
-		secInput.type = 'number';
-		secInput.className = 'movetab-nomob-seconds';
-		secInput.min = '1';
-		secInput.max = '60';
-		secInput.value = String(self.noMobSeconds);
-		secInput.style.cssText = 'width:40px;height:14px;padding:0 1px;font-size:11px;border:1px solid #c7c7c7;border-radius:2px;background:#fff;';
-		secInput.addEventListener('mousedown', e => e.stopPropagation());
-		secInput.addEventListener('click', e => e.stopPropagation());
-		// 只允许数字：禁小数点/符号/字母（保持 type=number 整数秒语义）
-		secInput.addEventListener('keydown', function (e) {
-			if (e.key.length === 1 && !/^[0-9]$/.test(e.key)) e.preventDefault();
-		});
-		secInput.addEventListener('change', function () {
-			const v = Math.min(60, Math.max(1, Math.round(+secInput.value || 5)));
-			secInput.value = String(v);
-			self.noMobSeconds = v;
-			self._saveSettings();
-		});
-		secRow.appendChild(secInput);
-		secRow.appendChild(document.createTextNode('秒（1-60）'));
-		wrap.appendChild(secRow);
-
-		// —— 三开关 ——
-		function makeSwitch(cls, checked, text) {
-			const row = document.createElement('label');
-			row.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;color:#2e4058;cursor:pointer;';
-			const cb = document.createElement('input');
-			cb.type = 'checkbox';
-			cb.className = cls;
-			cb.checked = checked;
-			row.appendChild(cb);
-			row.appendChild(document.createTextNode(text));
-			return { row: row, cb: cb };
+		// 官方区块：使用☑[格子] 登录道具 / 使用☑[格子] 登录技能 两列
+		function slotGroup(cfg, kind) {
+			const col = document.createElement('div');
+			col.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:2px;';
+			const useRow = document.createElement('div');
+			useRow.style.cssText = 'display:flex;align-items:flex-start;gap:4px;';
+			const useCol = document.createElement('div');
+			useCol.style.cssText = 'display:flex;flex-direction:column;align-items:center;font-size:10px;color:#3f8f3f;';
+			useCol.appendChild(document.createTextNode('使用'));
+			const cb = self._bmpCheckbox(cfg.enabled, v => {
+				cfg.enabled = v;
+				self._saveSettings();
+			});
+			useCol.appendChild(cb);
+			useRow.appendChild(useCol);
+			if (kind === 'item') {
+				useRow.appendChild(self._officialItemSlot(cfg.id, anchor => {
+					self._openMoveItemDropdown(cfg, anchor);
+				}));
+			} else {
+				// 技能格：官方移动技能实际可用项 = AL_TELEPORT（Lv1 随机瞬移 / Lv2 返回储存点）
+				const skCell = document.createElement('div');
+				skCell.style.cssText =
+					'box-sizing:border-box;width:34px;height:34px;border:1px solid #a8b3bd;border-radius:6px;background:#ffffff;' +
+					'position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;';
+				const info = SkillInfo[cfg.skill.id || SK.AL_TELEPORT];
+				const img = document.createElement('img');
+				img.width = 28;
+				img.height = 28;
+				img.draggable = false;
+				img.style.cssText = 'position:relative;z-index:1;';
+				if (info && info.Name) {
+					Client.loadFile(DB.INTERFACE_PATH + 'item/' + info.Name + '.bmp', data => {
+						img.src = data;
+					});
+				}
+				skCell.appendChild(img);
+				const lvBadge = document.createElement('div');
+				lvBadge.textContent = 'Lv' + (cfg.skill.level || 1);
+				lvBadge.style.cssText =
+					'position:absolute;right:1px;bottom:0px;font-size:9px;font-weight:bold;color:#ffffff;' +
+					'text-shadow:-1px 0 0 #000,1px 0 0 #000,0 -1px 0 #000,0 1px 0 #000;pointer-events:none;';
+				skCell.appendChild(lvBadge);
+				skCell.title = ((info && info.SkillName) || '瞬间移动') + ' Lv' + (cfg.skill.level || 1);
+				skCell.addEventListener('click', e => {
+					e.stopPropagation();
+					self._openTeleportSkillDropdown(cfg, skCell);
+				});
+				useRow.appendChild(skCell);
+			}
+			col.appendChild(useRow);
+			const cap = document.createElement('div');
+			cap.style.cssText = 'font-size:11px;color:#2e4058;';
+			cap.textContent = kind === 'item' ? '登录道具' : '登录技能';
+			col.appendChild(cap);
+			return col;
 		}
 
-		const nm = makeSwitch('movetab-fly-nomobs', self.flyNoMobs, '无怪自动移动（回落链生效开关）');
-		nm.cb.addEventListener('change', function () {
-			self.flyNoMobs = nm.cb.checked;
-			self._saveSettings();
-		});
-		wrap.appendChild(nm.row);
+		// —— 官方区块1：瞬间移动使用设定 ——
+		const secTp = this._officialSection('瞬间移动使用设定');
+		const tpRow = document.createElement('div');
+		tpRow.style.cssText = 'display:flex;justify-content:center;gap:46px;padding:2px 0;';
+		ttpRow.appendChild(slotGroup(this.teleport, 'item'));
+		tpRow.appendChild(slotGroup(this.teleport, 'skill'));
+		secTp.content.appendChild(tpRow);
+		wrap.appendChild(secTp.box);
 
-		const fl = makeSwitch('movetab-fly-lowhp', self.flyLowHp, '低血保命飞翅（HP<10%：优先苍蝇，次选蝴蝶）');
-		fl.cb.addEventListener('change', function () {
-			self.flyLowHp = fl.cb.checked;
-			self._saveSettings();
-		});
-		const rt = makeSwitch('movetab-return-map', self.returnToMap, '被传送后返回挂机地图（关闭则就地继续挂机）');
-		rt.cb.addEventListener('change', function () {
-			self.returnToMap = rt.cb.checked;
-			self._saveSettings();
-		});
-		wrap.appendChild(rt.row);
+		// —— 官方区块2：返回储存点使用设定 ——
+		const secRt = this._officialSection('返回储存点使用设定');
+		const rtRow = document.createElement('div');
+		rtRow.style.cssText = 'display:flex;justify-content:center;gap:46px;padding:2px 0;';
+		rtRow.appendChild(slotGroup(this.retreat, 'item'));
+		rtRow.appendChild(slotGroup(this.retreat, 'skill'));
+		secRt.content.appendChild(rtRow);
+		const rtNote = document.createElement('div');
+		rtNote.style.cssText = 'font-size:10px;color:#4a7ab5;text-align:center;line-height:1.5;padding-bottom:2px;';
+		rtNote.innerHTML = '职业消耗品不足无法使用一般攻击，<br/>或超过捡拾设定输入的重量时，使用返回设定。';
+		secRt.content.appendChild(rtNote);
+		wrap.appendChild(secRt.box);
 
-		// —— 语义说明 ——
+		// —— 扩展说明（自定义保留项：低血飞翅/返回挂机图在基本设定页；回落链顺序） ——
 		const info = document.createElement('div');
-		info.style.cssText = 'border-top:1px dotted #b9c6d2;padding-top:3px;font-size:10px;color:#4a7ab5;line-height:1.4;';
+		info.style.cssText = 'font-size:10px;color:#4a7ab5;line-height:1.4;border-top:1px dotted #b9c6d2;padding-top:3px;';
 		info.innerHTML =
-			'无怪达到等待秒数后按回落链执行；关闭「无怪自动移动」时仅随机步行。<br/>' +
-			'关闭「返回挂机地图」后，异地不再自动回图，药水/飞翅限制同步解除。';
+			'无怪动作回落链：登录技能 → 登录道具 → 随机步行（触发条件在基本设定页）。<br/>' +
+			'低血保命飞翅、被传送后返回挂机地图等扩展设定在基本设定页底部。';
 		wrap.appendChild(info);
 
 		return wrap;
+	}
+
+	/** T9: 移动道具下拉（消耗品清单，首项清空；不限恢复类型） */
+	_openMoveItemDropdown(cfg, anchorCell) {
+		this._closeDropdown();
+		const items = this._getAvailableConsumables();
+		const dd = document.createElement('div');
+		Object.assign(dd.style, {
+			position: 'fixed',
+			zIndex: '300',
+			background: 'white',
+			border: '1px solid #c1c6c2',
+			borderRadius: '5px',
+			padding: '11px',
+			boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+			fontFamily: 'Gulim, Dotum, "Malgun Gothic", sans-serif',
+			maxWidth: '240px',
+			maxHeight: '260px',
+			overflowY: 'auto'
+		});
+		const title = document.createElement('div');
+		title.style.cssText = 'font-size:11px;font-weight:bold;color:#484848;margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid #eee;';
+		title.textContent = '选择移动道具';
+		dd.appendChild(title);
+
+		function row(label, onClick) {
+			const el = document.createElement('div');
+			el.style.cssText = 'font-size:11px;color:#333;padding:4px 6px;cursor:pointer;border-radius:2px;';
+			el.textContent = label;
+			el.addEventListener('mouseover', () => { el.style.background = '#e8f0f7'; });
+			el.addEventListener('mouseout', () => { el.style.background = ''; });
+			el.addEventListener('click', onClick);
+			dd.appendChild(el);
+		}
+
+		row('（清空登记）', () => {
+			cfg.item.id = 0;
+			this._saveSettings();
+			this._closeDropdown();
+			this._renderMoveTab();
+		});
+		if (items.length === 0) {
+			const empty = document.createElement('div');
+			empty.style.cssText = 'font-size:11px;color:#999;padding:4px 6px;';
+			empty.textContent = '背包中无可用消耗品';
+			dd.appendChild(empty);
+		} else {
+			for (const it of items) {
+				row(it.name + (it.count ? ' ×' + it.count : ''), () => {
+					cfg.item.id = it.id;
+					this._saveSettings();
+					this._closeDropdown();
+					this._renderMoveTab();
+				});
+			}
+		}
+
+		this._positionDropdown(dd, anchorCell);
+		document.body.appendChild(dd);
+		this._dropdown = dd;
+		this._dropdownClickHandler = e => {
+			if (!dd.contains(e.target) && !anchorCell.contains(e.target)) this._closeDropdown();
+		};
+		document.addEventListener('mousedown', this._dropdownClickHandler, true);
+	}
+
+	/** T9: 瞬移技能下拉（仅 AL_TELEPORT 已学等级可选；Lv1 随机 / Lv2 返回储存点） */
+	_openTeleportSkillDropdown(cfg, anchorCell) {
+		this._closeDropdown();
+		let learned = 0;
+		try {
+			const ui = SkillListUI.getUI();
+			const list = ui && typeof ui.getList === 'function' ? ui.getList() : [];
+			for (const s of list) {
+				if (s && s.SKID === SK.AL_TELEPORT && s.level > 0) learned = Math.max(learned, s.level);
+			}
+		} catch (_) {
+			learned = 0;
+		}
+		const dd = document.createElement('div');
+		Object.assign(dd.style, {
+			position: 'fixed',
+			zIndex: '300',
+			background: 'white',
+			border: '1px solid #c1c6c2',
+			borderRadius: '5px',
+			padding: '11px',
+			boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+			fontFamily: 'Gulim, Dotum, "Malgun Gothic", sans-serif',
+			minWidth: '160px'
+		});
+		const title = document.createElement('div');
+		title.style.cssText = 'font-size:11px;font-weight:bold;color:#484848;margin-bottom:5px;padding-bottom:3px;border-bottom:1px solid #eee;';
+		title.textContent = '选择移动技能';
+		dd.appendChild(title);
+
+		function row(label, onClick) {
+			const el = document.createElement('div');
+			el.style.cssText = 'font-size:11px;color:#333;padding:4px 6px;cursor:pointer;border-radius:2px;';
+			el.textContent = label;
+			el.addEventListener('mouseover', () => { el.style.background = '#e8f0f7'; });
+			el.addEventListener('mouseout', () => { el.style.background = ''; });
+			el.addEventListener('click', onClick);
+			dd.appendChild(el);
+		}
+
+		row('（清空登记）', () => {
+			cfg.skill.id = 0;
+			this._saveSettings();
+			this._closeDropdown();
+			this._renderMoveTab();
+		});
+		if (learned >= 1) {
+			row('瞬间移动 Lv1（随机传送）', () => {
+				cfg.skill.id = SK.AL_TELEPORT;
+				cfg.skill.level = 1;
+				this._saveSettings();
+				this._closeDropdown();
+				this._renderMoveTab();
+			});
+		}
+		if (learned >= 2) {
+			row('瞬间移动 Lv2（返回储存点）', () => {
+				cfg.skill.id = SK.AL_TELEPORT;
+				cfg.skill.level = 2;
+				this._saveSettings();
+				this._closeDropdown();
+				this._renderMoveTab();
+			});
+		}
+		if (learned < 1) {
+			const empty = document.createElement('div');
+			empty.style.cssText = 'font-size:11px;color:#999;padding:4px 6px;';
+			empty.textContent = '尚未学习瞬间移动技能';
+			dd.appendChild(empty);
+		}
+
+		this._positionDropdown(dd, anchorCell);
+		document.body.appendChild(dd);
+		this._dropdown = dd;
+		this._dropdownClickHandler = e => {
+			if (!dd.contains(e.target) && !anchorCell.contains(e.target)) this._closeDropdown();
+		};
+		document.addEventListener('mousedown', this._dropdownClickHandler, true);
 	}
 
 	// =================================================================
@@ -1919,7 +2608,7 @@ class BotAutoHunt {
 		pane.appendChild(this._buildMobTabContent(currentMap));
 	}
 
-	/** 构建魔物设定页（官方设计语言：区块条 + 白底圆角清单容器 + 页签同款按钮） */
+	/** 构建魔物设定页（T9 官方逐行复刻：请选择魔物标题条 + 所有魔物主开关 + 行盒清单） */
 	_buildMobTabContent(currentMap) {
 		const self = this;
 		const wrap = document.createElement('div');
@@ -1928,22 +2617,14 @@ class BotAutoHunt {
 		if (!currentMap) {
 			const unknown = document.createElement('div');
 			unknown.style.cssText = 'font-size:10px;color:#4a7ab5;';
-			unknown.textContent = '无法识别当前地图，暂不能配置白名单。';
+			unknown.textContent = '无法识别当前地图，暂不能配置魔物名单。';
 			wrap.appendChild(unknown);
 			return wrap;
 		}
 
-		// —— 地图行（区块标题条同款样式，技能页测量值） ——
-		const mapBar = document.createElement('div');
-		mapBar.style.cssText = 'height:24px;line-height:22px;background:linear-gradient(to bottom,#e3f5ff,#fdffff);border:1px solid #b9c9d8;border-radius:4px;font-size:11px;font-weight:bold;color:#2e4058;text-align:center;';
-		mapBar.textContent = '当前地图：' + currentMap;
-		wrap.appendChild(mapBar);
+		wrap.appendChild(this._officialHeaderStrip('请选择魔物'));
 
-		// —— 清单容器：白底圆角（与格子同款边框语言） ——
-		const listBox = document.createElement('div');
-		listBox.style.cssText = 'border:1px solid #a8b3bd;border-radius:5px;background:#ffffff;padding:4px 6px;display:flex;flex-direction:column;gap:1px;';
-
-		// T4 第二轮：清单 = 服务端刷怪表全量物种（构建期生成 map-mobs.json）∪ 本会话所见
+		// 清单 = 服务端刷怪表全量物种（构建期生成 map-mobs.json）∪ 本会话所见
 		const seen = this._seenMobs[currentMap] || {};
 		const spawnJobs = Array.isArray(MAP_MOBS[currentMap]) ? MAP_MOBS[currentMap] : [];
 		const seenJobs = Object.keys(seen).map(Number).filter(j => j > 0);
@@ -1952,6 +2633,50 @@ class BotAutoHunt {
 		);
 		const wl = this.mobWhitelist[currentMap] || [];
 
+		// 官方行盒工厂：斜纹图标格（内嵌魔物待机动画）+ 粗体名 + 右侧勾选框
+		function mobRow(name, checked, onToggle, job) {
+			const row = document.createElement('div');
+			row.style.cssText =
+				'display:flex;align-items:center;gap:6px;border:1px solid #b9c9d8;border-radius:4px;background:#ffffff;padding:3px 6px 3px 3px;cursor:pointer;user-select:none;';
+			row.addEventListener('click', function () {
+				rowCb.setChecked(!rowCb.isChecked());
+			});
+			const icon = document.createElement('div');
+			icon.style.cssText =
+				'width:32px;height:32px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;' +
+				'border:1px solid #dfe7ee;border-radius:3px;overflow:hidden;' +
+				'background:repeating-linear-gradient(45deg,#f6fafd 0px,#f6fafd 3px,#eef4f9 3px,#eef4f9 6px);';
+			row.appendChild(icon);
+			const nameEl = document.createElement('div');
+			nameEl.style.cssText = 'flex:1;font-size:12px;font-weight:bold;color:#2e4058;text-align:center;';
+			nameEl.textContent = name;
+			row.appendChild(nameEl);
+			let rowCb = self._bmpCheckbox(checked, onToggle);
+			row.appendChild(rowCb);
+			if (job) {
+				self._mountMonsterPortrait(icon, job);
+			}
+			return { row: row, cb: rowCb };
+		}
+
+		// 官方首行「所有魔物」（勾选 = 白名单空 = 不过滤全打；白名单模型下不支持「全不打」，
+		// 名单非空时该行显示未勾选，点击 = 清空名单回到全打）
+		const allRow = mobRow(
+			'所有魔物',
+			!this._hasWhitelist(currentMap),
+			v => {
+				if (!v) return; // 空名单下不可取消（保持全打语义）
+				delete self.mobWhitelist[currentMap];
+				self._saveSettings();
+				self._renderMobTab();
+			}
+		);
+		wrap.appendChild(allRow.row);
+
+		// —— 官方怪物行清单（勾选 = 只攻击勾选物种，按地图记忆；与官方交互一致） ——
+		const listBox = document.createElement('div');
+		listBox.style.cssText = 'display:flex;flex-direction:column;gap:3px;max-height:210px;overflow-y:auto;padding:1px;';
+
 		if (jobs.length === 0) {
 			const empty = document.createElement('div');
 			empty.style.cssText = 'font-size:10px;color:#4a7ab5;padding:2px 0;';
@@ -1959,64 +2684,30 @@ class BotAutoHunt {
 			listBox.appendChild(empty);
 		} else {
 			jobs.forEach(function (job) {
-				const row = document.createElement('label');
-				row.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:#2e4058;cursor:pointer;padding:2px 2px;border-bottom:1px dotted #e2ecf4;';
-				const cb = document.createElement('input');
-				cb.type = 'checkbox';
-				cb.checked = wl.indexOf(job) !== -1;
-				cb.addEventListener('change', function () {
-					const arr = self.mobWhitelist[currentMap] || (self.mobWhitelist[currentMap] = []);
-					const idx = arr.indexOf(job);
-					if (cb.checked && idx === -1) arr.push(job);
-					if (!cb.checked && idx !== -1) arr.splice(idx, 1);
-					if (arr.length === 0) delete self.mobWhitelist[currentMap]; // 空名单不落盘
-					self._saveSettings();
-				});
-				row.appendChild(cb);
-				row.appendChild(document.createTextNode(DB.getMonsterName(job)));
-				const cnt = document.createElement('span');
-				cnt.style.cssText = 'margin-left:auto;font-size:10px;color:#8aa5c0;';
-				cnt.textContent = seen[job] ? '×' + seen[job] : '';
-				row.appendChild(cnt);
-				listBox.appendChild(row);
+				listBox.appendChild(
+					mobRow(
+						DB.getMonsterName(job),
+						wl.indexOf(job) !== -1,
+						v => {
+							const arr = self.mobWhitelist[currentMap] || (self.mobWhitelist[currentMap] = []);
+							const idx = arr.indexOf(job);
+							if (v && idx === -1) arr.push(job);
+							if (!v && idx !== -1) arr.splice(idx, 1);
+							if (arr.length === 0) delete self.mobWhitelist[currentMap]; // 空名单不落盘
+							self._saveSettings();
+						},
+						job
+					).row
+				);
 			});
 		}
 		wrap.appendChild(listBox);
 
-		// —— 操作行：全选/清空（页签同款按钮样式） ——
-		const btnRow = document.createElement('div');
-		btnRow.style.cssText = 'display:flex;gap:6px;';
-		const btnStyle = 'flex:1;padding:2px 0;font-size:11px;border:1px solid #9db8d2;border-radius:3px;background:linear-gradient(to bottom,#ffffff,#d5e2ee);cursor:pointer;color:#1a3a5c;';
-		const selAll = document.createElement('button');
-		selAll.textContent = '全选';
-		selAll.style.cssText = btnStyle;
-		selAll.addEventListener('click', function () {
-			const mapJobs = Array.isArray(MAP_MOBS[currentMap]) ? MAP_MOBS[currentMap] : [];
-			const seenNow = Object.keys(self._seenMobs[currentMap] || {}).map(Number).filter(j => j > 0);
-			const allJobs = [...new Set(mapJobs.concat(seenNow))];
-			if (allJobs.length) self.mobWhitelist[currentMap] = allJobs;
-			self._saveSettings();
-			self._renderMobTab();
-		});
-		btnRow.appendChild(selAll);
-		const clearAll = document.createElement('button');
-		clearAll.textContent = '清空';
-		clearAll.style.cssText = btnStyle;
-		clearAll.addEventListener('click', function () {
-			delete self.mobWhitelist[currentMap];
-			self._saveSettings();
-			self._renderMobTab();
-		});
-		btnRow.appendChild(clearAll);
-		wrap.appendChild(btnRow);
-
-		// —— 语义说明 ——
+		// —— 语义说明（白名单模型与官方交互差异点，验收时需告知玩家） ——
 		const info = document.createElement('div');
-		info.style.cssText = 'border-top:1px dotted #b9c6d2;padding-top:3px;font-size:10px;color:#4a7ab5;line-height:1.4;';
+		info.style.cssText = 'font-size:10px;color:#4a7ab5;line-height:1.4;border-top:1px dotted #b9c6d2;padding-top:3px;';
 		info.innerHTML =
-			'名单为空 = 不过滤，攻击所有魔物；勾选后只攻击名单内魔物。<br/>' +
-			'场上只剩名单外魔物时按无怪处理（触发飞翅/巡逻）。<br/>' +
-			'清单来自服务端刷怪表（全物种）；勾选按地图记忆。';
+			'勾选物种 = 只攻击勾选对象（按地图记忆）；「所有魔物」勾选 = 不限制全打。';
 		wrap.appendChild(info);
 
 		return wrap;
@@ -2035,10 +2726,59 @@ class BotAutoHunt {
 		pane.appendChild(this._buildSkillTabContent());
 	}
 
-	/** 设置窗口初始化按钮回调（官方窗口 footer 左下：按当前页签重置；T2 仅技能页签有内容，其余页签空实现） */
+	/** 设置窗口初始化按钮回调（官方窗口 footer 左下：按当前页签重置；T9 四页签 + 技能页签） */
 	_handleSettingsReset(tabIndex) {
 		if (tabIndex === 2) {
 			this._resetSkillTab();
+			return;
+		}
+		if (tabIndex === 0) {
+			// 基本设定：官方行为清单回默认（SP 规则关/无怪秒 10/怪数 20/MVP 开）+ 扩展区回默认
+			this.spNormalAttack = { enabled: false, threshold: 10 };
+			this.spStopAttackMove = { enabled: false, threshold: 5 };
+			this.flyNoMobs = true;
+			this.noMobSeconds = 10;
+			this.flyOnMobCount = { enabled: false, count: 20 };
+			this.flyOnMvp = true;
+			this.flyLowHp = false;
+			this.returnToMap = true;
+			this._saveSettings();
+			this._renderBasicTab();
+			return;
+		}
+		if (tabIndex === 1) {
+			// 魔物设定：清空当前地图名单（回「所有魔物」全打态）
+			const mapName = this._getCurrentMapName();
+			if (mapName) delete this.mobWhitelist[mapName];
+			this._saveSettings();
+			this._renderMobTab();
+			return;
+		}
+		if (tabIndex === 3) {
+			// 药水设定：四槽清空回默认阈值、解除药清空、回村关
+			this.potions = {
+				hp: [
+					{ id: 0, threshold: 70, enabled: true },
+					{ id: 0, threshold: 70, enabled: true }
+				],
+				sp: [
+					{ id: 0, threshold: 30, enabled: true },
+					{ id: 0, threshold: 30, enabled: true }
+				]
+			};
+			this.cure = { enabled: true, poison: 0, panacea: 0 };
+			this.returnVillage = { enabled: false, onPotionsEmpty: false, onCureEmpty: false };
+			this._saveSettings();
+			this._renderPotionTab();
+			return;
+		}
+		if (tabIndex === 5) {
+			// 移动设定：瞬移/返回四槽回默认（苍蝇翅肢+瞬间移动1 / 蝴蝶翅肢+瞬间移动2）
+			this.teleport = { item: { enabled: true, id: ITEM_FLY_WING }, skill: { enabled: true, id: 28, level: 1 } };
+			this.retreat = { item: { enabled: true, id: ITEM_BUTTERFLY_WING }, skill: { enabled: true, id: 28, level: 2 } };
+			this._saveSettings();
+			this._renderMoveTab();
+			return;
 		}
 	}
 
@@ -2387,18 +3127,8 @@ class BotAutoHunt {
 		this._lootTick = null;
 	}
 
-	// #13 fix: 独立自动药水 — 不依赖挂机开关 active
-	_startAutoPotion() {
-		this._stopAutoPotion();
-		this._autoPotionTick = setInterval(() => {
-			if (this.active) return; // 挂机中由主药水循环处理
-			try {
-				this._potionLoopInner();
-			} catch (e) {
-				console.error('[BotAutoHunt] auto-potion loop error:', e);
-			}
-		}, 200);
-	}
+	// #13 fix: 独立自动药水 — 已退役（T9 官方模型：药水随挂机循环启停）
+	_startAutoPotion() {}
 
 	_stopAutoPotion() {
 		if (this._autoPotionTick) clearInterval(this._autoPotionTick);
@@ -2524,6 +3254,9 @@ class BotAutoHunt {
 			return;
 		}
 
+		// T9: 是否在挂机图（官方触发器/回落链均仅挂机图生效）
+		const onHuntMap = !this.returnToMap || !this._huntMapName || currentMap === this._huntMapName;
+
 		// 2. 跟随队友模式 (D2 #11)
 		if (this.followEnabled && this.followTarget) {
 			const teammate = EntityManager.get(+this.followTarget);
@@ -2557,8 +3290,11 @@ class BotAutoHunt {
 
 		// 3. 飞翅检查 + 巡逻 (#3 fix: 5秒无怪才飞翅，否则随机走动)
 		// 使用 Date.now() 而非 Renderer.tick，后台 tab rAF 冻结时仍能工作
+		// T9 官方触发器（画面怪数/MVP 登场瞬移）在同一次扫描中判定
 		{
 			let hasMob = false;
+			let mobCount = 0;
+			let mvpSeen = false;
 			EntityManager.forEach(entity => {
 				if (
 					entity.objecttype === Entity.TYPE_MOB &&
@@ -2566,6 +3302,8 @@ class BotAutoHunt {
 					entity.remove_tick === 0
 				) {
 					hasMob = true;
+					mobCount++;
+					if (!mvpSeen && MVP_JOBS.indexOf(entity.job) !== -1) mvpSeen = true;
 					this._catalogMob(entity, currentMap); // T4: 累计本会话见过的魔物（魔物设定页清单）
 				}
 			});
@@ -2574,24 +3312,36 @@ class BotAutoHunt {
 				hasMob = this._hasTargetableMob(currentMap);
 			}
 
+			// T9 官方基本设定页触发器：画面内魔物超过 X 只 / MVP 首领登场 → 瞬移（仅挂机图）
+			if (onHuntMap && !this._isOnCooldown('fly_trigger') &&
+				((this.flyOnMobCount.enabled && mobCount >= this.flyOnMobCount.count) ||
+				 (this.flyOnMvp && mvpSeen))) {
+				this._markAction('fly_trigger', 5000);
+				this._executeTeleport();
+				return;
+			}
+
 			if (hasMob) {
 				this._lastMobSeenTick = Date.now();
 			} else {
 				// 无怪状态
 				const noMobMs = Date.now() - this._lastMobSeenTick;
-				// T5: 无怪超过设定秒数 → 回落链：瞬移(已学且SP足) → 苍蝇翅膀 → 随机步行
+				// T5/T9: 无怪超过设定秒数 → 回落链：登录技能(已学且SP足) → 登录道具 → 随机步行
 				if (this.flyNoMobs && noMobMs > this.noMobSeconds * 1000) {
+					const tp = this.teleport;
 					const action = decideNoMobAction({
 						flyNoMobs: this.flyNoMobs,
-						teleportReady: this._isTeleportReady()
+						teleportReady: tp.skill.enabled && tp.skill.id > 0 && this._isTeleportReady(tp.skill.id, tp.skill.level)
 					});
 					if (action === 'teleport') {
-						SkillTargetSelection.onUseSkillToId(SK.AL_TELEPORT, 1, Session.Entity.GID);
+						SkillTargetSelection.onUseSkillToId(tp.skill.id, tp.skill.level || 1, Session.Entity.GID);
 						this._lastMobSeenTick = Date.now(); // 重置计时
 						return;
 					}
 					if (action === 'flywing') {
-						this._useItemById(ITEM_FLY_WING);
+						if (!(tp.item.enabled && tp.item.id > 0 && this._useItemById(tp.item.id))) {
+							this._useItemById(ITEM_FLY_WING); // 未登录道具时兜底苍蝇翅膀
+						}
 						this._lastMobSeenTick = Date.now(); // 重置计时
 						return;
 					}
@@ -2616,6 +3366,31 @@ class BotAutoHunt {
 			}
 		}
 
+		// T9 官方 SP 经济规则（基本设定页）：规则1 命中 → 仅普通攻击；规则2 命中 → 停止攻击转移动
+		const _life = Session.Entity.life;
+		const spPct = _life && _life.sp_max > 0 ? (_life.sp / _life.sp_max) * 100 : 100;
+		const spRule = decideSpEconomy(spPct, {
+			normalAttack: this.spNormalAttack,
+			stopAttackMove: this.spStopAttackMove
+		});
+		if (spRule === 'stop-and-move') {
+			// 停止攻击后自动移动（同无怪巡逻：行走中等待；停下后每 1.5s 一步）
+			EntityManager.setFocusEntity(null);
+			if (Session.Entity.action === Session.Entity.ACTION.WALK) return;
+			if (Date.now() < this._castingUntil) return;
+			if (Date.now() - this._lastPatrolMoveTick > 1500) {
+				this._lastPatrolMoveTick = Date.now();
+				const ptarget = this._findPatrolTarget();
+				if (ptarget) {
+					const ppkt = new PACKET.CZ.REQUEST_MOVE2();
+					ppkt.dest[0] = ptarget[0];
+					ppkt.dest[1] = ptarget[1];
+					Network.sendPacket(ppkt);
+				}
+			}
+			return;
+		}
+
 		// 4. 获取当前目标，无目标则寻找最近怪物（T4: 白名单非空时只锁名单内魔物）
 		let target = EntityManager.getFocusEntity();
 		if (!target || target.isDead() || target.objecttype !== Entity.TYPE_MOB || !this._isMobTargetable(target, currentMap)) {
@@ -2634,22 +3409,25 @@ class BotAutoHunt {
 
 		// 6. 遍历技能列表 — 攻击型 / 治疗型(对不死系怪物当攻击用，D2 #13)
 		// T2: 每槽延迟（skillDelays[idx] ms，0=仅 amotion 引擎限速）
-		const nowTs = Date.now();
-		for (let idx = 0; idx < this.skillList.length; idx++) {
-			const skill = this.skillList[idx];
-			if (!skill || !skill.id) continue;
-			if (skill.type === SKILL_TYPE_ATTACK || skill.type === SKILL_TYPE_HEAL) {
-				// SP 不足 → 跳过此技能（防止技能失败后每 tick 重试刷屏）
-				if (skill.spcost && Session.Entity.life && Session.Entity.life.sp < skill.spcost) continue;
-				// 每槽延迟：未到期则跳过该槽，尝试下一槽
-				if (!slotReady(nowTs, this._slotLastCast[idx] || 0, this.slotDelays[idx] || 0)) continue;
-				SkillTargetSelection.onUseSkillToId(skill.id, skill.level || 1, target.GID);
-				this._slotLastCast[idx] = nowTs;
-				return; // 释放一个技能后等下一 tick
+		// T9: SP 规则1（仅一般攻击，优先度高）命中时跳过技能循环（官方语义：需技能页「普通攻击」开启）
+		if (spRule !== 'normal-attack-only') {
+			const nowTs = Date.now();
+			for (let idx = 0; idx < this.skillList.length; idx++) {
+				const skill = this.skillList[idx];
+				if (!skill || !skill.id) continue;
+				if (skill.type === SKILL_TYPE_ATTACK || skill.type === SKILL_TYPE_HEAL) {
+					// SP 不足 → 跳过此技能（防止技能失败后每 tick 重试刷屏）
+					if (skill.spcost && Session.Entity.life && Session.Entity.life.sp < skill.spcost) continue;
+					// 每槽延迟：未到期则跳过该槽，尝试下一槽
+					if (!slotReady(nowTs, this._slotLastCast[idx] || 0, this.slotDelays[idx] || 0)) continue;
+					SkillTargetSelection.onUseSkillToId(skill.id, skill.level || 1, target.GID);
+					this._slotLastCast[idx] = nowTs;
+					return; // 释放一个技能后等下一 tick
+				}
 			}
 		}
 
-		// 7. 无技能可用 → 普通攻击 (PACKET.CZ.REQUEST_ACT2 action=7)
+		// 7. 无技能可用（或 SP 规则1命中）→ 普通攻击 (PACKET.CZ.REQUEST_ACT2 action=7)
 		// T2: 「普通攻击」开关关闭时跳过（法系职业避免接近魔物近身普攻）
 		if (this.normalAttack === false) return;
 		const pkt = new PACKET.CZ.REQUEST_ACT2();
@@ -2697,42 +3475,30 @@ class BotAutoHunt {
 		const hpPct = (hp / hpMax) * 100;
 		const spPct = (sp / spMax) * 100;
 
-		// 1-3. 阈值决策（纯函数 evaluateThresholds，T3：可测试；判定与原内联一致）
+		// 1-3. T9 官方药水四槽决策（纯函数：低血飞翅阈值 + 槽位自左向右命中）
 		const need = evaluateThresholds(hpPct, spPct, {
-			hpThreshold: this.hpThreshold,
-			spThreshold: this.spThreshold,
 			flyLowHp: this.flyLowHp
 		});
 
-		// 1. 低血飞翅 (D2 #12): HP<10% → 优先苍蝇次选蝴蝶
-		// 仅在挂机地图上使用飞翅（错误地图上飞翅会干扰返回逻辑）
+		// 1. 低血飞翅 (D2 #12): HP<10% → 移动页「返回储存点」注册（道具→技能→兔底）
+		// 仅在挂机地图上使用（错误地图上飞翅会干扰返回逻辑）
 		if (onHuntMap && need.lowHpFlyWing) {
-			if (!this._isOnCooldown('item_flywing')) {
-				if (!this._useItemById(ITEM_FLY_WING)) {
-					this._useItemById(ITEM_BUTTERFLY_WING);
-				}
-				this._markAction('item_flywing', 2000);
+			if (!this._isOnCooldown('retreat_lowhp')) {
+				this._executeRetreat('retreat_lowhp');
+				this._markAction('retreat_lowhp', 2000);
 			}
 			return;
 		}
 
-		// 2. HP 低于阈值 → 使用药水 + 治疗技能(对自己)
-		if (need.hpPotion) {
-			// 2a. 辅助列表中的 HP 恢复药水 (WR-04 fix: 过滤 subtype)
-			// 500ms 冷却防刷
-			for (const aux of this.auxList) {
-				if (!aux || aux.type !== AUX_TYPE_POTION) continue;
-				// subtype 缺失视作 'hp' (旧数据兼容)
-				const sub = aux.subtype || 'hp';
-				if (sub !== 'hp' && sub !== 'both') continue;
-				const key = 'item_' + aux.id;
-				if (this._isOnCooldown(key)) continue;
-				if (this._useItemById(aux.id)) {
-					this._markAction(key, 500);
-					break;
-				}
+		// 2. T9 官方四槽：HP/SP 未满阈值 → 使用命中槽道具（同类型自左向右；500ms 冷却防刷）
+		const hit = evaluatePotionSlots(this.potions, hpPct, spPct);
+		if (hit.hpSlot > -1) {
+			const slot = this.potions.hp[hit.hpSlot];
+			const key = 'item_' + slot.id;
+			if (!this._isOnCooldown(key) && this._useItemById(slot.id)) {
+				this._markAction(key, 500);
 			}
-			// 2b. 治疗技能(对自己释放，1s 冷却，另受所在槽延迟约束)
+			// 治疗技能(对自己释放，1s 冷却，另受所在槽延迟约束；服务器私有扩展，官方药水页无此概念)
 			for (let idx = 0; idx < this.skillList.length; idx++) {
 				const skill = this.skillList[idx];
 				if (!skill || skill.type !== SKILL_TYPE_HEAL) continue;
@@ -2746,40 +3512,97 @@ class BotAutoHunt {
 				break;
 			}
 		}
-
-		// 3. SP 低于阈值 → 使用 SP 恢复消耗品
-		if (need.spPotion) {
-			for (const aux of this.auxList) {
-				if (!aux || aux.type !== AUX_TYPE_POTION) continue;
-				// WR-04 fix: SP 分支只接受 'sp' 或 'both'；旧数据 (subtype 缺失) 不匹配
-				const sub = aux.subtype || 'hp';
-				if (sub !== 'sp' && sub !== 'both') continue;
-				const key = 'item_' + aux.id;
-				if (this._isOnCooldown(key)) continue;
-				if (this._useItemById(aux.id)) {
-					this._markAction(key, 500);
-					break;
-				}
+		if (hit.spSlot > -1) {
+			const slot = this.potions.sp[hit.spSlot];
+			const key = 'item_' + slot.id;
+			if (!this._isOnCooldown(key) && this._useItemById(slot.id)) {
+				this._markAction(key, 500);
 			}
 		}
-		// 4. T7: 异常状态自动解除（解毒药优先，其次万能药；1 秒冷却防刷）
+		// 4. T7/T9: 异常状态自动解除（官方 ON/OFF 开关门控；解毒药优先，其次万能药；1 秒冷却防刷）
 		const channels = {
 			efstMap: this._buffMap,
 			bodyState: Session.Entity.bodyState || 0,
 			healthState: Session.Entity.healthState || 0
 		};
-		if (this.cureItems.poison && !this._isOnCooldown('cure_poison') &&
-			isCureStatusActive(CURE_WATCH_LISTS.poison, channels)) {
-			this._markAction('cure_poison', 1000);
-			this._useItemById(this.cureItems.poison);
-			return;
+		if (this.cure.enabled) {
+			if (this.cure.poison && !this._isOnCooldown('cure_poison') &&
+				isCureStatusActive(CURE_WATCH_LISTS.poison, channels)) {
+				this._markAction('cure_poison', 1000);
+				this._useItemById(this.cure.poison);
+				return;
+			}
+			if (this.cure.panacea && !this._isOnCooldown('cure_panacea') &&
+				isCureStatusActive(CURE_WATCH_LISTS.panacea, channels)) {
+				this._markAction('cure_panacea', 1000);
+				this._useItemById(this.cure.panacea);
+				return;
+			}
 		}
-		if (this.cureItems.panacea && !this._isOnCooldown('cure_panacea') &&
-			isCureStatusActive(CURE_WATCH_LISTS.panacea, channels)) {
-			this._markAction('cure_panacea', 1000);
-			this._useItemById(this.cureItems.panacea);
-			return;
+		// 5. T9: 返回村庄设定（官方药水页分页2）——登记的药水/解除药全部用完 → 使用返回设定回村
+		if (onHuntMap && this.returnVillage.enabled && !this._isOnCooldown('return_village')) {
+			const potionsExhausted = this.returnVillage.onPotionsEmpty && this._allSlotsExhausted(
+				[].concat(this.potions.hp, this.potions.sp)
+			);
+			const cureExhausted = this.returnVillage.onCureEmpty && this._allSlotsExhausted([
+				{ id: this.cure.poison },
+				{ id: this.cure.panacea }
+			]);
+			if (potionsExhausted || cureExhausted) {
+				this._markAction('return_village', 10000); // 触发后 10s 冷却防刷
+				this._executeRetreat('return_village');
+				this._showToast && this._showToast('登记的药水已用完，正在返回村庄');
+				return;
+			}
 		}
+	}
+
+	/**
+	 * T9: 槽位集合是否「全部用完」——至少登记一槽且所有已登记槽对应道具背包数量均为 0
+	 * @param {Array<{id: number}>} slots
+	 */
+	_allSlotsExhausted(slots) {
+		const registered = (slots || []).filter(s => s && s.id);
+		if (!registered.length) return false; // 未登记任何槽 = 不触发
+		return registered.every(s => this._getItemCount(s.id) <= 0);
+	}
+
+	/** T9: 背包内指定道具数量（无背包/无道具返回 0） */
+	_getItemCount(id) {
+		try {
+			const it = Inventory.getUI().getItemById(id);
+			return it && it.count ? it.count : 0;
+		} catch (_) {
+			return 0;
+		}
+	}
+
+	/**
+	 * T9: 执行「返回储存点」——移动页返回设定：登录道具 → 登录技能（瞬间移动 Lv2）
+	 * 兜底蝴蝶翅膀；返回是否成功
+	 */
+	_executeRetreat(cooldownKey) {
+		const rt = this.retreat;
+		if (rt.item.enabled && rt.item.id && this._useItemById(rt.item.id)) return true;
+		if (rt.skill.enabled && rt.skill.id && this._isTeleportReady(rt.skill.id, rt.skill.level)) {
+			SkillTargetSelection.onUseSkillToId(rt.skill.id, rt.skill.level || 1, Session.Entity.GID);
+			return true;
+		}
+		return this._useItemById(ITEM_BUTTERFLY_WING); // 兜底（未配置时保持旧行为）
+	}
+
+	/**
+	 * T9: 执行「瞬间移动」——移动页瞬移设定：登录技能（已学且SP足）→ 登录道具 → 兜底苍蝇翅膀
+	 * 返回是否成功
+	 */
+	_executeTeleport() {
+		const tp = this.teleport;
+		if (tp.skill.enabled && tp.skill.id && this._isTeleportReady(tp.skill.id, tp.skill.level)) {
+			SkillTargetSelection.onUseSkillToId(tp.skill.id, tp.skill.level || 1, Session.Entity.GID);
+			return true;
+		}
+		if (tp.item.enabled && tp.item.id && this._useItemById(tp.item.id)) return true;
+		return this._useItemById(ITEM_FLY_WING); // 兜底（未配置时保持旧行为）
 	}
 
 	// =================================================================
@@ -3332,24 +4155,29 @@ class BotAutoHunt {
 		this._applySettings(migrateSettings(null));
 	}
 
-	/** 应用规范化后的 v2 设置对象 */
+	/** 应用规范化后的 v3 设置对象（T9 官方模型字段） */
 	_applySettings(s2) {
-		this.hpThreshold = s2.hp;
-		this.spThreshold = s2.sp;
 		this.skillList = s2.skills;
-		this.auxList = s2.aux;
+		this.auxList = s2.aux; // 仅 BUFF 道具（potion 类型已分流至 potions）
 		this.slotDelays = s2.slotDelays;
 		this.followEnabled = s2.follow;
 		this.followTarget = s2.followTarget;
 		this.flyNoMobs = s2.flyNoMobs;
 		this.flyLowHp = s2.flyLowHp;
-		this.autoPotion = s2.autoPotion;
 		this.normalAttack = s2.normalAttack !== false;
 		this.mobWhitelist = s2.mobWhitelist;
 		this.noMobSeconds = s2.noMobSeconds;
 		this.returnToMap = s2.returnToMap;
 		this.loot = s2.loot;
-		this.cureItems = s2.cureItems;
+		this.potions = s2.potions;
+		this.cure = s2.cure;
+		this.returnVillage = s2.returnVillage;
+		this.teleport = s2.teleport;
+		this.retreat = s2.retreat;
+		this.spNormalAttack = s2.spNormalAttack;
+		this.spStopAttackMove = s2.spStopAttackMove;
+		this.flyOnMobCount = s2.flyOnMobCount;
+		this.flyOnMvp = s2.flyOnMvp;
 	}
 
 	_saveSettings() {
@@ -3357,8 +4185,6 @@ class BotAutoHunt {
 			this._getStorageKey(),
 			JSON.stringify({
 				v: SCHEMA_VERSION,
-				hp: this.hpThreshold,
-				sp: this.spThreshold,
 				skills: this.skillList,
 				aux: this.auxList,
 				slotDelays: this.slotDelays,
@@ -3366,13 +4192,20 @@ class BotAutoHunt {
 				followTarget: this.followTarget,
 				flyNoMobs: this.flyNoMobs,
 				flyLowHp: this.flyLowHp,
-				autoPotion: this.autoPotion,
 				normalAttack: this.normalAttack !== false,
 				mobWhitelist: this.mobWhitelist,
 				noMobSeconds: this.noMobSeconds,
 				returnToMap: this.returnToMap !== false,
 				loot: this.loot,
-				cureItems: this.cureItems
+				potions: this.potions,
+				cure: this.cure,
+				returnVillage: this.returnVillage,
+				teleport: this.teleport,
+				retreat: this.retreat,
+				spNormalAttack: this.spNormalAttack,
+				spStopAttackMove: this.spStopAttackMove,
+				flyOnMobCount: this.flyOnMobCount,
+				flyOnMvp: this.flyOnMvp
 			})
 		);
 	}

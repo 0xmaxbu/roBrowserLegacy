@@ -1,12 +1,16 @@
 /**
  * Plugins/BotAutoHunt/settings/schema.js
  *
- * 自动战斗设置 schema v2 — 结构迁移纯函数（零游戏依赖，可测试）
+ * 自动战斗设置 schema v3 — 结构迁移纯函数（零游戏依赖，可测试）
  *
- * v2 语义（对齐官方 4+4 页签模型）：
+ * v3 语义（对齐官方《RO乐园》自动战斗公告 PDF 逐页截图）：
  *   - skills 数组固定 8 槽：[0..3] = 攻击组（attack/heal 类型），[4..7] = 辅助组（buff 类型）
- *   - slotDelays 数组 8 项，与 skills 下标对齐，每槽施放延迟（ms，≥0，0=仅引擎默认限速）
- *   - 其余字段原样保留
+ *   - slotDelays 数组 8 项，与 skills 下标对齐
+ *   - potions：药水设定页官方四槽模型 hp×2 + sp×2，每槽 {id, threshold, enabled}
+ *   - cure：状态异常恢复（解毒药/万能药 + 启用开关）
+ *   - returnVillage：返回村庄设定（官方药水页分页2）
+ *   - teleport/retreat：移动设定页官方四槽（瞬移/返回 × 道具/技能）
+ *   - SP 经济规则/画面怪数瞬移/MVP 瞬移：官方基本设定页行为清单
  *
  * 分类迁移（attack→heal/buff 重分类）依赖游戏数据（HEAL_SKILL_IDS/efst-map），
  * 由 BotAutoHunt._loadSettings 在调用本模块前完成——本模块只做结构迁移。
@@ -14,7 +18,7 @@
  * 位于 settings/ 子目录：PluginManager glob 不会误加载（同 SettingsWindow.js）。
  */
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 export const ATTACK_SLOT_COUNT = 4;
 export const SUPPORT_SLOT_COUNT = 4;
 export const TOTAL_SLOT_COUNT = ATTACK_SLOT_COUNT + SUPPORT_SLOT_COUNT;
@@ -64,6 +68,49 @@ export function decideNoMobAction(opts) {
 	if (!o.flyNoMobs) return 'walk';
 	if (o.teleportReady) return 'teleport';
 	return 'flywing';
+}
+
+/**
+ * 药水四槽决策（纯函数，T9 官方药水页模型）：给定当前 HP/SP 百分比与四槽配置，
+ * 返回该使用的槽位（同类型内自左向右第一个满足「启用+已登记道具+低于阈值」的槽）
+ *
+ * @param {{hp: Array<{id: number, threshold: number, enabled: boolean}>, sp: Array<同>}} potions
+ * @param {number} hpPct 当前 HP 百分比
+ * @param {number} spPct 当前 SP 百分比
+ * @return {{hpSlot: number, spSlot: number}} 命中槽下标；-1 = 无命中
+ */
+export function evaluatePotionSlots(potions, hpPct, spPct) {
+	const p = potions || {};
+	function firstHit(list, pct) {
+		const arr = Array.isArray(list) ? list : [];
+		for (let i = 0; i < arr.length; i++) {
+			const s = arr[i];
+			if (!s || !s.enabled || !s.id) continue;
+			if (pct < s.threshold) return i;
+		}
+		return -1;
+	}
+	return {
+		hpSlot: firstHit(p.hp, hpPct),
+		spSlot: firstHit(p.sp, spPct)
+	};
+}
+
+/**
+ * SP 经济规则决策（纯函数，T9 官方基本设定页）：
+ * 规则1（仅一般攻击，优先度高）命中优先于规则2（停止攻击后自动移动）
+ *
+ * @param {number} spPct 当前 SP 百分比
+ * @param {{normalAttack?: {enabled?: boolean, threshold?: number}, stopAttackMove?: {enabled?: boolean, threshold?: number}}} cfg
+ * @return {'normal-attack-only'|'stop-and-move'|'normal'}
+ */
+export function decideSpEconomy(spPct, cfg) {
+	const c = cfg || {};
+	const na = c.normalAttack || {};
+	const sa = c.stopAttackMove || {};
+	if (na.enabled && typeof na.threshold === 'number' && spPct < na.threshold) return 'normal-attack-only';
+	if (sa.enabled && typeof sa.threshold === 'number' && spPct < sa.threshold) return 'stop-and-move';
+	return 'normal';
 }
 
 /**
@@ -200,8 +247,8 @@ export function migrateSettings(saved) {
 		}
 	}
 
-	// ---- T5: 无怪触发秒数（1-60 整数，缺省 5） ----
-	const rawNoMobSeconds = typeof src.noMobSeconds === 'number' && isFinite(src.noMobSeconds) ? Math.round(src.noMobSeconds) : 5;
+	// ---- T5: 无怪触发秒数（1-60 整数，缺省 10=官方截图默认值） ----
+	const rawNoMobSeconds = typeof src.noMobSeconds === 'number' && isFinite(src.noMobSeconds) ? Math.round(src.noMobSeconds) : 10;
 
 	// ---- T6: 捡拾配置（缺省：开启 + 全类型 + 不校验精炼卡片 + 90% 负重暂停） ----
 	const srcLoot = src.loot && typeof src.loot === 'object' && !Array.isArray(src.loot) ? src.loot : {};
@@ -231,24 +278,124 @@ export function migrateSettings(saved) {
 		panacea: normCureId(srcCure.panacea)
 	};
 
+	// ---- T9: 药水四槽（官方药水页模型：hp×2 + sp×2，每槽 {id, threshold, enabled}） ----
+	// v2 迁移：auxList 按 subtype 分流（hp/both→hp 槽，sp/both→sp 槽，按原顺序）;
+	// v2 的 hp/sp 顶栏字段 = 旧共享阈值 → 作为各槽默认阈值；autoPotion → 各槽启用开关
+	const boolOr = (v, def) => typeof v === 'boolean' ? v : def;
+	const slotDef = (raw, defThreshold, defEnabled) => ({
+		id: normCureId(raw && raw.id),
+		threshold: clampInt(raw && raw.threshold, 0, 100, defThreshold),
+		enabled: boolOr(raw && raw.enabled, defEnabled)
+	});
+	const srcPotions = src.potions && typeof src.potions === 'object' && !Array.isArray(src.potions) ? src.potions : null;
+	const legacyHpThreshold = typeof src.hp === 'number' && isFinite(src.hp) ? Math.round(src.hp) : 70;
+	const legacySpThreshold = typeof src.sp === 'number' && isFinite(src.sp) ? Math.round(src.sp) : 30;
+	// T9: 全新用户（无 v2 autoPotion 字段）→ 官方默认启用；v2 autoPotion=false → 迁移保留旧意愿
+	const legacyAutoPotion = src.autoPotion === undefined ? true : !!src.autoPotion;
+	let hpSlots = null;
+	let spSlots = null;
+	if (srcPotions) {
+		hpSlots = Array.isArray(srcPotions.hp) ? srcPotions.hp.slice(0, 2) : [];
+		spSlots = Array.isArray(srcPotions.sp) ? srcPotions.sp.slice(0, 2) : [];
+	} else {
+		// v2→v3：auxList 分流（保持原相对顺序）
+		hpSlots = [];
+		spSlots = [];
+		const srcAux = Array.isArray(src.aux) ? src.aux : [];
+		for (const a of srcAux) {
+			if (!a || a.type !== 'potion' || !a.id) continue;
+			const sub = a.subtype || 'hp';
+			if (sub === 'hp' && hpSlots.length < 2) hpSlots.push({ id: a.id });
+			else if (sub === 'sp' && spSlots.length < 2) spSlots.push({ id: a.id });
+			else if (sub === 'both') {
+				if (hpSlots.length < 2) hpSlots.push({ id: a.id });
+				if (spSlots.length < 2) spSlots.push({ id: a.id });
+			}
+		}
+	}
+	const potions = {
+		hp: [0, 1].map(i => slotDef(hpSlots[i], legacyHpThreshold, legacyAutoPotion)),
+		sp: [0, 1].map(i => slotDef(spSlots[i], legacySpThreshold, legacyAutoPotion))
+	};
+
+	// ---- T9: 状态异常恢复开关（官方药水页分页2 ON/OFF；解除药槽沿用 cureItems） ----
+	const srcCureCfg = src.cure && typeof src.cure === 'object' && !Array.isArray(src.cure) ? src.cure : {};
+	const cure = {
+		enabled: boolOr(srcCureCfg.enabled, true),
+		poison: normCureId(typeof srcCureCfg.poison === 'number' ? srcCureCfg.poison : cureItems.poison),
+		panacea: normCureId(typeof srcCureCfg.panacea === 'number' ? srcCureCfg.panacea : cureItems.panacea)
+	};
+
+	// ---- T9: 返回村庄设定（官方药水页分页2：药水用完→用返回道具/技能回村） ----
+	const srcRv = src.returnVillage && typeof src.returnVillage === 'object' && !Array.isArray(src.returnVillage) ? src.returnVillage : {};
+	const returnVillage = {
+		enabled: boolOr(srcRv.enabled, false),
+		onPotionsEmpty: boolOr(srcRv.onPotionsEmpty, false),
+		onCureEmpty: boolOr(srcRv.onCureEmpty, false)
+	};
+
+	// ---- T9: 移动四槽（官方移动设定页：瞬移/返回儲存點 × 道具/技能） ----
+	// v2 迁移：瞬移=苍蝇翅膀(601)+瞬间移动lv1、返回=蝴蝶翅肢(602)+瞬间移动lv2（原回落链硬编码）
+	const srcTp = src.teleport && typeof src.teleport === 'object' && !Array.isArray(src.teleport) ? src.teleport : {};
+	const srcRt = src.retreat && typeof src.retreat === 'object' && !Array.isArray(src.retreat) ? src.retreat : {};
+	function normSlotCfg(raw, def) {
+		const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+		const item = r.item && typeof r.item === 'object' ? r.item : {};
+		const skill = r.skill && typeof r.skill === 'object' ? r.skill : {};
+		return {
+			item: { enabled: boolOr(item.enabled, def.item.enabled), id: normCureId(typeof item.id === 'number' ? item.id : def.item.id) },
+			skill: {
+				enabled: boolOr(skill.enabled, def.skill.enabled),
+				id: normCureId(typeof skill.id === 'number' ? skill.id : def.skill.id),
+				level: clampInt(skill.level, 1, 10, def.skill.level)
+			}
+		};
+	}
+	const teleport = normSlotCfg(srcTp, { item: { enabled: true, id: 601 }, skill: { enabled: true, id: 28, level: 1 } });
+	const retreat = normSlotCfg(srcRt, { item: { enabled: true, id: 602 }, skill: { enabled: true, id: 28, level: 2 } });
+
+	// ---- T9: SP 经济规则（官方基本设定页：规则1 仅一般攻击优先度高；规则2 停止攻击后自动移动） ----
+	const srcSpNa = src.spNormalAttack && typeof src.spNormalAttack === 'object' ? src.spNormalAttack : {};
+	const srcSpSa = src.spStopAttackMove && typeof src.spStopAttackMove === 'object' ? src.spStopAttackMove : {};
+	const spNormalAttack = {
+		enabled: boolOr(srcSpNa.enabled, false),
+		threshold: clampInt(srcSpNa.threshold, 0, 100, 10)
+	};
+	const spStopAttackMove = {
+		enabled: boolOr(srcSpSa.enabled, false),
+		threshold: clampInt(srcSpSa.threshold, 0, 100, 5)
+	};
+
+	// ---- T9: 画面怪数瞬移（官方基本设定页：画面内魔物超过 X 只时使用瞬移） ----
+	const srcFmc = src.flyOnMobCount && typeof src.flyOnMobCount === 'object' ? src.flyOnMobCount : {};
+	const flyOnMobCount = {
+		enabled: boolOr(srcFmc.enabled, false),
+		count: clampInt(srcFmc.count, 1, 99, 20)
+	};
+
 	return {
 		v: SCHEMA_VERSION,
-		hp: typeof src.hp === 'number' ? src.hp : 70,
-		sp: typeof src.sp === 'number' ? src.sp : 30,
 		skills: skills,
-		aux: Array.isArray(src.aux) ? src.aux : [],
+		aux: (Array.isArray(src.aux) ? src.aux : []).filter(it => it && it.type !== 'potion'), // T9: 仅存 BUFF 道具（potion 类型已分流至 potions 四槽；道具设定页 UI 待官方素材）
 		slotDelays: slotDelays,
 		follow: !!src.follow,
 		followTarget: typeof src.followTarget === 'string' ? src.followTarget : '',
-		flyNoMobs: !!src.flyNoMobs,
+		flyNoMobs: src.flyNoMobs === undefined ? true : !!src.flyNoMobs, // T9: 官方默认勾选（无怪瞬移开启）
 		flyLowHp: !!src.flyLowHp,
-		autoPotion: !!src.autoPotion,
 		normalAttack: src.normalAttack !== false, // T2: 普通攻击开关（默认开启；旧档无字段=开启）
 		mobWhitelist: mobWhitelist, // T4: 魔物白名单（按地图记忆）
 		noMobSeconds: Math.min(60, Math.max(1, rawNoMobSeconds)), // T5: 无怪触发秒数（1-60）
 		returnToMap: src.returnToMap !== false, // T5: 被传送后返回挂机地图（默认开启；旧档无字段=开启）
-		cureItems: cureItems, // T7: 解除药槽位（按槽记忆物品 ID）
-		loot: loot // T6: 捡拾配置
+		loot: loot, // T6: 捡拾配置
+		potions: potions, // T9: 药水四槽（官方模型）
+		cure: cure, // T9: 状态异常恢复（启用开关+两槽）
+		returnVillage: returnVillage, // T9: 返回村庄设定
+		teleport: teleport, // T9: 瞬间移动使用设定（道具/技能槽）
+		retreat: retreat, // T9: 返回储存点使用设定（道具/技能槽）
+		spNormalAttack: spNormalAttack, // T9: SP<阈值 仅一般攻击（优先度高）
+		spStopAttackMove: spStopAttackMove, // T9: SP<阈值 停止攻击后自动移动
+		flyOnMobCount: flyOnMobCount, // T9: 画面内魔物超过 X 只时瞬移
+		flyOnMvp: src.flyOnMvp === undefined ? true : !!src.flyOnMvp // T9: MVP 首领登场时瞬移（官方默认勾选）
 	};
 }
 

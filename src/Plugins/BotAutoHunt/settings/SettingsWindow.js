@@ -175,7 +175,39 @@ const CSS_TEXT = `
 	flex: 0 0 auto;
 	display: flex;
 	justify-content: space-between;
+	align-items: center;
 	padding: 4px 8px;
+}
+
+/* 官方分页器（« 1 / 2 »，页脚中间；药水/捡拾等两页页签使用） */
+.botsw-pager {
+	display: none;
+	align-items: center;
+	gap: 6px;
+	padding: 1px 10px;
+	background: linear-gradient(to bottom, #ffffff, #e8eef5);
+	border: 1px solid #9db8d2;
+	border-radius: 3px;
+}
+
+.botsw-pager button {
+	border: none;
+	background: transparent;
+	color: #4a7ab5;
+	font-size: 12px;
+	font-weight: bold;
+	cursor: pointer;
+	padding: 0 2px;
+	font-family: inherit;
+}
+
+.botsw-pager button:hover {
+	color: #1a3a5c;
+}
+
+.botsw-pager-label {
+	font-size: 11px;
+	color: #2e4058;
 }
 
 .botsw-footer button {
@@ -232,6 +264,11 @@ export function buildSettingsHTML(tabs, placeholder) {
 		'</div>' +
 		'<div class="botsw-footer">' +
 			'<button class="botsw-reset">初始化</button>' +
+			'<div class="botsw-pager">' +
+				'<button class="botsw-pager-prev">‹</button>' +
+				'<span class="botsw-pager-label">1 / 2</span>' +
+				'<button class="botsw-pager-next">›</button>' +
+			'</div>' +
 			'<button class="botsw-close">关闭</button>' +
 		'</div>'
 	);
@@ -245,7 +282,7 @@ export function buildSettingsHTML(tabs, placeholder) {
  * @param {Function}    [onReset]   初始化回調（參數：當前激活頁籤 index）
  * @return {{ setActive: Function, getActiveIndex: Function }}
  */
-export function bindSettingsBehavior(root, onClose, onReset) {
+export function bindSettingsBehavior(root, onClose, onReset, onTabChange) {
 	const tabs = Array.from(root.querySelectorAll('.botsw-tab'));
 	const panes = Array.from(root.querySelectorAll('.botsw-pane'));
 	let activeIndex = 0;
@@ -257,6 +294,7 @@ export function bindSettingsBehavior(root, onClose, onReset) {
 			tabEl.classList.toggle('active', i === index);
 			if (panes[i]) panes[i].style.display = i === index ? '' : 'none';
 		});
+		if (typeof onTabChange === 'function') onTabChange(index);
 	}
 
 	tabs.forEach(function (tabEl, index) {
@@ -294,7 +332,35 @@ export function bindSettingsBehavior(root, onClose, onReset) {
 		});
 	}
 
-	return { setActive: setActive, getActiveIndex: function () { return activeIndex; } };
+	// T9: 官方分页器（« 1 / 2 »）：setPager(page, total, onSwitch) 控制显隐与翻页回调
+	const pagerEl = root.querySelector('.botsw-pager');
+	const pagerLabel = root.querySelector('.botsw-pager-label');
+	let pagerSwitch = null;
+	const pagerPrev = root.querySelector('.botsw-pager-prev');
+	const pagerNext = root.querySelector('.botsw-pager-next');
+	if (pagerPrev) {
+		pagerPrev.addEventListener('click', function () {
+			if (typeof pagerSwitch === 'function') pagerSwitch(-1);
+		});
+	}
+	if (pagerNext) {
+		pagerNext.addEventListener('click', function () {
+			if (typeof pagerSwitch === 'function') pagerSwitch(1);
+		});
+	}
+
+	function setPager(page, total, onSwitch) {
+		const t = total || 0;
+		if (pagerEl) pagerEl.style.display = t > 1 ? 'flex' : 'none';
+		if (pagerLabel) pagerLabel.textContent = (page + 1) + ' / ' + t;
+		pagerSwitch = t > 1 && typeof onSwitch === 'function' ? onSwitch : null;
+	}
+
+	return {
+		setActive: setActive,
+		getActiveIndex: function () { return activeIndex; },
+		setPager: setPager
+	};
 }
 
 /**
@@ -331,9 +397,13 @@ export function createSettingsComponent(opts) {
 			if (typeof opts_.onClose === 'function') opts_.onClose();
 		}, function (tabIndex) {
 			if (typeof opts_.onReset === 'function') opts_.onReset(tabIndex);
+		}, function (tabIndex) {
+			if (typeof opts_.onTabChange === 'function') opts_.onTabChange(tabIndex);
 		});
 		// T4: 暴露当前页签索引（魔物清单扫描轮询判断是否需要重建列表）
 		Component.getActiveIndex = behavior.getActiveIndex;
+		// T9: 官方分页器（« 1 / 2 »）接线（药水等两页页签使用）
+		Component.setPager = behavior.setPager;
 	};
 
 	/** 取指定頁籤內容根元素（供外部填充頁籤內容，index 對應 buildSettingsHTML 順序） */

@@ -139,6 +139,28 @@ describe('SettingsWindow', () => {
 		expect(api.getActiveIndex()).toBe(2);
 	});
 
+	it('T9 官方分页器：setPager 控制显隐/标签/翻页回调（« 1 / 2 »）', () => {
+		const root = document.createElement('div');
+		root.innerHTML = buildSettingsHTML(SETTINGS_TABS);
+		const api = bindSettingsBehavior(root);
+		const pager = root.querySelector('.botsw-pager');
+		expect(pager).toBeTruthy(); // footer 中间分页器容器存在
+		// 默认未显示（CSS display:none；内联样式空，setPager 后才置 flex）
+		expect(pager.style.display).not.toBe('flex');
+		// 两页页签：显示 + 标签 + 回调
+		const switches = [];
+		api.setPager(0, 2, delta => switches.push(delta));
+		expect(pager.style.display).toBe('flex');
+		expect(root.querySelector('.botsw-pager-label').textContent).toBe('1 / 2');
+		root.querySelector('.botsw-pager-next').click();
+		expect(switches).toEqual([1]);
+		root.querySelector('.botsw-pager-prev').click();
+		expect(switches).toEqual([1, -1]);
+		// 单页页签：隐藏 + 回调失效
+		api.setPager(0, 0, null);
+		expect(pager.style.display).toBe('none');
+	});
+
 	it('createSettingsComponent 返回可开合的 GUIComponent 实例且标记 persistent', () => {
 		const comp = createSettingsComponent({ placeholder: 'x' });
 		expect(comp.name).toBe('BotAutoHuntSettings');
