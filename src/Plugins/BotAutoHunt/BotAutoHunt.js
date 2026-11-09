@@ -275,7 +275,11 @@ class BotAutoHunt {
 					name: (e.display && e.display.name) || '',
 					dead: e.isDead(),
 					position: e.position,
-					walking: e.action === e.ACTION.WALK,
+					// T9.3: 上游 PR #607 已知「action=WALK 但 walk.total=0」的卡死态（walkTo 搜索失败
+				// 时不重置 action，EntityWalk.js 留有 STUCK IN WALKING 告警观测）。路由为空不视为
+				// 行走中——引擎得以重新发移动指令（服务器回包重建路径）自恢复，否则所有分支
+				// 永远等待、角色冻结
+				walking: e.action === e.ACTION.WALK && !!(e.walk && e.walk.total > 0),
 					amotionBusy: e.amotionTick > Date.now(),
 					life: life ? { hp: life.hp, hpMax: life.hp_max, sp: life.sp, spMax: life.sp_max } : null,
 					weightPct: Session.max_weight > 0 ? (Session.weight / Session.max_weight) * 100 : null,

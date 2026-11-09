@@ -96,6 +96,7 @@ vi.mock('UI/GUIComponent.js', () => ({
 }));
 
 import Inventory from 'UI/Components/Inventory/Inventory.js';
+import Session from 'Engine/SessionStorage.js';
 import BotAutoHuntInit from '../../src/Plugins/BotAutoHunt/BotAutoHunt.js';
 
 function click(el) {
@@ -271,6 +272,30 @@ describe('T9.2 交互回归：悬停手型（游戏内光标白名单只认 butt
 		// 技能格
 		const cell = plugin._buildSkillTabContent().querySelector('.skilltab-cell');
 		expect(cell && cell.tagName).toBe('BUTTON');
+	});
+});
+
+describe('T9.3 walking 绑定（上游 PR #607 卡死态自恢复）', () => {
+	it('action=WALK 但 walk.total=0 → 不视为行走中（引擎恢复决策重发移动）；路由非空 → 行走中', () => {
+		const plugin = getPlugin();
+		const fake = {
+			GID: 1,
+			isDead: () => false,
+			position: [50, 50],
+			action: 2, // ACTION.WALK
+			ACTION: { WALK: 2, IDLE: 0 },
+			walk: { total: 0 }, // 卡死态：路由空
+			life: { hp: 100, hp_max: 100, sp: 50, sp_max: 100 },
+			amotionTick: 0
+		};
+		Session.Entity = fake;
+		try {
+			expect(plugin.engine.bindings.self().walking).toBe(false);
+			Session.Entity.walk.total = 120; // 正常行走路由
+			expect(plugin.engine.bindings.self().walking).toBe(true);
+		} finally {
+			Session.Entity = null;
+		}
 	});
 });
 

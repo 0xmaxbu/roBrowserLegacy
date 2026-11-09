@@ -175,6 +175,11 @@ class HuntEngine {
 		this._auxLastCast = {}; // T9.1: 道具页 BUFF 槽下标 → 上次使用时间戳（每格延迟判定）
 		this.auxDelays = [0, 0, 0, 0, 0, 0, 0, 0]; // T9.1: 每格延迟秒数（applySettings 喂入）
 
+		// ---------- T9.3 卡死修复：不可达目标看门狗 + 追击黑名单 ----------
+		// 同一目标追击超时无进展（自身/目标均未位移）→ 拉黑 15s 恢复巡逻（悬崖/水面对侧怪）
+		this._focusWatch = { gid: 0, since: 0, lastSelfX: 0, lastSelfY: 0, lastTargetX: 0, lastTargetY: 0 };
+		this._mobBlacklist = new Map(); // gid → 解禁时间戳
+
 		// ---------- Buff 施法保护（防巡逻移动打断长施法） ----------
 		this._castingUntil = 0;
 
@@ -237,6 +242,9 @@ class HuntEngine {
 		this._lastPatrolMoveTick = 0;
 		this._lastMapName = this.bindings.mapState().name || '';
 		this._mapChangeTick = 0;
+		// T9.3: 重启挂机时重置追击看门狗（位置已过期）；追击黑名单保留（15s 自动过期，
+		// 不可达目标不会因重启而立即恢复攻击）
+		this._focusWatch.gid = 0;
 		this.active = true;
 		this.timerSec = this.timerSec || 0;
 		this.combatTick = setInterval(() => this._combatLoop(), 100);
@@ -524,8 +532,37 @@ class HuntEngine {
 			} else {
 				target = this.bindings.closestMob();
 			}
-			if (!target) return; // 地图无怪（或只剩名单外怪，走巡逻/飞翅分支）
+			if (!target) { this._focusWatch.gid = 0; return; } // 地图无怪（或只剩名单外怪，走巡逻/飞翅分支）
+			// T9.3: 追击拉黑期内不重选同一目标（等它走动/离开视野/黑名单过期）
+			if ((this._mobBlacklist.get(target.GID) || 0) > Date.now()) { this._focusWatch.gid = 0; return; }
 			this.bindings.setFocusEntity(target);
+		}
+
+		// 4.5 T9.3 不可达目标看门狗：追击无进展（自身与目标均未位移超 2 格）超 8s →
+		// 判定不可达（悬崖/障碍/水面对侧），拉黑 15s 并清焦点，恢复巡逻与无怪回落链。
+		// 服务端追击到不可达怪的最近可站立点后停走，旧逻辑每 tick 盲发攻击包 → 永久冻结
+		{
+			const w = this._focusWatch;
+			const now = Date.now();
+			if (w.gid !== target.GID) {
+				w.gid = target.GID;
+				w.since = now;
+				w.lastSelfX = self.position[0]; w.lastSelfY = self.position[1];
+				w.lastTargetX = target.position[0]; w.lastTargetY = target.position[1];
+			} else {
+				const progressed = Math.abs(self.position[0] - w.lastSelfX) + Math.abs(self.position[1] - w.lastSelfY) > 2 ||
+					Math.abs(target.position[0] - w.lastTargetX) + Math.abs(target.position[1] - w.lastTargetY) > 2;
+				if (progressed) {
+					w.since = now;
+					w.lastSelfX = self.position[0]; w.lastSelfY = self.position[1];
+					w.lastTargetX = target.position[0]; w.lastTargetY = target.position[1];
+				} else if (now - w.since > 8000) {
+					this._mobBlacklist.set(target.GID, now + 15000);
+					this.bindings.setFocusEntity(null);
+					w.gid = 0;
+					return;
+				}
+			}
 		}
 
 		// 5. amotion 冷却检查（使用 Date.now() 而非 Renderer.tick，后台兼容）
@@ -1054,12 +1091,17 @@ class HuntEngine {
 
 		// 尝试 4 个方向：主方向 + 左右各 45° + 反方向兜底
 		const angles = [baseAngle, baseAngle + Math.PI / 4, baseAngle - Math.PI / 4, baseAngle + Math.PI];
-		for (const angle of angles) {
-			const tx = Math.round(cx + Math.cos(angle) * 20);
-			const ty = Math.round(cy + Math.sin(angle) * 20);
-			if (this._isNearPortal(tx, ty, 7)) continue;
-			const moved = this._sendMoveTo(tx, ty);
-			if (moved) return true;
+		// T9.3: 落点半径逐级放宽（7→5→3）——门旁窄廊下固定 7 半径可能全部被拒
+		// （目标点在门 7 格内 / safeEnd 无安全落脚点）→ 每秒重试永远失败 → 角色冻结。
+		// 逐级放宽让角色先走出窄廊再正常巡逻；safeEnd 最低 1，仍绝不把落脚点放进门及相邻格
+		for (const r of [7, 5, 3]) {
+			for (const angle of angles) {
+				const tx = Math.round(cx + Math.cos(angle) * 20);
+				const ty = Math.round(cy + Math.sin(angle) * 20);
+				if (this._isNearPortal(tx, ty, r)) continue;
+				const moved = this._sendMoveTo(tx, ty, Math.max(1, r - 2));
+				if (moved) return true;
+			}
 		}
 
 		return false;
@@ -1069,20 +1111,21 @@ class HuntEngine {
 	 * 发送移动指令到目标坐标（使用寻路 + 路径安全检查）
 	 * 如果路径途经传送门区域，截断到安全的最远格子
 	 */
-	_sendMoveTo(tx, ty) {
+	_sendMoveTo(tx, ty, safeRadius) {
 		const self = this.bindings.self();
 		const cx = self.position[0] | 0;
 		const cy = self.position[1] | 0;
 		const out = [];
+		if (safeRadius === undefined) safeRadius = 5;
 		try {
 			const pathLen = this.bindings.pathSearch(cx, cy, tx, ty, 8, out);
 			if (pathLen > 2) {
-				// 从路径末端向前找第一个不在传送门附近的格子
+				// 从路径末端向前找第一个不在传送门附近的格子（半径由调用方逐级放宽）
 				let safeEnd = -1;
 				for (let i = pathLen - 1; i >= 1; i--) {
 					const px = out[i * 2];
 					const py = out[i * 2 + 1];
-					if (px !== undefined && py !== undefined && !this._isNearPortal(px, py, 5)) {
+					if (px !== undefined && py !== undefined && !this._isNearPortal(px, py, safeRadius)) {
 						safeEnd = i;
 						break;
 					}

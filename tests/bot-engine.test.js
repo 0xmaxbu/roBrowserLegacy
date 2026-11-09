@@ -239,6 +239,70 @@ describe('Buff 循环 _buffLoopInner 道具页 BUFF 道具每格延迟', () => {
 });
 
 // ---------------------------------------------------------------------
+// T9.3 卡死修复：不可达目标看门狗 + 追击拉黑
+// ---------------------------------------------------------------------
+
+describe('T9.3 不可达目标看门狗（挂机时走到某些地方停止移动的冻结局修复）', () => {
+	it('追击 8s 无位移进展 → 拉黑目标 15s + 清焦点（不再每 tick 盲发攻击包）', () => {
+		const { b, e } = makeEngine({});
+		const mob = fakeMob(7, 1002, [60, 60]);
+		b._state.entities = [mob];
+		e._combatLoopInner();
+		expect(b.calls.attack).toContain(7); // 正常追击路径
+		expect(e._focusWatch.gid).toBe(7);
+		// 8s 无任何位移进展（自身与目标位置不变）
+		e._focusWatch.since = Date.now() - 9000;
+		e._combatLoopInner();
+		expect(e._mobBlacklist.get(7)).toBeGreaterThan(Date.now());
+		expect(b._state.focus).toBe(null); // 焦点已清
+		// 拉黑期内不再选中同一目标 → 不发攻击
+		const attacksMid = b.calls.attack.length;
+		e._combatLoopInner();
+		expect(b.calls.attack.length).toBe(attacksMid);
+	});
+
+	it('目标/自身位移超 2 格 → 看门狗计时重置（有效追击不误拉黑）', () => {
+		const { b, e } = makeEngine({});
+		const mob = fakeMob(7, 1002, [60, 60]);
+		b._state.entities = [mob];
+		e._combatLoopInner();
+		e._focusWatch.since = Date.now() - 9000;
+		mob.position = [70, 60]; // 目标移动了
+		e._combatLoopInner();
+		expect(e._mobBlacklist.size).toBe(0);
+		expect(e._focusWatch.gid).toBe(7); // 仍在追击
+	});
+});
+
+// ---------------------------------------------------------------------
+// T9.3 卡死修复：传送门旁窄廊逃脱（落点半径逐级放宽 7→5→3）
+// ---------------------------------------------------------------------
+
+describe('T9.3 传送门旁窄廊逃脱', () => {
+	it('safeEnd 固定 5 半径永远失败的场景，放宽到 1 后成功走出（落脚点不在门旁）', () => {
+		const MAP_CONNECTIONS = require('../src/Plugins/BotAutoHunt/data/map-connections.json');
+		const mapName = Object.keys(MAP_CONNECTIONS).find(k => Array.isArray(MAP_CONNECTIONS[k]) && MAP_CONNECTIONS[k].length > 0);
+		const P = MAP_CONNECTIONS[mapName][0];
+		const { b, e } = makeEngine({ map: { name: mapName, loading: false } });
+		// 站在门旁 2 格（1.7 安全区外沿）
+		b._state.self.position = [P.x + 2, P.y + 2];
+		// 假寻路：所有路径格都在门 5 半径内（窄廊/贴墙），旧行为 safeEnd 永远 -1
+		b.pathSearch = (cx, cy, tx, ty, range, out) => {
+			out[0] = cx; out[1] = cy;
+			out[2] = P.x + 2; out[3] = P.y + 3;
+			out[4] = P.x + 2; out[5] = P.y + 4;
+			return 3;
+		};
+		const moved = e._moveAwayFromPortal();
+		expect(moved).toBe(true);
+		expect(b.calls.moveTo.length).toBeGreaterThan(0);
+		const [dx, dy] = b.calls.moveTo[b.calls.moveTo.length - 1];
+		const ddx = dx - P.x, ddy = dy - P.y;
+		expect(ddx * ddx + ddy * ddy).toBeGreaterThanOrEqual(1); // 绝不落脚在门/相邻格
+	});
+});
+
+// ---------------------------------------------------------------------
 // 战斗循环
 // ---------------------------------------------------------------------
 
