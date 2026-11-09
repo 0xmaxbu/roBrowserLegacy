@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	migrateSettings,
 	slotReady,
-	evaluateThresholds,
+	shouldLowHpFlyWing,
 	mobInWhitelist,
 	decideNoMobAction,
 	matchLootType,
@@ -154,25 +154,15 @@ describe('schema v3 结构迁移 migrateSettings', () => {
 		expect(migrateSettings({ normalAttack: 'no' }).normalAttack).toBe(true); // 非布尔非 false → 开启
 	});
 
-	it('evaluateThresholds：低于阈值触发，等于不触发（严格小于）', () => {
-		const r = evaluateThresholds(69.9, 29.9, { hpThreshold: 70, spThreshold: 30 });
-		expect(r.hpPotion).toBe(true);
-		expect(r.spPotion).toBe(true);
-		const r2 = evaluateThresholds(70, 30, { hpThreshold: 70, spThreshold: 30 });
-		expect(r2.hpPotion).toBe(false);
-		expect(r2.spPotion).toBe(false);
-	});
-
-	it('evaluateThresholds：低血飞翅固定 10% 且需开关开启；缺省阈值 70/30', () => {
-		expect(evaluateThresholds(9.9, 100, { flyLowHp: true }).lowHpFlyWing).toBe(true);
-		expect(evaluateThresholds(9.9, 100, { flyLowHp: false }).lowHpFlyWing).toBe(false);
-		expect(evaluateThresholds(10, 100, { flyLowHp: true }).lowHpFlyWing).toBe(false);
-		const d = evaluateThresholds(69, 29, {});
-		expect(d.hpPotion).toBe(true);
-		expect(d.spPotion).toBe(true);
-		const d2 = evaluateThresholds(70.1, 30.1, {});
-		expect(d2.hpPotion).toBe(false);
-		expect(d2.spPotion).toBe(false);
+	it('shouldLowHpFlyWing：严格小于 10% 才触发（等于不触发），需开关开启', () => {
+		expect(shouldLowHpFlyWing(9.9, true)).toBe(true);
+		expect(shouldLowHpFlyWing(10, true)).toBe(false);
+		expect(shouldLowHpFlyWing(10.1, true)).toBe(false);
+		expect(shouldLowHpFlyWing(0, true)).toBe(true);
+		expect(shouldLowHpFlyWing(100, true)).toBe(false);
+		expect(shouldLowHpFlyWing(9.9, false)).toBe(false);
+		expect(shouldLowHpFlyWing(9.9, undefined)).toBe(false);
+		expect(shouldLowHpFlyWing(NaN, true)).toBe(false);
 	});
 
 	it('mobInWhitelist：空白单/未配置 = 不过滤；非空只放行名单内', () => {
@@ -296,9 +286,9 @@ describe('schema v3 结构迁移 migrateSettings', () => {
 		expect(s.flyOnMobCount).toEqual({ enabled: false, count: 20 });
 		expect(s.flyOnMvp).toBe(true);
 		expect(s.teleport.item).toEqual({ enabled: true, id: 601 });
-		expect(s.teleport.skill).toEqual({ enabled: true, id: 28, level: 1 });
+		expect(s.teleport.skill).toEqual({ enabled: true, id: 26, level: 1 }); // AL_TELEPORT（2026-11-09 修复：T9 初版误写 28=AL_HEAL）
 		expect(s.retreat.item).toEqual({ enabled: true, id: 602 });
-		expect(s.retreat.skill).toEqual({ enabled: true, id: 28, level: 2 });
+		expect(s.retreat.skill).toEqual({ enabled: true, id: 26, level: 2 });
 		expect(s.returnVillage).toEqual({ enabled: false, onPotionsEmpty: false, onCureEmpty: false });
 		// 非法值錯到默认
 		const bad = migrateSettings({
@@ -394,5 +384,265 @@ describe('slotReady 每槽延迟判定', () => {
 
 	it('从未施放（lastCast=0）→ 可施放', () => {
 		expect(slotReady(100, 0, 1000)).toBe(true);
+	});
+
+	it('负数/非法 delay 视为无延迟 → 可施放', () => {
+		expect(slotReady(100, 50, -5)).toBe(true);
+	});
+});
+
+// =====================================================================
+// 2026-11-09 架构审查候选 B 增量用例（事实锚点均人工对照服务端源码核验）：
+//   OPT2 位值 server/src/src/map/status.hpp:2986-2995；EFST_ILLUSION=34
+//   （status.hpp:1453 起 efst_type 枚举数到 34）；AL_TELEPORT=26 / AL_HEAL=28
+//   （src/DB/Skills/SkillConst.js:37-39 与 server/src/db/re/skill_db.yml 一致）
+// =====================================================================
+
+describe('CURE_WATCH_LISTS 常量钉死（锚点 status.hpp）', () => {
+	it('解毒药/万能药覆盖位集合（含万能药独有的诅咒位）', () => {
+		expect(CURE_WATCH_LISTS.poison).toEqual([
+			{ opt2: 0x0001 }, // OPT2_POISON 中毒
+			{ opt2: 0x0004 }, // OPT2_SILENCE 沉默
+			{ opt2: 0x0010 }, // OPT2_BLIND 黑暗
+			{ opt2: 0x0008 }, // OPT2_CONFUSION 混乱
+			{ efst: 34 }      // EFST_ILLUSION 幻觉（图标通道）
+		]);
+		expect(CURE_WATCH_LISTS.panacea).toEqual([
+			{ opt2: 0x0001 }, // OPT2_POISON
+			{ opt2: 0x0002 }, // OPT2_CURSE 诅咒（万能药独有）
+			{ opt2: 0x0004 }, // OPT2_SILENCE
+			{ opt2: 0x0008 }, // OPT2_CONFUSION
+			{ opt2: 0x0010 }, // OPT2_BLIND
+			{ efst: 34 }
+		]);
+	});
+});
+
+describe('migrateSettings 默认全形状钉死（防字段无察觉增删）', () => {
+	const FULL_DEFAULTS = {
+		v: SCHEMA_VERSION,
+		skills: [null, null, null, null, null, null, null, null],
+		aux: [],
+		slotDelays: [0, 0, 0, 0, 0, 0, 0, 0],
+		follow: false,
+		followTarget: '',
+		flyNoMobs: true,
+		flyLowHp: false,
+		normalAttack: true,
+		mobWhitelist: {},
+		noMobSeconds: 10,
+		returnToMap: true,
+		loot: {
+			enabled: true,
+			types: { consumable: true, weapon: true, armor: true, etc: true },
+			refineMin: 0, cardMin: 0, weightPausePct: 90
+		},
+		potions: {
+			hp: [{ id: 0, threshold: 70, enabled: true }, { id: 0, threshold: 70, enabled: true }],
+			sp: [{ id: 0, threshold: 30, enabled: true }, { id: 0, threshold: 30, enabled: true }]
+		},
+		cure: { enabled: true, poison: 0, panacea: 0 },
+		returnVillage: { enabled: false, onPotionsEmpty: false, onCureEmpty: false },
+		teleport: { item: { enabled: true, id: 601 }, skill: { enabled: true, id: 26, level: 1 } },
+		retreat: { item: { enabled: true, id: 602 }, skill: { enabled: true, id: 26, level: 2 } },
+		spNormalAttack: { enabled: false, threshold: 10 },
+		spStopAttackMove: { enabled: false, threshold: 5 },
+		flyOnMobCount: { enabled: false, count: 20 },
+		flyOnMvp: true
+	};
+
+	it('null → 整对象深相等（含修复后的 AL_TELEPORT=26）', () => {
+		expect(migrateSettings(null)).toEqual(FULL_DEFAULTS);
+	});
+
+	it('字段集完整（新增/删除字段会被发现）', () => {
+		const expected = Object.keys(FULL_DEFAULTS).sort();
+		expect(Object.keys(migrateSettings(null)).sort()).toEqual(expected);
+	});
+});
+
+describe('开关两类语义差异钉死（防误改）', () => {
+	it('!== false 型（normalAttack/returnToMap）：仅显式 false 才关，0/null 视为开', () => {
+		expect(migrateSettings({ normalAttack: 0, returnToMap: null }).normalAttack).toBe(true);
+		expect(migrateSettings({ normalAttack: 0, returnToMap: null }).returnToMap).toBe(true);
+	});
+
+	it('=== undefined 型（flyNoMobs/flyOnMvp）：undefined 取默认开，其余假值保留为 false', () => {
+		expect(migrateSettings({ flyNoMobs: 0, flyOnMvp: null }).flyNoMobs).toBe(false);
+		expect(migrateSettings({ flyNoMobs: 0, flyOnMvp: null }).flyOnMvp).toBe(false);
+	});
+});
+
+describe('v2 aux 分流扩展与旧阈值语义', () => {
+	it('both 双槽各占一位、hp 溢出丢弃、autoPotion=false 保留旧意愿、阈值四舍五入', () => {
+		const s = migrateSettings({
+			hp: 55.4,
+			sp: 25,
+			autoPotion: false,
+			aux: [
+				{ type: 'potion', id: 501, subtype: 'hp' },
+				{ type: 'potion', id: 502, subtype: 'sp' },
+				{ type: 'potion', id: 503, subtype: 'both' },
+				{ type: 'potion', id: 504, subtype: 'hp' },
+				{ type: 'buff_item', id: 601 }
+			]
+		});
+		expect(s.potions.hp).toEqual([
+			{ id: 501, threshold: 55, enabled: false },
+			{ id: 503, threshold: 55, enabled: false }
+		]);
+		expect(s.potions.sp).toEqual([
+			{ id: 502, threshold: 25, enabled: false },
+			{ id: 503, threshold: 25, enabled: false }
+		]);
+		expect(s.aux).toEqual([{ type: 'buff_item', id: 601 }]);
+	});
+
+	it('v3 potions 直读：切片 2、id 四舍五入、阈值夹取、enabled 非法回默认', () => {
+		const s = migrateSettings({
+			potions: {
+				hp: [
+					{ id: 501, threshold: 40, enabled: false },
+				{ id: 502.7, threshold: 200, enabled: 'x' },
+					{ id: 503, threshold: 30, enabled: true }
+				],
+				sp: []
+			}
+		});
+		expect(s.potions.hp).toEqual([
+			{ id: 501, threshold: 40, enabled: false },
+			{ id: 503, threshold: 100, enabled: true }
+		]);
+		expect(s.potions.sp).toEqual([
+			{ id: 0, threshold: 30, enabled: true },
+			{ id: 0, threshold: 30, enabled: true }
+		]);
+	});
+
+	it('v3 potions 直读时旧 hp/sp 顶栏阈值仅作空槽默认', () => {
+		const s = migrateSettings({ hp: 99, potions: { hp: [{ id: 501, threshold: 40 }], sp: [{ id: 503 }] } });
+		expect(s.potions.hp[0].threshold).toBe(40);
+		expect(s.potions.sp[0].threshold).toBe(30); // src.sp 缺 → 默认 30，非 hp 的 99
+	});
+});
+
+describe('移动四槽修复钉死（2026-11-09：T9 初版默认值 28=AL_HEAL 误写修复）', () => {
+	it('存量坏默认 skill.id=28 归一为 26（AL_TELEPORT）', () => {
+		const s = migrateSettings({ teleport: { skill: { id: 28 } }, retreat: { skill: { id: 28, level: 2 } } });
+		expect(s.teleport.skill.id).toBe(26);
+		expect(s.retreat.skill.id).toBe(26);
+	});
+
+	it('自定义 id 保留（999/26 均不归一）；道具槽 id=28 不归一（28 是合法红药水）', () => {
+		const s = migrateSettings({ teleport: { skill: { id: 999 }, item: { id: 28 } }, retreat: { skill: { id: 26 } } });
+		expect(s.teleport.skill.id).toBe(999);
+		expect(s.teleport.item.id).toBe(28);
+		expect(s.retreat.skill.id).toBe(26);
+	});
+
+	it('等级夹取 0→1、99→10；非数字回各槽默认（teleport 1 / retreat 2）', () => {
+		const s = migrateSettings({ teleport: { skill: { level: 0 } }, retreat: { skill: { level: 99 } } });
+		expect(s.teleport.skill.level).toBe(1);
+		expect(s.retreat.skill.level).toBe(10);
+		expect(migrateSettings({ teleport: { skill: { level: 'x' } } }).teleport.skill.level).toBe(1);
+		expect(migrateSettings({ retreat: { skill: { level: 'x' } } }).retreat.skill.level).toBe(2);
+	});
+});
+
+describe('决策函数边界补充', () => {
+	it('evaluatePotionSlots：双命中时自左向右（非最接近阈值槽）', () => {
+		const potions = { hp: [{ id: 501, threshold: 50, enabled: true }, { id: 502, threshold: 30, enabled: true }], sp: [] };
+		// 25 同时低于 50 和 30 → 取左侧第 0 槽（官方自左向右语义）
+		expect(evaluatePotionSlots(potions, 25, 100)).toEqual({ hpSlot: 0, spSlot: -1 });
+	});
+
+	it('evaluatePotionSlots：禁用槽与空槽被跳过', () => {
+		const potions = { hp: [{ id: 501, threshold: 90, enabled: false }, null, { id: 502, threshold: 60, enabled: true }], sp: [] };
+		expect(evaluatePotionSlots(potions, 10, 100)).toEqual({ hpSlot: 2, spSlot: -1 });
+	});
+
+	it('decideSpEconomy：enabled 但缺 threshold 数字 → 该规则不触发', () => {
+		expect(decideSpEconomy(5, { normalAttack: { enabled: true }, stopAttackMove: { enabled: true, threshold: 50 } })).toBe('stop-and-move');
+	});
+
+	it('matchLootType：types 未提供 → 一律不匹配', () => {
+		expect(matchLootType(0, undefined)).toBe(false);
+		expect(matchLootType(5, null)).toBe(false);
+	});
+
+	it('validateLootedItem：精炼等于下限保留；非数卡位不计入；null 物品保留', () => {
+		expect(validateLootedItem({ type: 5, RefiningLevel: 5 }, { refineMin: 5 }).keep).toBe(true);
+		const item = { type: 5, slot: { card1: 4001, card2: 0, card3: 4002, card4: 'x' } }; // 有效卡 2 张
+		expect(validateLootedItem(item, { cardMin: 3 })).toEqual({ keep: false, reason: 'card' });
+		expect(validateLootedItem(item, { cardMin: 2 }).keep).toBe(true);
+		expect(validateLootedItem(null, { refineMin: 10 }).keep).toBe(true);
+	});
+
+	it('isCureStatusActive：复合状态值按位命中；空清单不触发', () => {
+		expect(isCureStatusActive([{ opt2: 0x0004 }], { healthState: 0x0006 })).toBe(true); // 0x6 含 0x4
+		expect(isCureStatusActive([{ opt2: 0x0004 }], { healthState: 0x0002 })).toBe(false);
+		expect(isCureStatusActive([], { healthState: 0xffff })).toBe(false);
+		expect(isCureStatusActive(undefined, undefined)).toBe(false);
+	});
+
+	it('follow/followTarget/flyLowHp 布尔化与字符串守卫', () => {
+		const s = migrateSettings({ follow: 'x', followTarget: 'PlayerOne', flyLowHp: 1 });
+		expect(s.follow).toBe(true);
+		expect(s.followTarget).toBe('PlayerOne');
+		expect(s.flyLowHp).toBe(true);
+		const bad = migrateSettings({ follow: '', followTarget: 123, flyLowHp: 0 });
+		expect(bad.follow).toBe(false);
+		expect(bad.followTarget).toBe('');
+		expect(bad.flyLowHp).toBe(false);
+	});
+
+	it('returnVillage 显式开启透传', () => {
+		const s = migrateSettings({ returnVillage: { enabled: true, onPotionsEmpty: true, onCureEmpty: true } });
+		expect(s.returnVillage).toEqual({ enabled: true, onPotionsEmpty: true, onCureEmpty: true });
+	});
+
+	it('loot.enabled 非布尔回默认 true；白名单地图名截断 64 字符', () => {
+		expect(migrateSettings({ loot: { enabled: 'x' } }).loot.enabled).toBe(true);
+		const longMap = 'a'.repeat(70);
+		const s = migrateSettings({ mobWhitelist: { [longMap]: [1] } });
+		expect(Object.keys(s.mobWhitelist)).toEqual(['a'.repeat(64)]);
+	});
+});
+
+describe('migrateSettings 幂等性（v4 演进的回归地基）', () => {
+	it('migrate(migrate(x)) 与 migrate(x) 深相等（含存量 28 归一后的稳定性）', () => {
+		const v2Sample = {
+			v: 2,
+			skills: [
+				{ id: 1, type: 'attack' }, { id: 2, type: 'heal' }, { id: 3, type: 'buff' },
+				{ id: 4, type: 'attack' }, { id: 5, type: 'buff' }, { id: 6, type: 'attack' }
+			],
+			slotDelays: [100, -3, 2.6, 'x'],
+			aux: [
+				{ type: 'potion', id: 501, subtype: 'hp' }, { type: 'potion', id: 502, subtype: 'sp' },
+				{ type: 'potion', id: 503, subtype: 'both' }, { type: 'buff_item', id: 601 }
+			],
+			hp: 55.4, sp: 25, autoPotion: false,
+			follow: 'x', followTarget: 'P2',
+			flyNoMobs: false, flyLowHp: true, normalAttack: false,
+			mobWhitelist: { payon: [100, 100, 'x', 101] },
+			noMobSeconds: 100.7,
+			returnToMap: false,
+			loot: { enabled: false, types: { consumable: false }, refineMin: 11, cardMin: 5, weightPausePct: 150 },
+			cureItems: { poison: 500.7 },
+			cure: { poison: 'x', enabled: false },
+			returnVillage: { enabled: true, onPotionsEmpty: true },
+			teleport: { skill: { id: 28, level: 0 } },
+			retreat: { item: { id: 28 } },
+			spNormalAttack: { enabled: true, threshold: 200 },
+			flyOnMobCount: { enabled: true, count: 0 },
+			flyOnMvp: false
+		};
+		const once = migrateSettings(v2Sample);
+		expect(migrateSettings(once)).toEqual(once);
+		expect(once.teleport.skill.id).toBe(26);   // 存量 28 归一次到位
+		expect(once.teleport.skill.level).toBe(1);  // level 0 夹取 1
+		expect(once.retreat.item.id).toBe(28);      // 道具槽不归一且幂等
+		expect(migrateSettings(migrateSettings(null))).toEqual(migrateSettings(null));
 	});
 });
