@@ -778,7 +778,7 @@ describe('T9.6 追击终点即时校验（阶段二）', () => {
 // T9.6.1 巡逻打断：走位中发现怪立即停下攻击（服务端 stepaction 语义对冲）
 // ---------------------------------------------------------------------
 
-describe('T9.6.1 巡逻打断与怪物入视野事件', () => {
+describe('T9.6.1 巡逻打断：走位中发现怪立即停下攻击（服务端 stepaction 语义对冲）', () => {
 	it('巡逻走位中发现怪（walking=true）→ moveTo(怪位置) 替换步道 + attack 立即追击', () => {
 		const mob = fakeMob(3201, 1002, [56, 50]);
 		const { b, e } = makeEngine({
@@ -791,34 +791,13 @@ describe('T9.6.1 巡逻打断与怪物入视野事件', () => {
 		expect(b.calls.attack).toContain(3201);
 	});
 
-	it('notifyMobSpawned → 立即跑战斗决策（不等 100ms tick），可达怪被锁定攻击', () => {
-		const mob = fakeMob(3202, 1002, [52, 50]);
+	it('怪不在视野（walking=true 巡逻中）→ 不打断不攻击，继续走向巡逻点', () => {
 		const { b, e } = makeEngine({
-			self: { gid: 1, dead: false, position: [50, 50], walking: false, amotionBusy: false, life: { hp: 1000, hpMax: 1000, sp: 100, spMax: 100 }, weightPct: 0, bodyState: 0, healthState: 0 },
-			entities: [mob]
-		});
-		e.notifyMobSpawned(mob);
-		expect(b.calls.attack).toContain(3202);
-	});
-
-	it('notifyMobSpawned 引擎未激活 → 忽略事件', () => {
-		const mob = fakeMob(3203, 1002, [52, 50]);
-		const { b, e } = makeEngine({
-			self: { gid: 1, dead: false, position: [50, 50], walking: false, amotionBusy: false, life: { hp: 1000, hpMax: 1000, sp: 100, spMax: 100 }, weightPct: 0, bodyState: 0, healthState: 0 },
-			entities: [mob]
-		});
-		e.active = false;
-		e.notifyMobSpawned(mob);
-		expect(b.calls.attack).toEqual([]);
-	});
-
-	it('非怪物实体入视野（item 等）→ 忽略事件', () => {
-		const item = fakeGroundItem(3204, 501, [51, 50]);
-		const { b, e } = makeEngine({
-			self: { gid: 1, dead: false, position: [50, 50], walking: false, amotionBusy: false, life: { hp: 1000, hpMax: 1000, sp: 100, spMax: 100 }, weightPct: 0, bodyState: 0, healthState: 0 },
+			self: { gid: 1, dead: false, position: [50, 50], walking: true, amotionBusy: false, life: { hp: 1000, hpMax: 1000, sp: 100, spMax: 100 }, weightPct: 0, bodyState: 0, healthState: 0 },
 			entities: []
 		});
-		e.notifyMobSpawned(item); // objecttype=item
+		e._combatLoopInner();
+		expect(b.calls.moveTo).toEqual([]);
 		expect(b.calls.attack).toEqual([]);
 	});
 });

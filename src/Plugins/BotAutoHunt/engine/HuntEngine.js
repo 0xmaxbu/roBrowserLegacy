@@ -698,17 +698,6 @@ class HuntEngine {
 		return found;
 	}
 
-	/**
-	 * T9.6.1: 怪物入视野事件（壳层包装 EntityManager.add 触发）。
-	 * 立即重跑战斗循环——路径感知选目标/巡逻打断/换怪全决策都在循环内，
-	 * 不等下一个 100ms tick。内部由 active/怪类型/黑名单等既有门控自然过滤。
-	 */
-	notifyMobSpawned(mob) {
-		if (!this.active || !mob) return;
-		if (mob.objecttype !== this.bindings.entityTypes.mob) return;
-		this._combatLoopInner();
-	}
-
 	// =================================================================
 	// 药水/治疗循环 (~200ms)
 	// =================================================================
