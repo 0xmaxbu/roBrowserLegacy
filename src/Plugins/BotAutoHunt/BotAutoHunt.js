@@ -1758,25 +1758,7 @@ class BotAutoHunt {
 		rowC2.appendChild(document.createTextNode('被传送后返回挂机地图（关闭则就地继续挂机）'));
 		wrap.appendChild(rowC2);
 
-		// —— T9.5: 坐下回复（低于阈值坐下回血回蓝） ——
-		const rowC3 = rowLine();
-		rowC3.appendChild(this._bmpCheckbox(this.sitRecover.enabled, v => {
-			self.sitRecover.enabled = v;
-			self._saveSettings();
-		}));
-		rowC3.appendChild(document.createTextNode('坐下回复：HP低于'));
-		rowC3.appendChild(numInput('basictab-sit-hp', this.sitRecover.hpPct, v => {
-			self.sitRecover.hpPct = Math.min(99, Math.max(1, v || 50));
-			self._saveSettings();
-		}));
-		rowC3.appendChild(document.createTextNode('%或SP低于'));
-		rowC3.appendChild(numInput('basictab-sit-sp', this.sitRecover.spPct, v => {
-			self.sitRecover.spPct = Math.min(99, Math.max(1, v || 30));
-			self._saveSettings();
-		}));
-		rowC3.appendChild(document.createTextNode('%时坐下恢复'));
-		wrap.appendChild(rowC3);
-		wrap.appendChild(subNote('恢复到阈值+30%（上限100%）或视野出现魔物时自动起身；有怪时不坐下，药水仍照常使用。'));
+		// T9.8: 坐下回复设置已移至药水设定页第 2 页（玩家反馈：药水相关功能归药水页）
 
 		return wrap;
 	}
@@ -2059,6 +2041,55 @@ class BotAutoHunt {
 			}
 			sec.content.appendChild(cureCol);
 			wrap.appendChild(sec.box);
+
+			// —— T9.8: 坐下回复设定（从基本设定页移入，玩家反馈：药水相关归药水页） ——
+			const sitBox = document.createElement('div');
+			sitBox.style.cssText = 'background:#f2f5f8;border:1px solid #dfe7ee;border-radius:4px;padding:6px 8px;display:flex;flex-direction:column;gap:2px;';
+			const sitRow = document.createElement('div');
+			sitRow.style.cssText = 'display:flex;align-items:center;font-size:11px;font-weight:bold;color:#2e4058;flex-wrap:wrap;';
+			sitRow.appendChild(self._bmpCheckbox(self.sitRecover.enabled, v => {
+				self.sitRecover.enabled = v;
+				self._saveSettings();
+			}));
+			sitRow.appendChild(document.createTextNode('坐下回复：HP低于'));
+			(function () {
+				const input = document.createElement('input');
+				input.type = 'number';
+				input.value = String(self.sitRecover.hpPct);
+				input.style.cssText = NUM_INPUT_CSS + 'width:34px;margin:0 3px;';
+				input.addEventListener('mousedown', e => e.stopPropagation());
+				input.addEventListener('keydown', e => { if (e.key.length === 1 && !/^[0-9]$/.test(e.key)) e.preventDefault(); });
+				input.addEventListener('change', function () {
+					input.value = String(Math.max(0, Math.round(+input.value || 0)));
+					self.sitRecover.hpPct = Math.min(99, Math.max(1, +input.value || 50));
+					input.value = String(self.sitRecover.hpPct);
+					self._saveSettings();
+				});
+				sitRow.appendChild(input);
+			})();
+			sitRow.appendChild(document.createTextNode('%或SP低于'));
+			(function () {
+				const input = document.createElement('input');
+				input.type = 'number';
+				input.value = String(self.sitRecover.spPct);
+				input.style.cssText = NUM_INPUT_CSS + 'width:34px;margin:0 3px;';
+				input.addEventListener('mousedown', e => e.stopPropagation());
+				input.addEventListener('keydown', e => { if (e.key.length === 1 && !/^[0-9]$/.test(e.key)) e.preventDefault(); });
+				input.addEventListener('change', function () {
+					input.value = String(Math.max(0, Math.round(+input.value || 0)));
+					self.sitRecover.spPct = Math.min(99, Math.max(1, +input.value || 30));
+					input.value = String(self.sitRecover.spPct);
+					self._saveSettings();
+				});
+				sitRow.appendChild(input);
+			})();
+			sitRow.appendChild(document.createTextNode('%时坐下恢复'));
+			sitBox.appendChild(sitRow);
+			const sitNote = document.createElement('div');
+			sitNote.style.cssText = 'font-size:10px;color:#4a7ab5;padding-left:18px;line-height:1.4;';
+			sitNote.textContent = '回复至满血满蓝后起身继续挂机；被怪攻击时若移动设定登录了苍蝇翅膀则飞走，否则起身反击。';
+			sitBox.appendChild(sitNote);
+			wrap.appendChild(sitBox);
 
 			// —— 官方灰色返回村庄设定盒 ——
 			const rv = document.createElement('div');
@@ -2593,7 +2624,8 @@ class BotAutoHunt {
 		info.style.cssText = 'font-size:10px;color:#4a7ab5;line-height:1.4;border-top:1px dotted #b9c6d2;padding-top:3px;';
 		info.innerHTML =
 			'无怪动作回落链：登录技能 → 登录道具 → 随机步行（触发条件在基本设定页）。<br/>' +
-			'低血保命飞翅、被传送后返回挂机地图等扩展设定在基本设定页底部。';
+			'低血保命飞翅、被传送后返回挂机地图等扩展设定在基本设定页底部。<br/>' +
+			'坐下回复被怪攻击时优先使用上方「瞬间移动使用设定」登录的道具飞走（设置项在药水设定页第 2 页）。';
 		wrap.appendChild(info);
 
 		return wrap;

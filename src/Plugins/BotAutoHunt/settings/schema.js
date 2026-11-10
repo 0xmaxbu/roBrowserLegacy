@@ -53,30 +53,30 @@ export function shouldLowHpFlyWing(hpPct, flyLowHpEnabled) {
 }
 
 /**
- * 坐下回复决策（纯函数，T9.5）：HP/SP 低于阈值且视野无怪 → 坐下；
- * 坐中回到滞回阈值（触发阈值+30%，上限 100）→ 起身；视野出现怪 → 立即起身接战。
+ * 坐下回复决策（纯函数，T9.5 立项；T9.8 按玩家反馈重做）：
+ * HP/SP 低于阈值且未被怪攻击 → 坐下；坐中回复至满血满蓝 → 起身。
+ *
+ * 服务端事实：受伤害时服务端强制起身（pc.cpp pc_damage → pc_setstand），
+ * 坐姿下不存在“带伤坐打”——被攻击信号同时驱动“被打中不坐”与“坐中起身分流”。
  *
  * @param {number} hpPct    当前 HP 百分比（0-100）
  * @param {number} spPct    当前 SP 百分比（0-100）
  * @param {boolean} sitting 当前是否处于坐下状态
  * @param {{ enabled?: boolean, hpPct?: number, spPct?: number }} cfg 坐下回复设置
- * @param {boolean} hasMob  视野内是否有可作战怪物（黑名单期怪不计入，与战斗扫描同语义）
- * @return {'sit'|'stand'|'none'} sit=坐下 stand=起身 none=保持现状
+ * @param {boolean} attacked 是否正被魔物攻击（任一视野内魔物 targetGID === 自己，多怪任一命中即真）
+ * @return {'sit'|'stand'|'none'} sit=坐下 stand=起身/保持站姿接战 none=保持现状
  */
-export function decideSitRecover(hpPct, spPct, sitting, cfg, hasMob) {
+export function decideSitRecover(hpPct, spPct, sitting, cfg, attacked) {
 	const c = cfg && typeof cfg === 'object' ? cfg : {};
 	if (!c.enabled) return 'none';
 	const hpTrigger = typeof c.hpPct === 'number' ? c.hpPct : 50;
 	const spTrigger = typeof c.spPct === 'number' ? c.spPct : 30;
-	const resumeHp = Math.min(100, hpTrigger + 30);
-	const resumeSp = Math.min(100, spTrigger + 30);
+	if (attacked) return 'stand'; // 被打：不坐/起身（服务端已强制起身，引擎跟随清标志+分流）
 	if (sitting) {
-		// 坐中：出现怪立即起身接战；恢复到滞回阈值起身继续挂机
-		if (hasMob) return 'stand';
-		return (hpPct >= resumeHp && spPct >= resumeSp) ? 'stand' : 'none';
+		// 坐中：回复至满血满蓝起身继续挂机（不再用阈值+30% 滞回）
+		return (hpPct >= 100 && spPct >= 100) ? 'stand' : 'none';
 	}
-	// 未坐：有怪不坐（坐下挨打）；双指标任一低于触发阈值才坐
-	if (hasMob) return 'none';
+	// 未坐：双指标任一低于触发阈值才坐（无“视野有怪”门控——怪路过不挡回血）
 	return (hpPct < hpTrigger || spPct < spTrigger) ? 'sit' : 'none';
 }
 

@@ -657,34 +657,35 @@ describe('migrateSettings 幂等性（v4 演进的回归地基）', () => {
 	});
 });
 
-describe('T9.5 坐下回复', () => {
+describe('T9.5 坐下回复（T9.8 重做：被攻击门控 + 满血起身）', () => {
 	describe('decideSitRecover 决策纯函数', () => {
 		const cfg = { enabled: true, hpPct: 50, spPct: 30 };
 
 		it('开关关闭 → 永远 none', () => {
 			expect(decideSitRecover(1, 1, false, { enabled: false, hpPct: 50, spPct: 30 }, false)).toBe('none');
-			expect(decideSitRecover(1, 1, true, { enabled: false, hpPct: 50, spPct: 30 }, false)).toBe('none');
+			expect(decideSitRecover(1, 1, true, { enabled: false, hpPct: 50, spPct: 30 }, true)).toBe('none');
 		});
 
-		it('未坐 + 低于任一阈值 + 无怪 → sit；高于阈值 → none', () => {
+		it('未坐 + 低于任一阈值 + 未被攻击 → sit；高于阈值 → none', () => {
 			expect(decideSitRecover(40, 100, false, cfg, false)).toBe('sit'); // hp 40<50
 			expect(decideSitRecover(100, 20, false, cfg, false)).toBe('sit'); // sp 20<30
 			expect(decideSitRecover(80, 60, false, cfg, false)).toBe('none');
 		});
 
-		it('未坐 + 有怪 → 不坐（坐下挨打）', () => {
-			expect(decideSitRecover(10, 10, false, cfg, true)).toBe('none');
+		it('视野有怪但没攻击我（attacked=false）→ 照常坐下回血（怪路过不挡回血）', () => {
+			expect(decideSitRecover(10, 10, false, cfg, false)).toBe('sit');
 		});
 
-		it('坐中 → 恢复到滞回阈值（触发+30，上限100）起身；否则继续坐', () => {
-			expect(decideSitRecover(79, 59, true, cfg, false)).toBe('none');   // 差一线
-			expect(decideSitRecover(80, 60, true, cfg, false)).toBe('stand');  // 双双达标
-			// 阈值压线场景：hpPct=90 → 滞回上限 100
-			expect(decideSitRecover(100, 100, true, { enabled: true, hpPct: 90, spPct: 90 }, false)).toBe('stand');
-		});
-
-		it('坐中 + 视野出现怪 → 立即起身接战（即便血蓝未回满）', () => {
+		it('被攻击 → stand（未坐则不坐防坐下死循环；坐中跟随服务端强制起身）', () => {
+			expect(decideSitRecover(10, 10, false, cfg, true)).toBe('stand');
 			expect(decideSitRecover(10, 10, true, cfg, true)).toBe('stand');
+		});
+
+		it('坐中 → 回满血满蓝才起身（不再用阈值+30 滞回）', () => {
+			expect(decideSitRecover(99, 100, true, cfg, false)).toBe('none');  // 差一线
+			expect(decideSitRecover(100, 99, true, cfg, false)).toBe('none');  // 差一线
+			expect(decideSitRecover(100, 100, true, cfg, false)).toBe('stand');
+			expect(decideSitRecover(100, 100, true, { enabled: true, hpPct: 90, spPct: 90 }, false)).toBe('stand');
 		});
 	});
 

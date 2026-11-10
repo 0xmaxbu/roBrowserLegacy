@@ -620,12 +620,19 @@ describe('start/stop 与设置快照', () => {
 // T9.5 坐下回复
 // ---------------------------------------------------------------------
 
-describe('T9.5 坐下回复 _potionLoopInner/_combatLoopInner', () => {
+describe('T9.5 坐下回复（T9.8 重做） _potionLoopInner/_combatLoopInner', () => {
 	function sitEngine(life, over) {
 		return makeEngine(Object.assign({
 			self: { gid: 1, dead: false, position: [1, 1], walking: false, amotionBusy: false, life: life, weightPct: 0, bodyState: 0, healthState: 0 },
 			entities: []
 		}, over));
+	}
+
+	/** 造一个正在攻击自己的怪（targetGID=1 对齐 sitEngine self.gid） */
+	function attackerMob() {
+		const m = fakeMob(2001, 1002, [3, 1]);
+		m.targetGID = 1;
+		return m;
 	}
 
 	it('开关关闭 → 任何血蓝水平都不坐下', () => {
@@ -636,7 +643,7 @@ describe('T9.5 坐下回复 _potionLoopInner/_combatLoopInner', () => {
 		expect(e._sitActive).toBe(false);
 	});
 
-	it('HP 低于阈值且视野无怪 → 坐下并置 _sitActive', () => {
+	it('HP 低于阈值且未被攻击 → 坐下并置 _sitActive', () => {
 		const { b, e } = sitEngine({ hp: 30, hpMax: 100, sp: 100, spMax: 100 }); // hpPct=30 < 50
 		e.applySettings(baseSettings({ sitRecover: { enabled: true, hpPct: 50, spPct: 30 } }));
 		e._potionLoopInner();
@@ -644,9 +651,32 @@ describe('T9.5 坐下回复 _potionLoopInner/_combatLoopInner', () => {
 		expect(e._sitActive).toBe(true);
 	});
 
-	it('坐中恢复到滞回阈值（触发+30）→ 起身并清标志', () => {
+	it('视野有怪但没攻击我（targetGID 非自己）→ 照常坐下（怪路过不挡回血）', () => {
+		const bystander = fakeMob(2002, 1002, [5, 1]); // targetGID=0：在打别人/闲逛
 		const { b, e } = sitEngine(
-			{ hp: 80, hpMax: 100, sp: 100, spMax: 100 }, // hpPct=80 ≥ 50+30；spPct=100 ≥ 30+30
+			{ hp: 30, hpMax: 100, sp: 100, spMax: 100 },
+			{ entities: [bystander] }
+		);
+		e.applySettings(baseSettings({ sitRecover: { enabled: true, hpPct: 50, spPct: 30 } }));
+		e._potionLoopInner();
+		expect(b.calls.sitDown).toEqual([1]);
+		expect(e._sitActive).toBe(true);
+	});
+
+	it('未坐 + 被怪攻击 → 不坐下（防战斗中坐下-被打断死循环）', () => {
+		const { b, e } = sitEngine(
+			{ hp: 30, hpMax: 100, sp: 100, spMax: 100 }, // 低于阈值但没有“有怪不坐”旧门控
+			{ entities: [attackerMob()] }
+		);
+		e.applySettings(baseSettings({ sitRecover: { enabled: true, hpPct: 50, spPct: 30 } }));
+		e._potionLoopInner();
+		expect(b.calls.sitDown).toEqual([]);
+		expect(e._sitActive).toBe(false);
+	});
+
+	it('坐中回复至满血满蓝 → 起身清标志（不再用滞回阈值）', () => {
+		const { b, e } = sitEngine(
+			{ hp: 100, hpMax: 100, sp: 100, spMax: 100 },
 			{ sitting: true }
 		);
 		e.applySettings(baseSettings({ sitRecover: { enabled: true, hpPct: 50, spPct: 30 } }));
@@ -656,9 +686,9 @@ describe('T9.5 坐下回复 _potionLoopInner/_combatLoopInner', () => {
 		expect(e._sitActive).toBe(false);
 	});
 
-	it('坐中未达滞回阈值 → 保持坐下（不重复发sit包不站起）', () => {
+	it('坐中未满（哪怕已超触发阈值）→ 保持坐下（满血前不站）', () => {
 		const { b, e } = sitEngine(
-			{ hp: 60, hpMax: 100, sp: 100, spMax: 100 }, // hpPct=60 < 80 滞回线
+			{ hp: 80, hpMax: 100, sp: 100, spMax: 100 }, // 旧逻辑 80≥50+30 已起身；新逻辑未满继续坐
 			{ sitting: true }
 		);
 		e.applySettings(baseSettings({ sitRecover: { enabled: true, hpPct: 50, spPct: 30 } }));
@@ -669,17 +699,38 @@ describe('T9.5 坐下回复 _potionLoopInner/_combatLoopInner', () => {
 		expect(e._sitActive).toBe(true);
 	});
 
-	it('坐下中视野出现怪 → 战斗循环立即起身清标志并接战', () => {
-		const mob = fakeMob(2001, 1002, [52, 50]);
+	it('坐中被攻击 + 瞬移道具配置且有货 → 使用道具飞走（清标志不起身包）', () => {
 		const { b, e } = sitEngine(
 			{ hp: 40, hpMax: 100, sp: 100, spMax: 100 },
-			{ sitting: true, entities: [mob] }
+			{ sitting: false, entities: [attackerMob()], itemCounts: { 601: 5 } } // 服务端受伤已强制起身（sitting=false）
 		);
-		e.applySettings(baseSettings({ sitRecover: { enabled: true, hpPct: 50, spPct: 30 } }));
+		e.applySettings(baseSettings({
+			sitRecover: { enabled: true, hpPct: 50, spPct: 30 },
+			teleport: { item: { enabled: true, id: 601 }, skill: { enabled: true, id: 26, level: 1 } }
+		}));
 		e._sitActive = true;
-		e._combatLoopInner();
-		expect(b.calls.standUp).toEqual([1]);
+		e._potionLoopInner();
+		expect(b.calls.useItem).toContain(601); // 苍蝇翅膀飞走
+		expect(b.calls.standUp).toEqual([]);    // 飞走分支不发起身包
 		expect(e._sitActive).toBe(false);
+	});
+
+	it('坐中被攻击 + 翅膀未配置 → 起身反击（普通循环下一拍锁定攻击者）', () => {
+		const mob = attackerMob();
+		const { b, e } = sitEngine(
+			{ hp: 40, hpMax: 100, sp: 100, spMax: 100 },
+			{ sitting: false, entities: [mob] }
+		);
+		e.applySettings(baseSettings({
+			sitRecover: { enabled: true, hpPct: 50, spPct: 30 },
+			teleport: { item: { enabled: false, id: 601 }, skill: { enabled: true, id: 26, level: 1 } }
+		}));
+		e._sitActive = true;
+		e._potionLoopInner();
+		expect(e._sitActive).toBe(false);       // 标志已清
+		expect(b.calls.useItem).not.toContain(601); // 未配置不包底飞翅
+		e._combatLoopInner();                    // 普通循环接战（服务端已起身，无需再发起身包）
+		expect(b.calls.attack).toContain(2001);
 	});
 
 	it('坐等恢复期间战斗循环不移动不攻击（原地坐着）', () => {

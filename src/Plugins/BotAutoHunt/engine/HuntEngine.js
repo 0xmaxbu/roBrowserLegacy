@@ -393,11 +393,12 @@ class HuntEngine {
 			return; // 返回途中不执行战斗逻辑
 		}
 
-		// 1.55 坐下回复坐等（T9.5）：坐着等回血回蓝；视野有怪立即起身接战。
+		// 1.55 坐下回复坐等（T9.5；T9.8 重做）：坐着等回血回蓝。
+		// 被攻击起身由服务端强制完成（pc_damage → pc_setstand），引擎只跟随清理标志。
 		// 过图返回优先级更高（1.5 已提前 return）；药水循环负责坐下/起身决策与恢复判定。
 		if (this._sitActive) {
 			const stillSitting = this.bindings.isSitting();
-			if (!stillSitting || !this.sitRecover || !this.sitRecover.enabled || this._hasVisibleMob()) {
+			if (!stillSitting || !this.sitRecover || !this.sitRecover.enabled) {
 				this._sitActive = false;
 				if (stillSitting) this.bindings.standUp();
 			} else {
@@ -679,10 +680,16 @@ class HuntEngine {
 	}
 
 	/**
-	 * 视野内是否存在可作战怪物（T9.5）。
-	 * 语义与战斗循环扫描一致：黑名单期怪不计入（不可达目标不阻坐也不触发起身）。
+	 * 是否正被魔物攻击（T9.8 坐下回复重做）。
+	 * 判据：任一存活视野内魔物 targetGID === 自己 GID（ZC_NOTIFY_ACT 由 MapEngine
+	 * 写入 Entity.targetGID，合法读出口）；多怪任一命中即真。
+	 * 不再使用“视野有怪”宽语义（怪路过不挡回血），也不用 HP 快照
+	 * （服务端受伤害即强制起身 pc.cpp pc_damage → pc_setstand，坐姿已被打断）。
 	 */
-	_hasVisibleMob() {
+	_isBeingAttacked() {
+		const self = this.bindings.self();
+		if (!self) return false;
+		const myGid = self.gid;
 		let found = false;
 		this.bindings.forEachEntity(entity => {
 			if (found || !entity) return;
@@ -690,12 +697,26 @@ class HuntEngine {
 				entity.objecttype === this.bindings.entityTypes.mob &&
 				entity.action !== entity.ACTION.DIE &&
 				entity.remove_tick === 0 &&
-				!((this._mobBlacklist.get(entity.GID) || 0) > Date.now())
+				entity.targetGID === myGid
 			) {
 				found = true;
 			}
 		});
 		return found;
+	}
+
+	/**
+	 * 被攻击飞走（T9.8）：仅当移动设定「瞬间移动」登录道具已启用且有货时使用
+	 * （苍蝇翅膀随机传送，脱离全部怪物）。严格配置判定：未配置/无货不兜底，
+	 * 交由反击分支（用户约定：没设置就反击）。
+	 * @return {boolean} true=已使用道具飞走；false=未配置/使用失败 → 调用方走反击分支
+	 */
+	_useFlyWingIfConfigured() {
+		const tp = this.teleport;
+		if (tp && tp.item && tp.item.enabled && tp.item.id && this.bindings.itemCount(tp.item.id) > 0) {
+			return this.bindings.useItem(tp.item.id);
+		}
+		return false;
 	}
 
 	// =================================================================
@@ -747,19 +768,27 @@ class HuntEngine {
 			return;
 		}
 
-		// 1.55: 坐下回复决策（T9.5）：低于阈值且视野无怪 → 坐下；坐中回到滞回阈值 → 起身。
+		// 1.55: 坐下回复决策（T9.5；T9.8 按玩家反馈重做）：低于阈值且未被怪攻击 → 坐下；
+		// 坐中回满血满蓝 → 起身；被攻击 → 苍蝇翅膀道具配置且有货则飞走，否则起身反击
+		// （清标志，战斗循环下一拍自然锁定攻击者回归普通挂机循环）。
 		// 低血飞翅优先（官方功能，已在上方提前 return）；药水槽评估继续执行（坐着也能吃药）。
 		if (onHuntMap && this.sitRecover && this.sitRecover.enabled) {
 			const sittingNow = this._sitActive || this.bindings.isSitting();
-			const sitAction = decideSitRecover(hpPct, spPct, sittingNow, this.sitRecover, this._hasVisibleMob());
+			const attacked = this._isBeingAttacked();
+			const sitAction = decideSitRecover(hpPct, spPct, sittingNow, this.sitRecover, attacked);
 			if (sitAction === 'sit' && !sittingNow && !this._isOnCooldown('sit_recover')) {
 				this.bindings.sitDown();
 				this._sitActive = true;
 				this._markAction('sit_recover', 1000);
 			} else if (sitAction === 'stand' && this._sitActive && !this._isOnCooldown('sit_recover')) {
-				this.bindings.standUp();
 				this._sitActive = false;
 				this._markAction('sit_recover', 1000);
+				if (attacked && this._useFlyWingIfConfigured()) {
+					// 被攻击 + 翅膀配置且有货 → 飞走（服务端已强制起身，道具随身可用）
+					return;
+				}
+				if (this.bindings.isSitting()) this.bindings.standUp();
+				// 反击分支：清标志后普通战斗循环下一拍自然锁定攻击者，无需特判
 			}
 		}
 
