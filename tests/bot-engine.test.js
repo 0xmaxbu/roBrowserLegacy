@@ -317,8 +317,13 @@ describe('T9.3 不可达目标看门狗（挂机时走到某些地方停止移�
 describe('T9.3 传送门旁窄廊逃脱', () => {
 	it('safeEnd 固定 5 半径永远失败的场景，放宽到 1 后成功走出（落脚点不在门旁）', () => {
 		const MAP_CONNECTIONS = require('../src/Plugins/BotAutoHunt/data/map-connections.json');
-		const mapName = Object.keys(MAP_CONNECTIONS).find(k => Array.isArray(MAP_CONNECTIONS[k]) && MAP_CONNECTIONS[k].length > 0);
-		const P = MAP_CONNECTIONS[mapName][0];
+		// T9.7 后矩形门的矩形内格子 safeEnd 永远拒绝（走进去 = 真传走，拒绝是正确行为），
+		// 半径放宽语义用点语义门（无 w/h）验证
+		const entry = Object.entries(MAP_CONNECTIONS).find(([k, arr]) =>
+			Array.isArray(arr) && arr.length > 0 && arr.every(p => p.w === undefined && p.h === undefined));
+		expect(entry).toBeDefined();
+		const mapName = entry[0];
+		const P = entry[1][0];
 		const { b, e } = makeEngine({ map: { name: mapName, loading: false } });
 		// 站在门旁 2 格（1.7 安全区外沿）
 		b._state.self.position = [P.x + 2, P.y + 2];

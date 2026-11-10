@@ -1152,6 +1152,12 @@ class HuntEngine {
 	/**
 	 * 检查坐标是否在当前地图的传送门附近
 	 * 防止巡逻时走回传送门导致意外过图
+	 *
+	 * T9.7 矩形触发区：rAthena warp 的触发区是闭区间矩形 [x-w, x+w]×[y-h, y+h]
+	 * （npc.cpp npc_touch_areanpc 按 x±xs / y±ys 判定），w/h 由
+	 * tools/client/generate-warp-extents.mjs 从服务端 warp 数据生成。
+	 * 带内判定含 1 格缓冲（对齐客户端浮点坐标取整误差）；
+	 * 无 w/h 的条目（点语义：脚本动态 warp / 0×0 单格门）仅走圆形半径判定。
 	 */
 	_isNearPortal(x, y, radius) {
 		if (radius === undefined) radius = 7;
@@ -1163,6 +1169,9 @@ class HuntEngine {
 			const dx = p.x - x;
 			const dy = p.y - y;
 			if (dx * dx + dy * dy < r2) return true;
+			if (p.w !== undefined && p.h !== undefined &&
+				x >= p.x - p.w - 1 && x <= p.x + p.w + 1 &&
+				y >= p.y - p.h - 1 && y <= p.y + p.h + 1) return true;
 		}
 		return false;
 	}
@@ -1200,13 +1209,17 @@ class HuntEngine {
 		const portals = MAP_CONNECTIONS[map];
 		if (!portals || !portals.length) return true;
 
-		// 收集 15 格内所有传送门
+		// 收集 15 格内所有传送门；T9.7: 矩形触发区（含 1 格缓冲）覆盖当前位置的也计入
+		// （竖带深处距门格可超 15 格，旧圆形收集会漏收 → nearby 为空直接返回不再远离）
 		const nearby = [];
 		for (const p of portals) {
 			const dx = p.x - cx;
 			const dy = p.y - cy;
 			const d2 = dx * dx + dy * dy;
-			if (d2 < 15 * 15) nearby.push({ x: p.x, y: p.y, d2 });
+			const inRect = p.w !== undefined && p.h !== undefined &&
+				cx >= p.x - p.w - 1 && cx <= p.x + p.w + 1 &&
+				cy >= p.y - p.h - 1 && cy <= p.y + p.h + 1;
+			if (d2 < 15 * 15 || inRect) nearby.push({ x: p.x, y: p.y, d2 });
 		}
 		if (!nearby.length) return true;
 
