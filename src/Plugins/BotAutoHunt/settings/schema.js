@@ -53,6 +53,34 @@ export function shouldLowHpFlyWing(hpPct, flyLowHpEnabled) {
 }
 
 /**
+ * 坐下回复决策（纯函数，T9.5）：HP/SP 低于阈值且视野无怪 → 坐下；
+ * 坐中回到滞回阈值（触发阈值+30%，上限 100）→ 起身；视野出现怪 → 立即起身接战。
+ *
+ * @param {number} hpPct    当前 HP 百分比（0-100）
+ * @param {number} spPct    当前 SP 百分比（0-100）
+ * @param {boolean} sitting 当前是否处于坐下状态
+ * @param {{ enabled?: boolean, hpPct?: number, spPct?: number }} cfg 坐下回复设置
+ * @param {boolean} hasMob  视野内是否有可作战怪物（黑名单期怪不计入，与战斗扫描同语义）
+ * @return {'sit'|'stand'|'none'} sit=坐下 stand=起身 none=保持现状
+ */
+export function decideSitRecover(hpPct, spPct, sitting, cfg, hasMob) {
+	const c = cfg && typeof cfg === 'object' ? cfg : {};
+	if (!c.enabled) return 'none';
+	const hpTrigger = typeof c.hpPct === 'number' ? c.hpPct : 50;
+	const spTrigger = typeof c.spPct === 'number' ? c.spPct : 30;
+	const resumeHp = Math.min(100, hpTrigger + 30);
+	const resumeSp = Math.min(100, spTrigger + 30);
+	if (sitting) {
+		// 坐中：出现怪立即起身接战；恢复到滞回阈值起身继续挂机
+		if (hasMob) return 'stand';
+		return (hpPct >= resumeHp && spPct >= resumeSp) ? 'stand' : 'none';
+	}
+	// 未坐：有怪不坐（坐下挨打）；双指标任一低于触发阈值才坐
+	if (hasMob) return 'none';
+	return (hpPct < hpTrigger || spPct < spTrigger) ? 'sit' : 'none';
+}
+
+/**
  * 无怪动作回落链决策（纯函数，T5）：瞬移 → 苍蝇翅膀 → 随机步行
  * 关闭无怪自动移动时永远步行（保持原巡逻行为）
  *
@@ -397,6 +425,14 @@ export function migrateSettings(saved) {
 		count: clampInt(srcFmc.count, 1, 99, 20)
 	};
 
+	// ---- T9.5: 坐下回复（低于阈值坐下回血回蓝，恢复到滞回阈值起身；视野有怪立即起身） ----
+	const srcSit = src.sitRecover && typeof src.sitRecover === 'object' && !Array.isArray(src.sitRecover) ? src.sitRecover : {};
+	const sitRecover = {
+		enabled: boolOr(srcSit.enabled, false),
+		hpPct: clampInt(srcSit.hpPct, 1, 99, 50),
+		spPct: clampInt(srcSit.spPct, 1, 99, 30)
+	};
+
 	return {
 		v: SCHEMA_VERSION,
 		skills: skills,
@@ -420,7 +456,8 @@ export function migrateSettings(saved) {
 		spNormalAttack: spNormalAttack, // T9: SP<阈值 仅一般攻击（优先度高）
 		spStopAttackMove: spStopAttackMove, // T9: SP<阈值 停止攻击后自动移动
 		flyOnMobCount: flyOnMobCount, // T9: 画面内魔物超过 X 只时瞬移
-		flyOnMvp: src.flyOnMvp === undefined ? true : !!src.flyOnMvp // T9: MVP 首领登场时瞬移（官方默认勾选）
+		flyOnMvp: src.flyOnMvp === undefined ? true : !!src.flyOnMvp, // T9: MVP 首领登场时瞬移（官方默认勾选）
+		sitRecover: sitRecover // T9.5: 坐下回复（低于阈值坐下回血回蓝）
 	};
 }
 

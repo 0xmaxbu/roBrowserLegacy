@@ -236,6 +236,7 @@ class BotAutoHunt {
 		this.spStopAttackMove = { enabled: false, threshold: 5 }; // SP经济规则2：停止攻击后自动移动
 		this.flyOnMobCount = { enabled: false, count: 20 }; // 画面内魔物超过 X 只时瞬移
 		this.flyOnMvp = true; // MVP 首领魔物登场时瞬移（官方默认勾选）
+		this.sitRecover = { enabled: false, hpPct: 50, spPct: 30 }; // T9.5: 坐下回复（低于阈值坐下回血回蓝）
 		this._potionPage = 0; // 药水页当前分页（0=页1 四槽，1=页2 解除/回村）
 		this._mobPortraits = []; // 魔物头像动画注册表（[{canvas, frames, delay, idx}]）
 		this._mobPortraitTimer = null; // 头像动画共享定时器
@@ -345,6 +346,20 @@ class BotAutoHunt {
 				p.action = 7;
 				p.targetGID = gid;
 				Network.sendPacket(p);
+			},
+			// T9.5: 坐下回复（action=2 坐下 / 3 起立，与 ProcessCommand /sit 同构）
+			sitDown() {
+				const p = new PACKET.CZ.REQUEST_ACT2();
+				p.action = 2;
+				Network.sendPacket(p);
+			},
+			standUp() {
+				const p = new PACKET.CZ.REQUEST_ACT2();
+				p.action = 3;
+				Network.sendPacket(p);
+			},
+			isSitting() {
+				return !!(Session.Entity && Session.Entity.action === Session.Entity.ACTION.SIT);
 			},
 			pickupItem(gid) {
 				const p = new PACKET.CZ.ITEM_PICKUP2();
@@ -1728,6 +1743,26 @@ class BotAutoHunt {
 		}));
 		rowC2.appendChild(document.createTextNode('被传送后返回挂机地图（关闭则就地继续挂机）'));
 		wrap.appendChild(rowC2);
+
+		// —— T9.5: 坐下回复（低于阈值坐下回血回蓝） ——
+		const rowC3 = rowLine();
+		rowC3.appendChild(this._bmpCheckbox(this.sitRecover.enabled, v => {
+			self.sitRecover.enabled = v;
+			self._saveSettings();
+		}));
+		rowC3.appendChild(document.createTextNode('坐下回复：HP低于'));
+		rowC3.appendChild(numInput('basictab-sit-hp', this.sitRecover.hpPct, v => {
+			self.sitRecover.hpPct = Math.min(99, Math.max(1, v || 50));
+			self._saveSettings();
+		}));
+		rowC3.appendChild(document.createTextNode('%或SP低于'));
+		rowC3.appendChild(numInput('basictab-sit-sp', this.sitRecover.spPct, v => {
+			self.sitRecover.spPct = Math.min(99, Math.max(1, v || 30));
+			self._saveSettings();
+		}));
+		rowC3.appendChild(document.createTextNode('%时坐下恢复'));
+		wrap.appendChild(rowC3);
+		wrap.appendChild(subNote('恢复到阈值+30%（上限100%）或视野出现魔物时自动起身；有怪时不坐下，药水仍照常使用。'));
 
 		return wrap;
 	}
@@ -3430,6 +3465,7 @@ class BotAutoHunt {
 		this.spStopAttackMove = s2.spStopAttackMove;
 		this.flyOnMobCount = s2.flyOnMobCount;
 		this.flyOnMvp = s2.flyOnMvp;
+		this.sitRecover = s2.sitRecover; // T9.5: 坐下回复
 		if (this.engine) this.engine.applySettings({
 			skills: this.skillList,
 			aux: this.auxList,
@@ -3452,7 +3488,8 @@ class BotAutoHunt {
 			spNormalAttack: this.spNormalAttack,
 			spStopAttackMove: this.spStopAttackMove,
 			flyOnMobCount: this.flyOnMobCount,
-			flyOnMvp: this.flyOnMvp
+			flyOnMvp: this.flyOnMvp,
+			sitRecover: this.sitRecover
 		});
 	}
 

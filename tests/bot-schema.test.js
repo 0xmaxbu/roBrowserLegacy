@@ -7,6 +7,7 @@ import {
 	shouldLowHpFlyWing,
 	mobInWhitelist,
 	decideNoMobAction,
+	decideSitRecover,
 	matchLootType,
 	validateLootedItem,
 	isCureStatusActive,
@@ -451,7 +452,8 @@ describe('migrateSettings 默认全形状钉死（防字段无察觉增删）', 
 		spNormalAttack: { enabled: false, threshold: 10 },
 		spStopAttackMove: { enabled: false, threshold: 5 },
 		flyOnMobCount: { enabled: false, count: 20 },
-		flyOnMvp: true
+		flyOnMvp: true,
+		sitRecover: { enabled: false, hpPct: 50, spPct: 30 } // T9.5
 	};
 
 	it('null → 整对象深相等（含修复后的 AL_TELEPORT=26）', () => {
@@ -652,5 +654,56 @@ describe('migrateSettings 幂等性（v4 演进的回归地基）', () => {
 		expect(once.teleport.skill.level).toBe(1);  // level 0 夹取 1
 		expect(once.retreat.item.id).toBe(28);      // 道具槽不归一且幂等
 		expect(migrateSettings(migrateSettings(null))).toEqual(migrateSettings(null));
+	});
+});
+
+describe('T9.5 坐下回复', () => {
+	describe('decideSitRecover 决策纯函数', () => {
+		const cfg = { enabled: true, hpPct: 50, spPct: 30 };
+
+		it('开关关闭 → 永远 none', () => {
+			expect(decideSitRecover(1, 1, false, { enabled: false, hpPct: 50, spPct: 30 }, false)).toBe('none');
+			expect(decideSitRecover(1, 1, true, { enabled: false, hpPct: 50, spPct: 30 }, false)).toBe('none');
+		});
+
+		it('未坐 + 低于任一阈值 + 无怪 → sit；高于阈值 → none', () => {
+			expect(decideSitRecover(40, 100, false, cfg, false)).toBe('sit'); // hp 40<50
+			expect(decideSitRecover(100, 20, false, cfg, false)).toBe('sit'); // sp 20<30
+			expect(decideSitRecover(80, 60, false, cfg, false)).toBe('none');
+		});
+
+		it('未坐 + 有怪 → 不坐（坐下挨打）', () => {
+			expect(decideSitRecover(10, 10, false, cfg, true)).toBe('none');
+		});
+
+		it('坐中 → 恢复到滞回阈值（触发+30，上限100）起身；否则继续坐', () => {
+			expect(decideSitRecover(79, 59, true, cfg, false)).toBe('none');   // 差一线
+			expect(decideSitRecover(80, 60, true, cfg, false)).toBe('stand');  // 双双达标
+			// 阈值压线场景：hpPct=90 → 滞回上限 100
+			expect(decideSitRecover(100, 100, true, { enabled: true, hpPct: 90, spPct: 90 }, false)).toBe('stand');
+		});
+
+		it('坐中 + 视野出现怪 → 立即起身接战（即便血蓝未回满）', () => {
+			expect(decideSitRecover(10, 10, true, cfg, true)).toBe('stand');
+		});
+	});
+
+	describe('migrateSettings 坐下回复归一化', () => {
+		it('缺省 → 关闭 + hp50/sp30', () => {
+			const s = migrateSettings(null);
+			expect(s.sitRecover).toEqual({ enabled: false, hpPct: 50, spPct: 30 });
+		});
+
+		it('非法值钳制（1-99）与布尔归一（boolOr：非布尔回退默认值）', () => {
+			const s = migrateSettings({ sitRecover: { enabled: 1, hpPct: 0, spPct: 500 } });
+			expect(s.sitRecover.enabled).toBe(false);  // 非布尔（1）按项目 boolOr 约定回退默认 false
+			expect(s.sitRecover.hpPct).toBe(1);        // 0 → 夹到 1
+			expect(s.sitRecover.spPct).toBe(99);       // 500 → 夹到 99
+		});
+
+		it('合法存档原样保留', () => {
+			const s = migrateSettings({ sitRecover: { enabled: true, hpPct: 66, spPct: 22 } });
+			expect(s.sitRecover).toEqual({ enabled: true, hpPct: 66, spPct: 22 });
+		});
 	});
 });

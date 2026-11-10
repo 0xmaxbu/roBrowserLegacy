@@ -55,10 +55,11 @@ function fakeBindings(state) {
 		skillReady: () => true,
 		itemCounts: {},      // id → count（缺省 0）
 		itemTypes: {},       // itid → Type
-		pathResult: 0        // 寻路返回步数（0=不可达）
+		pathResult: 0,       // 寻路返回步数（0=不可达）
+		sitting: false       // T9.5: 坐下状态（isSitting 假件）
 	}, state);
 
-	const calls = { useItem: [], castSkill: [], castSkillDirect: [], moveTo: [], attack: [], pickupItem: [], throwItem: [], chat: [] };
+	const calls = { useItem: [], castSkill: [], castSkillDirect: [], moveTo: [], attack: [], pickupItem: [], throwItem: [], chat: [], sitDown: [], standUp: [] };
 
 	return {
 		calls,
@@ -89,6 +90,9 @@ function fakeBindings(state) {
 		castSkillDirect: (id, lv, gid) => calls.castSkillDirect.push([id, lv, gid]),
 		moveTo: (x, y) => calls.moveTo.push([x, y]),
 		attack: gid => calls.attack.push(gid),
+		sitDown: () => calls.sitDown.push(1), // T9.5
+		standUp: () => calls.standUp.push(1), // T9.5
+		isSitting: () => !!s.sitting, // T9.5
 		pickupItem: gid => calls.pickupItem.push(gid),
 		throwItem: (i, c) => calls.throwItem.push([i, c]),
 		chat: m => calls.chat.push(m),
@@ -117,7 +121,8 @@ function baseSettings(over) {
 		spNormalAttack: { enabled: false, threshold: 10 },
 		spStopAttackMove: { enabled: false, threshold: 5 },
 		flyOnMobCount: { enabled: false, count: 20 },
-		flyOnMvp: false
+		flyOnMvp: false,
+		sitRecover: { enabled: false, hpPct: 50, spPct: 30 } // T9.5（用例内显式开启）
 	}, over);
 }
 
@@ -601,5 +606,85 @@ describe('start/stop 与设置快照', () => {
 		expect(e._isOnCooldown('k')).toBe(true);
 		e._actionCooldowns.k = Date.now() - 1;
 		expect(e._isOnCooldown('k')).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------
+// T9.5 坐下回复
+// ---------------------------------------------------------------------
+
+describe('T9.5 坐下回复 _potionLoopInner/_combatLoopInner', () => {
+	function sitEngine(life, over) {
+		return makeEngine(Object.assign({
+			self: { gid: 1, dead: false, position: [1, 1], walking: false, amotionBusy: false, life: life, weightPct: 0, bodyState: 0, healthState: 0 },
+			entities: []
+		}, over));
+	}
+
+	it('开关关闭 → 任何血蓝水平都不坐下', () => {
+		const { b, e } = sitEngine({ hp: 5, hpMax: 100, sp: 5, spMax: 100 }); // 远低于默认阈值
+		e.applySettings(baseSettings({ sitRecover: { enabled: false, hpPct: 50, spPct: 30 } }));
+		e._potionLoopInner();
+		expect(b.calls.sitDown).toEqual([]);
+		expect(e._sitActive).toBe(false);
+	});
+
+	it('HP 低于阈值且视野无怪 → 坐下并置 _sitActive', () => {
+		const { b, e } = sitEngine({ hp: 30, hpMax: 100, sp: 100, spMax: 100 }); // hpPct=30 < 50
+		e.applySettings(baseSettings({ sitRecover: { enabled: true, hpPct: 50, spPct: 30 } }));
+		e._potionLoopInner();
+		expect(b.calls.sitDown).toEqual([1]);
+		expect(e._sitActive).toBe(true);
+	});
+
+	it('坐中恢复到滞回阈值（触发+30）→ 起身并清标志', () => {
+		const { b, e } = sitEngine(
+			{ hp: 80, hpMax: 100, sp: 100, spMax: 100 }, // hpPct=80 ≥ 50+30；spPct=100 ≥ 30+30
+			{ sitting: true }
+		);
+		e.applySettings(baseSettings({ sitRecover: { enabled: true, hpPct: 50, spPct: 30 } }));
+		e._sitActive = true;
+		e._potionLoopInner();
+		expect(b.calls.standUp).toEqual([1]);
+		expect(e._sitActive).toBe(false);
+	});
+
+	it('坐中未达滞回阈值 → 保持坐下（不重复发sit包不站起）', () => {
+		const { b, e } = sitEngine(
+			{ hp: 60, hpMax: 100, sp: 100, spMax: 100 }, // hpPct=60 < 80 滞回线
+			{ sitting: true }
+		);
+		e.applySettings(baseSettings({ sitRecover: { enabled: true, hpPct: 50, spPct: 30 } }));
+		e._sitActive = true;
+		e._potionLoopInner();
+		expect(b.calls.standUp).toEqual([]);
+		expect(b.calls.sitDown).toEqual([]);
+		expect(e._sitActive).toBe(true);
+	});
+
+	it('坐下中视野出现怪 → 战斗循环立即起身清标志并接战', () => {
+		const mob = fakeMob(2001, 1002, [52, 50]);
+		const { b, e } = sitEngine(
+			{ hp: 40, hpMax: 100, sp: 100, spMax: 100 },
+			{ sitting: true, entities: [mob] }
+		);
+		e.applySettings(baseSettings({ sitRecover: { enabled: true, hpPct: 50, spPct: 30 } }));
+		e._sitActive = true;
+		e._combatLoopInner();
+		expect(b.calls.standUp).toEqual([1]);
+		expect(e._sitActive).toBe(false);
+	});
+
+	it('坐等恢复期间战斗循环不移动不攻击（原地坐着）', () => {
+		const { b, e } = sitEngine(
+			{ hp: 40, hpMax: 100, sp: 100, spMax: 100 },
+			{ sitting: true, entities: [] }
+		);
+		e.applySettings(baseSettings({ sitRecover: { enabled: true, hpPct: 50, spPct: 30 } }));
+		e._sitActive = true;
+		e._combatLoopInner();
+		expect(b.calls.moveTo).toEqual([]);
+		expect(b.calls.attack).toEqual([]);
+		expect(e._sitActive).toBe(true); // 仍坐着
 	});
 });

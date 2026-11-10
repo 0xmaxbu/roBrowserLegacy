@@ -51,6 +51,7 @@
 import {
 	shouldLowHpFlyWing, decideNoMobAction, decideSpEconomy, evaluatePotionSlots,
 	matchLootType, validateLootedItem, isCureStatusActive, mobInWhitelist, slotReady,
+	decideSitRecover,
 	CURE_WATCH_LISTS
 } from '../settings/schema.js';
 import EFST_MAP from '../data/efst-map.json';
@@ -136,6 +137,8 @@ class HuntEngine {
 		this.noMobSeconds = 10;
 		this.returnToMap = true;
 		this.loot = null;
+		this.sitRecover = { enabled: false, hpPct: 50, spPct: 30 }; // T9.5: 坐下回复（_applySettings 覆盖）
+		this._sitActive = false; // T9.5: 坐下回复进行中（药水循环置位，战斗循环/过图/停机清除）
 		this.potions = { hp: [], sp: [] };
 		this.cure = { enabled: true, poison: 0, panacea: 0 };
 		this.returnVillage = { onPotionsEmpty: false, onCureEmpty: false, onBuffEmpty: true }; // 官方无总开关；BUFF 用尽回村默认勾选（官方道具页截图）
@@ -217,6 +220,7 @@ class HuntEngine {
 		this.spStopAttackMove = s.spStopAttackMove || { enabled: false, threshold: 5 };
 		this.flyOnMobCount = s.flyOnMobCount || { enabled: false, count: 20 };
 		this.flyOnMvp = s.flyOnMvp !== undefined ? !!s.flyOnMvp : true;
+		this.sitRecover = s.sitRecover || { enabled: false, hpPct: 50, spPct: 30 };
 	}
 
 	// =================================================================
@@ -240,6 +244,7 @@ class HuntEngine {
 		// 初始化巡逻计时器，避免启动瞬间误触飞翅（Date.now() 不依赖 rAF）
 		this._lastMobSeenTick = Date.now();
 		this._lastPatrolMoveTick = 0;
+		this._sitActive = false; // T9.5: 重启挂机不起坐状态（服务端重启后已站立）
 		this._lastMapName = this.bindings.mapState().name || '';
 		this._mapChangeTick = 0;
 		// T9.3: 重启挂机时重置追击看门狗（位置已过期）；追击黑名单保留（15s 自动过期，
@@ -347,6 +352,7 @@ class HuntEngine {
 			this._mapChangeTick = Date.now();
 			this._lastMobSeenTick = Date.now();
 			this._lastPatrolMoveTick = 0;
+			this._sitActive = false; // T9.5: 过图必然站立，清坐下标志（返回逻辑优先于坐下回复）
 			this._actionCooldowns = {};
 			// 清除目标锁定（旧目标已不存在）
 			this.bindings.setFocusEntity(null);
@@ -383,6 +389,18 @@ class HuntEngine {
 		if (this.returnToMap && this._huntMapName && currentMap !== this._huntMapName) {
 			this._returnToHuntMap();
 			return; // 返回途中不执行战斗逻辑
+		}
+
+		// 1.55 坐下回复坐等（T9.5）：坐着等回血回蓝；视野有怪立即起身接战。
+		// 过图返回优先级更高（1.5 已提前 return）；药水循环负责坐下/起身决策与恢复判定。
+		if (this._sitActive) {
+			const stillSitting = this.bindings.isSitting();
+			if (!stillSitting || !this.sitRecover || !this.sitRecover.enabled || this._hasVisibleMob()) {
+				this._sitActive = false;
+				if (stillSitting) this.bindings.standUp();
+			} else {
+				return; // 坐着等恢复，不执行战斗/巡逻
+			}
 		}
 
 		// 1.6. 过图返回后主动远离传送门 — 等地图加载完 + 位置稳定后再计算安全路径
@@ -602,6 +620,26 @@ class HuntEngine {
 		this.bindings.attack(target.GID);
 	}
 
+	/**
+	 * 视野内是否存在可作战怪物（T9.5）。
+	 * 语义与战斗循环扫描一致：黑名单期怪不计入（不可达目标不阻坐也不触发起身）。
+	 */
+	_hasVisibleMob() {
+		let found = false;
+		this.bindings.forEachEntity(entity => {
+			if (found || !entity) return;
+			if (
+				entity.objecttype === this.bindings.entityTypes.mob &&
+				entity.action !== entity.ACTION.DIE &&
+				entity.remove_tick === 0 &&
+				!((this._mobBlacklist.get(entity.GID) || 0) > Date.now())
+			) {
+				found = true;
+			}
+		});
+		return found;
+	}
+
 	// =================================================================
 	// 药水/治疗循环 (~200ms)
 	// =================================================================
@@ -649,6 +687,22 @@ class HuntEngine {
 				this._markAction('retreat_lowhp', 2000);
 			}
 			return;
+		}
+
+		// 1.55: 坐下回复决策（T9.5）：低于阈值且视野无怪 → 坐下；坐中回到滞回阈值 → 起身。
+		// 低血飞翅优先（官方功能，已在上方提前 return）；药水槽评估继续执行（坐着也能吃药）。
+		if (onHuntMap && this.sitRecover && this.sitRecover.enabled) {
+			const sittingNow = this._sitActive || this.bindings.isSitting();
+			const sitAction = decideSitRecover(hpPct, spPct, sittingNow, this.sitRecover, this._hasVisibleMob());
+			if (sitAction === 'sit' && !sittingNow && !this._isOnCooldown('sit_recover')) {
+				this.bindings.sitDown();
+				this._sitActive = true;
+				this._markAction('sit_recover', 1000);
+			} else if (sitAction === 'stand' && this._sitActive && !this._isOnCooldown('sit_recover')) {
+				this.bindings.standUp();
+				this._sitActive = false;
+				this._markAction('sit_recover', 1000);
+			}
 		}
 
 		// 2. T9 官方四槽：HP/SP 未满阈值 → 使用命中槽道具（同类型自左向右；500ms 冷却防刷）
