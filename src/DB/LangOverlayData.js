@@ -1,5 +1,6 @@
 // Phase 14 覆盖层翻译数据（按 ID 索引）
-// monsterName：全量中文怪物名（自 MonsterNameTable.js 合并，2445 条，对实际部署 mob_db 覆盖率 100%）
+// monsterName：MonsterNameTable.js 合并（2445 键，ID 对部署怪 2183 覆盖 100%；
+// 但值仅 202 条中文，其余为英文回退显示原文，待批2 补全）
 // itemName/skillName/skillDescription/message：按需维护的子集，未命中 ID 回退原文
 
 import MONSTER_NAME_TABLE_ZH from 'DB/Monsters/MonsterNameTable.js';
@@ -16,10 +17,9 @@ export const LANG_OVERLAY_DATA = {
             3: '增加使用双手剑时的攻击力。'
         },
         // 怪物名（key=job/怪物ID，ID 取自 rAthena mob_db.yml）
-        // 全量中文表合并：数据源 MonsterNameTable.js（ro.dvg.cn 提取）。
-        // 该表经 LangOverlay 进入实体头顶名链路（Entity.js spawn/identity 钩子），
-        // zh 模式显示中文，en 模式回退服务端英文名。样例数据中的错误映射
-        // （1113 '波波'，实际 DROPS=土波利）以 MonsterNameTable 为准，不再保留。
+        // 合并数据源：MonsterNameTable.js（ro.dvg.cn 提取）。
+        // ID 键覆盖部署怪 2183/2183；值仅 202 条中文（其余英文，显示原文），
+        // 2026-11-10 复核修正（此前误报覆盖率 100%）。补全跟踪：docs/research/npc-name-translation/
         monsterName: { ...MONSTER_NAME_TABLE_ZH },
         // UI 消息（key=msgstringtable ID）
         message: {
