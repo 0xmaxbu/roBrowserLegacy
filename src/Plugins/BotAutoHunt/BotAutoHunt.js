@@ -1083,7 +1083,7 @@ class BotAutoHunt {
 		this._floatMiss = 0;
 		this._floatHit = 0;
 		// T9.3.2: 轮询体提取为方法，测试可直接调用 _floatLifecycleTick()
-		this._floatPoll = setInterval(() => this._floatLifecycleTick(), 500);
+		this._floatPoll = setInterval(() => this._floatLifecycleTick(), 250); // T9.10: 500→250ms（显示延迟减半）
 	}
 
 	/**
@@ -1143,8 +1143,9 @@ class BotAutoHunt {
 		if (inGame) {
 			this._floatMiss = 0;
 			this._floatHit++;
-			// 2 次连续命中（约 0.5s）才显示：双条件同时成立的稳定态
-			if (!visible && this._floatHit >= 2) btn.style.display = '';
+			// T9.10: 首拍即显（旧双拍防抖致进游戏后按钮迟到约 1s，观感差）；
+			// 防闪烁由隐藏侧的 loading 立即隐藏 + 2 拍迟滞承担
+			if (!visible) btn.style.display = '';
 			return;
 		}
 		this._floatHit = 0;
