@@ -286,7 +286,6 @@ class BotAutoHunt {
 				// 时不重置 action，EntityWalk.js 留有 STUCK IN WALKING 告警观测）。路由为空不视为
 				// 行走中——引擎得以重新发移动指令（服务器回包重建路径）自恢复，否则所有分支
 				// 永远等待、角色冻结
-				walking: e.action === e.ACTION.WALK && !!(e.walk && e.walk.total > 0),
 				walking: (() => {
 					const walkStuck = e.action === e.ACTION.WALK && !(e.walk && e.walk.total > 0);
 					if (walkStuck) {
@@ -1132,6 +1131,14 @@ class BotAutoHunt {
 		};
 		const btn = this._floatBtn;
 		if (!btn) return;
+		// T9.9: 过图加载期立即隐藏（内置 UI 靠 UIManager.removeComponents 移除，
+		// 悬浮开关独立于 UIManager，需跟随 MapRenderer.loading 显隐；
+		// 旧逻辑依赖实体清空 + 2 拍迟滞 ≈ 1s，加载画面上按钮会短暂残留）
+		if (MapRenderer.loading) {
+			this._floatHit = 0;
+			if (btn.style.display !== 'none') btn.style.display = 'none';
+			return; // 不进入 inGame/leftWorld 分支：加载期绝不停止挂机（T9.3.2 语义保留）
+		}
 		const visible = btn.style.display !== 'none';
 		if (inGame) {
 			this._floatMiss = 0;

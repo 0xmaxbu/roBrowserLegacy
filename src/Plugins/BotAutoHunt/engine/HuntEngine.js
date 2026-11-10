@@ -161,6 +161,10 @@ class HuntEngine {
 		this._huntMapName = '';
 		this._returnTriedPortals = new Set();
 		this._returnTargetPortal = null;
+		this._returnDebug = null; // T9.9: 返回链路诊断（dbg JSON ret 字段）
+		this._returnWalkFails = 0; // T9.9: 同一目标连续未走起来计数
+		this._returnLastDest = null;
+		this._returnLastPos = null;
 
 		// ---------- 循环定时器 ----------
 		this.combatTick = null;
@@ -336,7 +340,9 @@ class HuntEngine {
 						.map(([gid, t]) => gid + '@' + Math.round((t - now) / 1000) + 's'),
 					noMobMs: now - this._lastMobSeenTick,
 					castBlockMs: Math.max(0, this._castingUntil - now),
-					portalAvoid: this._needMoveAwayFromPortal
+					portalAvoid: this._needMoveAwayFromPortal,
+					loading: this.bindings.mapState().loading, // T9.9: 卡 loading 即永远在此 return
+					ret: this._returnDebug // T9.9: 返回链路诊断（非挂机图时非空）
 				}));
 			}
 		}
@@ -363,6 +369,10 @@ class HuntEngine {
 				console.log('[BotAutoHunt] returned to hunt map, resuming');
 				this._returnTriedPortals = new Set();
 				this._returnTargetPortal = null;
+				this._returnDebug = null; // T9.9: 回到挂机图，返回诊断清零
+				this._returnWalkFails = 0;
+				this._returnLastDest = null;
+				this._returnLastPos = null;
 				this._needMoveAwayFromPortal = true; // 过图后远离传送门
 				this._portalStableTick = 0; // 重置稳定计时
 			}
@@ -1328,16 +1338,21 @@ class HuntEngine {
 		const huntMap = (this._huntMapName || '').replace(/\.gat$/i, '').toLowerCase();
 
 		if (!self || !currentMap || !huntMap) {
+			this._returnDebug = { phase: 'no-name', at: Date.now() };
 			return;
 		}
 
 		// 角色正在行走中，等待到达
 		if (self.walking) {
+			this._returnDebug = { phase: 'walking', at: Date.now() };
 			return;
 		}
 
 		// 500ms 冷却防止刷包
-		if (this._isOnCooldown('return_portal')) return;
+		if (this._isOnCooldown('return_portal')) {
+			this._returnDebug = { phase: 'cooldown', at: Date.now() };
+			return;
+		}
 		this._markAction('return_portal', 500);
 
 		let targetX = null;
@@ -1348,6 +1363,7 @@ class HuntEngine {
 			const mapKeys = Object.keys(adj);
 			if (!mapKeys.length) {
 				console.warn('[BotAutoHunt] map-connections empty, cannot return');
+				this._returnDebug = { phase: 'bfs-noconn', at: Date.now() };
 				if (this.events.onError) this.events.onError('地图连接数据为空，无法寻路返回');
 				return;
 			}
@@ -1383,11 +1399,13 @@ class HuntEngine {
 			if (targetX === null) {
 				console.warn('[BotAutoHunt] BFS no path from ' + currentMap + ' to ' + huntMap +
 					', warps from currentMap=' + (adj[currentMap] ? adj[currentMap].length : 'NONE'));
+				this._returnDebug = { phase: 'bfs-nopath', from: currentMap, at: Date.now() };
 				if (this.events.onError) this.events.onError('找不到传送门路径: ' + currentMap + ' → ' + huntMap);
 				return;
 			}
 		} catch (e) {
 			console.error('[BotAutoHunt] BFS pathfinding error:', e);
+			this._returnDebug = { phase: 'bfs-error', at: Date.now() };
 			return;
 		}
 
@@ -1425,6 +1443,28 @@ class HuntEngine {
 				destX = targetX;
 				destY = targetY;
 			}
+		}
+
+		// T9.9 返回走位失败检测：同一目标连续发出却没走起来（延长点隔墙/隔水等
+		// 不可达时客户端寻路静默失败，位置纹丝不动）→ 回退直接走传送门格本身。
+		// isWalkable 只查格子可走不查可达，此前这类场景会永久原地重试同一失败目标。
+		const lastPos = this._returnLastPos;
+		const moved2 = lastPos ? ((cx - lastPos[0]) * (cx - lastPos[0]) + (cy - lastPos[1]) * (cy - lastPos[1])) : Infinity;
+		if (this._returnLastDest && this._returnLastDest[0] === destX && this._returnLastDest[1] === destY && moved2 < 4) {
+			this._returnWalkFails++;
+		} else {
+			this._returnWalkFails = 0;
+		}
+		this._returnLastDest = [destX, destY];
+		this._returnLastPos = [cx, cy];
+		if (this._returnWalkFails >= 3 && (destX !== targetX || destY !== targetY)) {
+			// 回退：直接走传送门格（能站在这里周围说明一定可达）
+			console.warn('[BotAutoHunt] return walk unreachable (' + destX + ',' + destY + '), fallback to portal cell');
+			destX = targetX;
+			destY = targetY;
+			this._returnDebug = { phase: 'walk-fail-fallback', dest: [destX, destY], fails: this._returnWalkFails, at: Date.now() };
+		} else {
+			this._returnDebug = { phase: 'walk', dest: [destX, destY], target: [targetX, targetY], fails: this._returnWalkFails, at: Date.now() };
 		}
 
 		this.bindings.moveTo(destX, destY);

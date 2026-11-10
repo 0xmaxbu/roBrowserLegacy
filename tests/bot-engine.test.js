@@ -751,6 +751,31 @@ describe('T9.5 坐下回复（T9.8 重做） _potionLoopInner/_combatLoopInner',
 // T9.6 路径感知目标选择 + 追击终点即时校验
 // ---------------------------------------------------------------------
 
+// ---------------------------------------------------------------------
+// T9.9 返回挂机地图：走位失败回退 + 诊断
+// ---------------------------------------------------------------------
+
+describe('T9.9 返回挂机地图走位失败回退', () => {
+	it('同一目标连续 3 次未走起来 → 回退直接走传送门格（不可达延长点不再永久卡死）', () => {
+		const MAP_CONNECTIONS = require('../src/Plugins/BotAutoHunt/data/map-connections.json');
+		const firstHop = MAP_CONNECTIONS['prt_fild07'].find(p => p.to === 'prt_fild08');
+		const { b, e } = makeEngine({
+			map: { name: 'prt_fild07', loading: false },
+			self: { gid: 1, dead: false, position: [379, 239], walking: false, amotionBusy: false, life: { hp: 1000, hpMax: 1000, sp: 100, spMax: 100 }, weightPct: 0, bodyState: 0, healthState: 0 }
+		});
+		e._huntMapName = 'prt_fild08';
+		// 模拟延长点不可达：moveTo 记录但角色位置纹丝不动、永不行走
+		for (let i = 0; i < 4; i++) {
+			e._actionCooldowns['return_portal'] = 0; // 绕过 500ms 刷包冷却（同步连调）
+			e._returnToHuntMap();
+		}
+		expect(b.calls.moveTo.length).toBe(4);
+		expect(e._returnDebug.phase).toBe('walk-fail-fallback');
+		expect(b.calls.moveTo[3][0]).toBe(firstHop.x); // 回退后直接走传送门格
+		expect(b.calls.moveTo[3][1]).toBe(firstHop.y);
+	});
+});
+
 describe('T9.6 路径感知目标选择（阶段一）', () => {
 	it('近处怪不可达（寻路 0 步）→ 自动换选远处可达怪', () => {
 		const near = fakeMob(3001, 1002, [51, 50]); // 欧氏最近，但不可达

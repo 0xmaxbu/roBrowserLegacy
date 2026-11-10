@@ -139,6 +139,14 @@ describe('T9.3.2 悬浮开关生命周期看门狗（过图误停机修复）', 
 		expect(plugin._floatBtn.style.display).toBe('none');
 	});
 
+	it('T9.9: MapRenderer.loading=true → 按钮第一拍立即隐藏（不迟滞不停机，实体/画布俱在也隐藏）', function () {
+		setupWorld({ entityInManager: true, z0Canvas: true, mapLoading: true }); // 旧逻辑 inGame 可能为真的组合
+		plugin._floatLifecycleTick();
+		expect(plugin._floatBtn.style.display).toBe('none');
+		expect(stopSpy).not.toHaveBeenCalled();
+		expect(plugin.active).toBe(true);
+	});
+
 	it('加载刚完成（loading=false 但实体尚未恢复）→ 仍不停止挂机（返回落地初期不误杀）', function () {
 		setupWorld({ entityInManager: false, z0Canvas: false, mapLoading: false });
 		plugin._floatLifecycleTick();
