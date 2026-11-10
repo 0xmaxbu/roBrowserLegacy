@@ -1,4 +1,8 @@
-// Phase 14 覆盖层示例翻译数据（按 ID 索引；非全量，框架验证用）
+// Phase 14 覆盖层翻译数据（按 ID 索引）
+// monsterName：全量中文怪物名（自 MonsterNameTable.js 合并，2445 条，对实际部署 mob_db 覆盖率 100%）
+// itemName/skillName/skillDescription/message：按需维护的子集，未命中 ID 回退原文
+
+import MONSTER_NAME_TABLE_ZH from 'DB/Monsters/MonsterNameTable.js';
 export const LANG_OVERLAY_DATA = {
     zh: {
         // 物品名（key=物品ID）
@@ -11,8 +15,12 @@ export const LANG_OVERLAY_DATA = {
             2: '增加使用单手剑时的攻击力。',
             3: '增加使用双手剑时的攻击力。'
         },
-        // 怪物名（key=job/怪物ID，ID 取自 rAthena db/re/mob_db.yml）
-        monsterName: { 1002: '波利', 1010: '老树精', 1113: '波波' },
+        // 怪物名（key=job/怪物ID，ID 取自 rAthena mob_db.yml）
+        // 全量中文表合并：数据源 MonsterNameTable.js（ro.dvg.cn 提取）。
+        // 该表经 LangOverlay 进入实体头顶名链路（Entity.js spawn/identity 钩子），
+        // zh 模式显示中文，en 模式回退服务端英文名。样例数据中的错误映射
+        // （1113 '波波'，实际 DROPS=土波利）以 MonsterNameTable 为准，不再保留。
+        monsterName: { ...MONSTER_NAME_TABLE_ZH },
         // UI 消息（key=msgstringtable ID）
         message: {
             // 基础消息（已有）
