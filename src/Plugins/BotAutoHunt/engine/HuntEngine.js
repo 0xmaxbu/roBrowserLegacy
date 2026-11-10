@@ -182,6 +182,8 @@ class HuntEngine {
 		// 同一目标追击超时无进展（自身/目标均未位移）→ 拉黑 15s 恢复巡逻（悬崖/水面对侧怪）
 		this._focusWatch = { gid: 0, since: 0, lastSelfX: 0, lastSelfY: 0, lastTargetX: 0, lastTargetY: 0 };
 		this._mobBlacklist = new Map(); // gid → 解禁时间戳
+		this._scanTarget = null; // T9.6: 本 tick 扫描出的路径可达最优目标
+		this._chaseWalkEnd = null; // T9.6: 追击终点去重（'x,y' 字符串，终点变化时重新校验）
 
 		// ---------- Buff 施法保护（防巡逻移动打断长施法） ----------
 		this._castingUntil = 0;
@@ -471,10 +473,12 @@ class HuntEngine {
 
 		// 3. 飞翅检查 + 巡逻 (#3 fix: 无怪超时才飞翅，否则随机走动)
 		// T9 官方触发器（画面怪数/MVP 登场瞬移）在同一次扫描中判定
+		// T9.6 路径感知：扫描阶段即用客户端寻路评估可达性（与服务端同一套可行走数据），
+		// 不可达怪（跨崖/障碍对侧）当场剔除——不进入追击，也不阻塞无怪回落链
 		{
-			let hasMob = false;
 			let mobCount = 0;
 			let mvpSeen = false;
+			const candidates = []; // { mob, d } 可战候选（拉黑期怪排除，d=与玩家欧氏距离平方）
 			this.bindings.forEachEntity(entity => {
 				if (
 					entity.objecttype === this.bindings.entityTypes.mob &&
@@ -484,16 +488,34 @@ class HuntEngine {
 					// T9.3: 追击拉黑期（不可达目标）不计入 hasMob——否则怪滞留视野时
 					// 无怪回落链（瞬移/飞翅解围）永不触发，角色在盲发期与拉黑期之间永久站立
 					if ((this._mobBlacklist.get(entity.GID) || 0) > Date.now()) return;
-					hasMob = true;
 					mobCount++;
 					if (!mvpSeen && MVP_JOBS.indexOf(entity.job) !== -1) mvpSeen = true;
 					if (this.events.onMobSeen) this.events.onMobSeen(entity.job, currentMap); // T4: 魔物页清单
+					const dx = entity.position[0] - self.position[0];
+					const dy = entity.position[1] - self.position[1];
+					candidates.push({ mob: entity, d: dx * dx + dy * dy });
 				}
 			});
 			// T4: 白名单非空时，名单外魔物不计入 hasMob（"只剩名单外怪 = 无怪"语义）
-			if (hasMob && this._hasWhitelist(currentMap)) {
-				hasMob = this._hasTargetableMob(currentMap);
+			let pool = candidates;
+			if (this._hasWhitelist(currentMap)) {
+				pool = candidates.filter(c => this._isMobTargetable(c.mob, currentMap));
 			}
+			// T9.6: 按欧氏距离升序做寻路评估（单 tick 最多 8 只，防最坏情况主线程超载），
+			// 首个可达（代价>0）即为目标池最优解；全不可达 → hasMob=false → 无怪回落链接管
+			pool.sort((a, b) => a.d - b.d);
+			let evalCount = 0;
+			let scanTarget = null;
+			for (const c of pool) {
+				if (evalCount >= 8) break;
+				evalCount++;
+				if (this.bindings.mobPathCost(c.mob) > 0) {
+					scanTarget = c.mob;
+					break;
+				}
+			}
+			let hasMob = !!scanTarget;
+			this._scanTarget = scanTarget;
 
 			// T9 官方基本设定页触发器：画面内魔物超过 X 只 / MVP 首领登场 → 瞬移（仅挂机图）
 			if (onHuntMap && !this._isOnCooldown('fly_trigger') &&
@@ -507,6 +529,7 @@ class HuntEngine {
 			if (hasMob) {
 				this._lastMobSeenTick = Date.now();
 			} else {
+				this._scanTarget = null; // T9.6: 全不可达，目标池清空
 				// 无怪状态
 				const noMobMs = Date.now() - this._lastMobSeenTick;
 				// T5/T9: 无怪超过设定秒数 → 回落链：登录技能(已学且SP足) → 登录道具 → 随机步行
@@ -550,10 +573,13 @@ class HuntEngine {
 			return;
 		}
 
-		// 4. 获取当前目标，无目标则寻找最近怪物（T4: 白名单非空时只锁名单内魔物）
+		// 4. 获取当前目标：优先本 tick 扫描出的路径可达最优解（T9.6 路径感知），
+		// 兼容分支保留 closestMob/白名单近邻（T4）
 		let target = this.bindings.focusEntity();
 		if (!target || target.isDead() || target.objecttype !== this.bindings.entityTypes.mob || !this._isMobTargetable(target, currentMap)) {
-			if (this._hasWhitelist(currentMap)) {
+			if (this._scanTarget) {
+				target = this._scanTarget;
+			} else if (this._hasWhitelist(currentMap)) {
 				target = this._findClosestTargetableMob(currentMap);
 			} else {
 				target = this.bindings.closestMob();
@@ -575,6 +601,7 @@ class HuntEngine {
 				w.since = now;
 				w.lastSelfX = self.position[0]; w.lastSelfY = self.position[1];
 				w.lastTargetX = target.position[0]; w.lastTargetY = target.position[1];
+				this._chaseWalkEnd = null; // T9.6: 新目标重置追击终点追踪
 			} else {
 				const progressed = Math.abs(self.position[0] - w.lastSelfX) + Math.abs(self.position[1] - w.lastSelfY) > 2 ||
 					Math.abs(target.position[0] - w.lastTargetX) + Math.abs(target.position[1] - w.lastTargetY) > 2;
@@ -582,11 +609,34 @@ class HuntEngine {
 					w.since = now;
 					w.lastSelfX = self.position[0]; w.lastSelfY = self.position[1];
 					w.lastTargetX = target.position[0]; w.lastTargetY = target.position[1];
+					this._chaseWalkEnd = null; // 有位移 = 服务端重新寻路/目标位置变化，下段路径重新校验
 				} else if (now - w.since > 8000) {
 					this._mobBlacklist.set(target.GID, now + 15000);
 					this.bindings.setFocusEntity(null);
 					w.gid = 0;
 					return;
+				}
+
+				// T9.6 追击终点校验（数据驱动）：服务端回包路径终点距目标超过 攻击距离+2 →
+				// 服务端已判定不可达（走到最近可站立点即停），立即清焦点重选（路径感知选目标
+				// 会按可达代价换怪），不盲等 8s 看门狗。终点不变则只判一次（_chaseWalkEnd 去重）。
+				const ep = this.bindings.walkEndpoint();
+				if (ep) {
+					const epKey = ep[0] + ',' + ep[1];
+					if (this._chaseWalkEnd !== epKey) {
+						this._chaseWalkEnd = epKey;
+						const range = self.attackRange > 0 ? self.attackRange : 4; // 未知攻击距离时按近战保守处理
+						const endDist = Math.max(Math.abs(ep[0] - target.position[0]), Math.abs(ep[1] - target.position[1]));
+						if (endDist > range + 2) {
+							this._mobBlacklist.set(target.GID, now + 15000);
+							this.bindings.setFocusEntity(null);
+							w.gid = 0;
+							this._chaseWalkEnd = null;
+							return;
+						}
+					}
+				} else {
+					this._chaseWalkEnd = null; // 无在途路径（已停走/到达），下段路径重新校验
 				}
 			}
 		}

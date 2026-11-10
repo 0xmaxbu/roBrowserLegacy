@@ -302,7 +302,8 @@ class BotAutoHunt {
 					life: life ? { hp: life.hp, hpMax: life.hp_max, sp: life.sp, spMax: life.sp_max } : null,
 					weightPct: Session.max_weight > 0 ? (Session.weight / Session.max_weight) * 100 : null,
 					bodyState: e.bodyState || 0,
-					healthState: e.healthState || 0
+					healthState: e.healthState || 0,
+					attackRange: e.attack_range || 0 // T9.6: 攻击距离（追击终点可达性判定的职业适配）
 				};
 			},
 			mapState() {
@@ -323,6 +324,19 @@ class BotAutoHunt {
 			isWalkable: (x, y) => !!(Altitude.getCellType(x, y) & Altitude.TYPE.WALKABLE),
 			pathSearch: (cx, cy, tx, ty, range, out) => PathFinding.search(cx, cy, tx, ty, range, out),
 			pathSearchLong: (cx, cy, tx, ty, range, out) => PathFinding.searchLong(cx, cy, tx, ty, range, out),
+			// T9.6: 服务端 walk-ack 路径终点（ZC_NOTIFY_PLAYERMOVE 已由 MapEngine 写入 Entity.walk）——
+			// 追击中终点未到目标附近 = 服务端判定不可达（走到最近可站立点即停），一次封包往返即知
+			walkEndpoint() {
+				const e = Session.Entity;
+				if (!e || !e.walk || !(e.walk.total >= 2) || !e.walk.path) return null;
+				return [e.walk.path[e.walk.total - 2], e.walk.path[e.walk.total - 1]];
+			},
+			// T9.6: 客户端寻路代价（0=不可达）——客户端与服务端同一套可行走数据，选目标阶段即可过滤
+			mobPathCost(mob) {
+				const e = Session.Entity;
+				if (!e || !e.position || !mob || !mob.position) return 0;
+				return PathFinding.search(e.position[0], e.position[1], mob.position[0] | 0, mob.position[1] | 0, 0, []);
+			},
 			// —— 动作 ——
 			useItem: id => plugin._useItemById(id),
 			castSkill: (id, lv, gid) => SkillTargetSelection.onUseSkillToId(id, lv, gid),

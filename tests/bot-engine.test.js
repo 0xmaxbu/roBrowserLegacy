@@ -93,6 +93,8 @@ function fakeBindings(state) {
 		sitDown: () => calls.sitDown.push(1), // T9.5
 		standUp: () => calls.standUp.push(1), // T9.5
 		isSitting: () => !!s.sitting, // T9.5
+		walkEndpoint: () => s.walkEndpoint || null, // T9.6: 追击终点（state 覆盖）
+		mobPathCost: mob => (s.mobCosts && mob.GID in s.mobCosts) ? s.mobCosts[mob.GID] : 1, // T9.6: 0=不可达，默认可达 1
 		pickupItem: gid => calls.pickupItem.push(gid),
 		throwItem: (i, c) => calls.throwItem.push([i, c]),
 		chat: m => calls.chat.push(m),
@@ -686,5 +688,88 @@ describe('T9.5 坐下回复 _potionLoopInner/_combatLoopInner', () => {
 		expect(b.calls.moveTo).toEqual([]);
 		expect(b.calls.attack).toEqual([]);
 		expect(e._sitActive).toBe(true); // 仍坐着
+	});
+});
+
+// ---------------------------------------------------------------------
+// T9.6 路径感知目标选择 + 追击终点即时校验
+// ---------------------------------------------------------------------
+
+describe('T9.6 路径感知目标选择（阶段一）', () => {
+	it('近处怪不可达（寻路 0 步）→ 自动换选远处可达怪', () => {
+		const near = fakeMob(3001, 1002, [51, 50]); // 欧氏最近，但不可达
+		const far = fakeMob(3002, 1002, [58, 50]);  // 欧氏较远，可达
+		const { b, e } = makeEngine({
+			self: { gid: 1, dead: false, position: [50, 50], walking: false, amotionBusy: false, life: { hp: 1000, hpMax: 1000, sp: 100, spMax: 100 }, weightPct: 0, bodyState: 0, healthState: 0, attackRange: 1 },
+			entities: [near, far],
+			mobCosts: { 3001: 0, 3002: 8 } // A 不可达，B 代价 8
+		});
+		e._combatLoopInner();
+		expect(e._scanTarget).toBe(far);
+		expect(b.calls.attack).toContain(3002);
+		expect(b.calls.attack).not.toContain(3001);
+	});
+
+	it('全部不可达 → hasMob=false，无怪回落链接管（不追击）', () => {
+		const near = fakeMob(3003, 1002, [51, 50]);
+		const far = fakeMob(3004, 1002, [58, 50]);
+		const { b, e } = makeEngine({
+			self: { gid: 1, dead: false, position: [50, 50], walking: false, amotionBusy: false, life: { hp: 1000, hpMax: 1000, sp: 100, spMax: 100 }, weightPct: 0, bodyState: 0, healthState: 0 },
+			entities: [near, far],
+			mobCosts: { 3003: 0, 3004: 0 },
+			pathResult: 5 // 巡逻目标寻路可达（与怪可达性判定无关；策略1要求 ≥3）
+		});
+		e.applySettings(baseSettings({ flyNoMobs: false })); // 回落=步行巡逻（确定性断言）
+		e._combatLoopInner();
+		expect(e._scanTarget).toBe(null);
+		expect(b.calls.attack).toEqual([]); // 不追击任何怪
+		expect(b.calls.moveTo.length).toBeGreaterThan(0); // 走巡逻步
+	});
+
+	it('可达怪按欧氏序首个命中（单次寻路评估，不全量扫描）', () => {
+		const m1 = fakeMob(3005, 1002, [51, 50]);
+		const { b, e } = makeEngine({
+			self: { gid: 1, dead: false, position: [50, 50], walking: false, amotionBusy: false, life: { hp: 1000, hpMax: 1000, sp: 100, spMax: 100 }, weightPct: 0, bodyState: 0, healthState: 0 },
+			entities: [m1]
+		});
+		e._combatLoopInner();
+		expect(e._scanTarget).toBe(m1);
+		expect(b.calls.attack).toContain(3005);
+	});
+});
+
+describe('T9.6 追击终点即时校验（阶段二）', () => {
+	function chaseEngine(mobPos, endpoint, attackRange) {
+		const mob = fakeMob(3101, 1002, mobPos);
+		return makeEngine({
+			self: { gid: 1, dead: false, position: [50, 50], walking: false, amotionBusy: false, life: { hp: 1000, hpMax: 1000, sp: 100, spMax: 100 }, weightPct: 0, bodyState: 0, healthState: 0, attackRange: attackRange },
+			entities: [mob],
+			walkEndpoint: endpoint
+		});
+	}
+
+	it('终点距怪超过攻击距离+2 → 立即拉黑 15s + 清焦点（不等 8s 看门狗）', () => {
+		const { b, e } = chaseEngine([62, 50], [50, 50], 1); // 服务端把我们留在了 12 格外
+		e._combatLoopInner(); // 选目标 + 发起追击（焦点已设）
+		expect(b._state.focus).not.toBe(null);
+		e._combatLoopInner(); // 下一拍：读 walk 终点 → 不可达判决
+		expect(b.calls.standUp).toEqual([]);
+		expect(e._mobBlacklist.get(3101) || 0).toBeGreaterThan(Date.now() - 60000); // 已拉黑
+		expect(b._state.focus).toBe(null); // 焦点已清
+	});
+
+	it('终点在攻击距离内（正常追击）→ 不拉黑，焦点保持', () => {
+		const { b, e } = chaseEngine([52, 50], [51, 50], 1); // 终点贴脸，正常
+		e._combatLoopInner();
+		e._combatLoopInner();
+		expect(e._mobBlacklist.get(3101) || 0).toBe(0);
+		expect(b._state.focus).not.toBe(null);
+	});
+
+	it('walkEndpoint 为 null（无在途路径）→ 不做判定，8s 看门狗兜底不受影响', () => {
+		const { b, e } = chaseEngine([62, 50], null, 1);
+		e._combatLoopInner();
+		e._combatLoopInner();
+		expect(e._mobBlacklist.get(3101) || 0).toBe(0); // 无终点数据时不误拉黑
 	});
 });
