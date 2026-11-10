@@ -774,6 +774,22 @@ describe('T9.9 返回挂机地图走位失败回退', () => {
 		expect(b.calls.moveTo[3][0]).toBe(firstHop.x); // 回退后直接走传送门格
 		expect(b.calls.moveTo[3][1]).toBe(firstHop.y);
 	});
+
+	it('T9.11: 同图多门选最近（西畔北门落地选 5 格门，而非数组序 53 格门）', () => {
+		const { b, e } = makeEngine({
+			map: { name: 'prt_fild07', loading: false },
+			self: { gid: 1, dead: false, position: [380, 186], walking: false, amotionBusy: false, life: { hp: 1000, hpMax: 1000, sp: 100, spMax: 100 }, weightPct: 0, bodyState: 0, healthState: 0 }
+		});
+		e._huntMapName = 'prt_fild08';
+		for (let i = 0; i < 4; i++) {
+			e._actionCooldowns['return_portal'] = 0;
+			e._returnToHuntMap();
+		}
+		// 首选目标 = 最近门 (385,186) 的延长点 (390,186)，而非数组序 (383,239) 的延长点 (383,244)
+		expect(b.calls.moveTo[0]).toEqual([390, 186]);
+		expect(e._returnDebug.phase).toBe('walk-fail-fallback');
+		expect(b.calls.moveTo[3]).toEqual([385, 186]); // 回退格 = 5 格门而非 53 格门
+	});
 });
 
 describe('T9.6 路径感知目标选择（阶段一）', () => {

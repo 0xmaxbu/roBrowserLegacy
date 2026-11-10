@@ -1368,16 +1368,19 @@ class HuntEngine {
 				return;
 			}
 
-			// BFS — 队列元素: { map, firstX, firstY }（firstX/firstY = 从 currentMap 出发的第一跳传送门）
+			// BFS 找下一跳地图（带父链回溯）——不直接选门，因为同图多门可能
+			// 相距半个地图（如 prt_fild07 西侧 (380,186) 落地时，数组序第一门
+			// (383,239) 距 53 格而 (385,186) 仅距 5 格）
+			const parent = new Map(); // map -> 前驱地图
 			const visited = new Set([currentMap]);
-			const queue = [{ map: currentMap, firstX: null, firstY: null }];
+			const queue = [{ map: currentMap }];
+			let found = false;
 
 			while (queue.length > 0) {
 				const node = queue.shift();
 
-				if (node.map === huntMap && node.firstX !== null) {
-					targetX = node.firstX;
-					targetY = node.firstY;
+				if (node.map === huntMap && node.map !== currentMap) {
+					found = true;
 					break;
 				}
 
@@ -1387,22 +1390,42 @@ class HuntEngine {
 				for (const n of neighbors) {
 					if (visited.has(n.to)) continue;
 					visited.add(n.to);
-					queue.push({
-						map: n.to,
-						firstX: node.firstX !== null ? node.firstX : n.x,
-						firstY: node.firstY !== null ? node.firstY : n.y
-					});
+					parent.set(n.to, node.map);
+					queue.push({ map: n.to });
 				}
 			}
 
 			// 没找到路径 → 原地等待
-			if (targetX === null) {
+			if (!found) {
 				console.warn('[BotAutoHunt] BFS no path from ' + currentMap + ' to ' + huntMap +
 					', warps from currentMap=' + (adj[currentMap] ? adj[currentMap].length : 'NONE'));
 				this._returnDebug = { phase: 'bfs-nopath', from: currentMap, at: Date.now() };
 				if (this.events.onError) this.events.onError('找不到传送门路径: ' + currentMap + ' → ' + huntMap);
 				return;
 			}
+
+			// 回溯到 currentMap 的下一跳地图，再取该方向上离角色最近的门
+			let nextMap = huntMap;
+			while (parent.get(nextMap) !== currentMap) {
+				nextMap = parent.get(nextMap);
+				if (nextMap === undefined) break;
+			}
+			let best = null;
+			let bestD2 = Infinity;
+			for (const p of (adj[currentMap] || [])) {
+				if (p.to !== nextMap) continue;
+				const d2 = (p.x - self.position[0]) * (p.x - self.position[0]) + (p.y - self.position[1]) * (p.y - self.position[1]);
+				if (d2 < bestD2) {
+					bestD2 = d2;
+					best = p;
+				}
+			}
+			if (!best) {
+				this._returnDebug = { phase: 'bfs-nopath', from: currentMap, at: Date.now() };
+				return;
+			}
+			targetX = best.x;
+			targetY = best.y;
 		} catch (e) {
 			console.error('[BotAutoHunt] BFS pathfinding error:', e);
 			this._returnDebug = { phase: 'bfs-error', at: Date.now() };

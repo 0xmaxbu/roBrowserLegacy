@@ -348,6 +348,23 @@ class BotAutoHunt {
 				Network.sendPacket(p);
 			},
 			moveTo(x, y) {
+				// T9.11: 服务端 max_walk_path=17（battle.cpp:8681 默认，battle_conf 未覆盖）——
+				// unit_walktoxy 对 path_len>17 的移动静默拒绝（无回包），远距离目标（如过图
+				// 返回 53 格）永不行走。官方客户端行为是本地寻路后分段发送，这里同款：
+				// 把目标沿本地寻路截断到 ≤14 格；剩余段由调用方重发循环自然接续
+				// （返回 500ms/追击 100ms/巡逻重选），无需维护分段状态机。
+				try {
+					const out = [];
+					const len = PathFinding.search(
+						Session.Entity.position[0] | 0,
+						Session.Entity.position[1] | 0,
+						x | 0, y | 0, 0, out
+					);
+					if (len > 14) {
+						x = out[14 * 2];
+						y = out[14 * 2 + 1];
+					}
+				} catch (_) { /* 寻路失败按原目标发送（服务端拒绀无回包，重发循环接管） */ }
 				const p = new PACKET.CZ.REQUEST_MOVE2();
 				p.dest[0] = x;
 				p.dest[1] = y;
