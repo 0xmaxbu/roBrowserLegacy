@@ -1054,43 +1054,77 @@ class BotAutoHunt {
 	_startFloatLifecyclePoll() {
 		this._floatMiss = 0;
 		this._floatHit = 0;
-		this._floatPoll = setInterval(() => {
-			// 双条件信号（第五轮实测确定，控制台可自行验证：
-			//   Array.from(document.querySelectorAll('body > canvas')).some(c => c.style.zIndex === '0')）
-			// ① playerInWorld：玩家实体已加入 EntityManager（选角/黑屏早段为 false）
-			// ② z0 渲染画布已挂载：Renderer.show()（引擎注释 "Display game"）时才发生，
-			//    此前玩家实体可能早已入列（实测早 ~11.5s），黑屏期两者不同真。
-			const hasEntity = !!(Session.Entity && Session.Entity.GID);
-			const playerInWorld = hasEntity && !!EntityManager.get(Session.Entity.GID);
-			let z0Canvas = false;
-			const canvases = document.querySelectorAll('body > canvas');
-			for (let i = 0; i < canvases.length; i++) {
-				if (canvases[i].style.zIndex === '0') {
-					z0Canvas = true;
-					break;
-				}
+		// T9.3.2: 轮询体提取为方法，测试可直接调用 _floatLifecycleTick()
+		this._floatPoll = setInterval(() => this._floatLifecycleTick(), 500);
+	}
+
+	/**
+	 * 悬浮开关生命周期单次轮询（由 _startFloatLifecyclePoll 每 500ms 调度）。
+	 *
+	 * T9.3.2 修复：过图误停机。
+	 * 现场证据（2026-11-10 玩家复现日志）：踩传送门落地 prt_fild07 后 1s 内被发送
+	 * CZ_BOT_COMMAND cmd1 + '@autoloot 0'，引擎停止 → 过图返回逻辑从未执行，
+	 * 角色在新地图永久站立。根因：地图加载期（Renderer.stop + EntityManager 清空）
+	 * playerInWorld/z0Canvas 必然为 false，冷缓存加载 2~8s 远超 2 次防抖（1s），
+	 * 旧逻辑把「过图加载中」误判成「退出游戏」直接停止挂机。
+	 * 修复：停止挂机只发生在真正回登录/选角界面时（DOM 标记判定），
+	 * 实体/画布信号仅承担按钮可见性；MapRenderer.loading 期间双保险不停止。
+	 * 另修正：#WinLoginV2 选择器从未匹配过任何元素（WinLoginV2.html 根节点 id 是 WinLogin）。
+	 */
+	_floatLifecycleTick() {
+		// ① playerInWorld：玩家实体已加入 EntityManager（选角/黑屏早段/过图加载期为 false）
+		// ② z0 渲染画布已挂载：Renderer.show()（引擎注释 "Display game"）时才发生，
+		//    此前玩家实体可能早已入列（实测早 ~11.5s），黑屏期两者不同真。
+		const hasEntity = !!(Session.Entity && Session.Entity.GID);
+		const playerInWorld = hasEntity && !!EntityManager.get(Session.Entity.GID);
+		let z0Canvas = false;
+		const canvases = document.querySelectorAll('body > canvas');
+		for (let i = 0; i < canvases.length; i++) {
+			if (canvases[i].style.zIndex === '0') {
+				z0Canvas = true;
+				break;
 			}
-			const inGame = playerInWorld && z0Canvas && !document.querySelector('#WinLoginV2');
-			// 调试探针（长期保留：显示时序问题可用 _lastSignal 取分量时间线）
-			this._lastSignal = { inGame: inGame, gid: hasEntity ? Session.Entity.GID : 0, playerInWorld: playerInWorld, z0Canvas: z0Canvas, winLogin: !!document.querySelector('#WinLoginV2') };
-			const btn = this._floatBtn;
-			if (!btn) return;
-			const visible = btn.style.display !== 'none';
-			if (inGame) {
-				this._floatMiss = 0;
-				this._floatHit++;
-				// 2 次连续命中（约 0.5s）才显示：双条件同时成立的稳定态
-				if (!visible && this._floatHit >= 2) btn.style.display = '';
-				return;
+		}
+		// 登录/选角界面 DOM 标记（真实根节点 id，实测确定）：
+		// 登录 WinLogin（旧选择器 #WinLoginV2 不存在于 DOM）；选角按 packetver 命名
+		// charselect(V1) / CharSelectV2 / CharSelectV3(本项目 20191223) / CharSelectV4
+		const winLoginEl = !!document.querySelector('#WinLogin, #WinLoginV2');
+		const charSelectEl = !!document.querySelector('#charselect, #CharSelectV2, #CharSelectV3, #CharSelectV4');
+		const inGame = playerInWorld && z0Canvas && !winLoginEl && !charSelectEl;
+		// 调试探针（长期保留：显示时序问题可用 _lastSignal 取分量时间线）
+		this._lastSignal = {
+			inGame: inGame,
+			gid: hasEntity ? Session.Entity.GID : 0,
+			playerInWorld: playerInWorld,
+			z0Canvas: z0Canvas,
+			winLogin: winLoginEl,
+			charSelect: charSelectEl,
+			mapLoading: !!MapRenderer.loading
+		};
+		const btn = this._floatBtn;
+		if (!btn) return;
+		const visible = btn.style.display !== 'none';
+		if (inGame) {
+			this._floatMiss = 0;
+			this._floatHit++;
+			// 2 次连续命中（约 0.5s）才显示：双条件同时成立的稳定态
+			if (!visible && this._floatHit >= 2) btn.style.display = '';
+			return;
+		}
+		this._floatHit = 0;
+		this._floatMiss++;
+		if (visible && this._floatMiss >= 2) {
+			btn.style.display = 'none';
+			// 停止挂机仅限真正离开游戏世界（回登录/选角界面）；过图加载期
+			// （MapRenderer.loading 或 DOM 无登录/选角标记）绝不停止——T9.3.2 主修复
+			const leftWorld = winLoginEl || charSelectEl;
+			if (this.active && leftWorld && !MapRenderer.loading) {
+				this.stopAutoHunt();
 			}
-			this._floatHit = 0;
-			this._floatMiss++;
-			if (visible && this._floatMiss >= 2) {
-				btn.style.display = 'none';
-				if (this.active) this.stopAutoHunt();
-				if (this._settingsComp) this._settingsComp.remove();
+			if (this._settingsComp && leftWorld) {
+				this._settingsComp.remove();
 			}
-		}, 500);
+		}
 	}
 
 	/** 悬浮开关旁的独立 toast — 不依赖面板，登录/选角界面也可见 */
