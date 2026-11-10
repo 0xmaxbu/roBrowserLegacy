@@ -588,6 +588,14 @@ class HuntEngine {
 			// T9.3: 追击拉黑期内不重选同一目标，落到巡逻步走动（等它走动/离开视野/黑名单过期）
 			if ((this._mobBlacklist.get(target.GID) || 0) > Date.now()) { this._focusWatch.gid = 0; this._patrolStep(); return; }
 			this.bindings.setFocusEntity(target);
+			// T9.6.1: 服务端语义（unit.cpp unit_attack）——行走中的攻击请求只被记为
+			// stepaction（走完当前路径才执行），巡逻走位中发现怪必须显式打断：
+			// moveTo(怪位置) 替换当前步道 + attack 注册 stepaction → 追击立即开始，
+			// 而不是走完 15~24 格巡逻点再开打
+			if (self.walking) {
+				this.bindings.moveTo(target.position[0], target.position[1]);
+				this.bindings.attack(target.GID);
+			}
 		}
 
 		// 4.5 T9.3 不可达目标看门狗：追击无进展（自身与目标均未位移超 2 格）超 8s →
@@ -688,6 +696,17 @@ class HuntEngine {
 			}
 		});
 		return found;
+	}
+
+	/**
+	 * T9.6.1: 怪物入视野事件（壳层包装 EntityManager.add 触发）。
+	 * 立即重跑战斗循环——路径感知选目标/巡逻打断/换怪全决策都在循环内，
+	 * 不等下一个 100ms tick。内部由 active/怪类型/黑名单等既有门控自然过滤。
+	 */
+	notifyMobSpawned(mob) {
+		if (!this.active || !mob) return;
+		if (mob.objecttype !== this.bindings.entityTypes.mob) return;
+		this._combatLoopInner();
 	}
 
 	// =================================================================

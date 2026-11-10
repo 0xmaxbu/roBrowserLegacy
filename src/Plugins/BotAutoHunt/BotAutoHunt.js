@@ -3617,5 +3617,20 @@ class BotAutoHunt {
  */
 export default function BotAutoHuntInit() {
 	new BotAutoHunt();
+	// T9.6.1: 怪物列表可监听——包装 EntityManager 增删接口为事件源，
+	// 新怪进入视野立即触发引擎战斗决策（不等下一个 100ms 战斗循环 tick）。
+	// 移除事件不包装（死亡/消失由下一 tick 扫描自然处理）。
+	const plugin = window.botAutoHunt;
+	if (plugin && plugin.engine && typeof EntityManager.add === 'function' && !EntityManager.__botEventWrapped) {
+		EntityManager.__botEventWrapped = true;
+		const origAdd = EntityManager.add.bind(EntityManager);
+		EntityManager.add = function (entity) {
+			const result = origAdd(entity);
+			try {
+				if (result && plugin.engine.notifyMobSpawned) plugin.engine.notifyMobSpawned(result);
+			} catch (_) { /* 引擎未就绪/地图过渡期忽略 */ }
+			return result;
+		};
+	}
 	return true;
 }
