@@ -622,7 +622,12 @@ class DB {
 			});
 
 			// CheckAttendance
-			if (Configs.get('enableCheckAttendance') && PACKETVER.value >= 20180307) {
+			// 2026-11-11 签到修复：去掉 PACKETVER 门、仅保留 enableCheckAttendance 开关。
+			// 原因：本 init 在登录前运行，而 packetver 配置在 servers[0] 内（顶层无），
+			// 此时 PACKETVER.value 仍为初始 0 → 0 >= 20180307 恒假 → lub 永不加载 →
+			// 签到窗口永远空壳。对齐 mapInfo 先例（"enabled on any version due to
+			// popular demand"）——展示资源加载不依赖协议版本，UI 使用已在别处门控。
+			if (Configs.get('enableCheckAttendance')) {
 				loadAttendanceFile('System/CheckAttendance.lub', null, onLoad());
 			}
 
