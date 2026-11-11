@@ -393,3 +393,20 @@ describe('T9.1 道具设定页', () => {
 		expect(saved.returnVillage.onBuffEmpty).toBe(!before);
 	});
 });
+
+describe('T9.14 分页器翻页滚动复位', () => {
+	it('_switchPotionPage 翻页后调用 resetScroll（共用滚动层残留归零）', () => {
+		const plugin = getPlugin();
+		const resetScroll = vi.fn();
+		const pane = document.createElement('div');
+		plugin._settingsComp = {
+			getPane: () => pane,
+			setPager: vi.fn(),
+			resetScroll: resetScroll
+		};
+		plugin._potionPage = 0;
+		plugin._switchPotionPage(1);
+		expect(plugin._potionPage).toBe(1);
+		expect(resetScroll).toHaveBeenCalledTimes(1);
+	});
+});

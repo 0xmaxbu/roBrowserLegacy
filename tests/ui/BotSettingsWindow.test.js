@@ -173,3 +173,27 @@ describe('SettingsWindow', () => {
 		expect(comp.render()).toContain('botsw-tabbar');
 	});
 });
+
+describe('T9.14 页签/分页滚动复位', () => {
+	it('页签切换后共用滚动层 scrollTop 归零', () => {
+		const root = document.createElement('div');
+		root.innerHTML = buildSettingsHTML(SETTINGS_TABS, '占位');
+		bindSettingsBehavior(root);
+		const wrap = root.querySelector('.botsw-panewrap');
+		// jsdom 无布局（scrollTop 会被 clamp 为 0），实例上覆盖为普通值属性以验证写入
+		Object.defineProperty(wrap, 'scrollTop', { value: 120, writable: true, configurable: true });
+		const tabs = root.querySelectorAll('.botsw-tab');
+		tabs[3].click(); // 切到药水设定
+		expect(wrap.scrollTop).toBe(0);
+	});
+
+	it('behavior.resetScroll() 归零滚动层（分页器翻页复用同一入口）', () => {
+		const root = document.createElement('div');
+		root.innerHTML = buildSettingsHTML(SETTINGS_TABS, '占位');
+		const behavior = bindSettingsBehavior(root);
+		const wrap = root.querySelector('.botsw-panewrap');
+		Object.defineProperty(wrap, 'scrollTop', { value: 80, writable: true, configurable: true });
+		behavior.resetScroll();
+		expect(wrap.scrollTop).toBe(0);
+	});
+});

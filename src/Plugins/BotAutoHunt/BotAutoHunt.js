@@ -1813,6 +1813,9 @@ class BotAutoHunt {
 		if (this._settingsComp && this._settingsComp.setPager) {
 			this._settingsComp.setPager(this._potionPage, 2, d => this._switchPotionPage(d));
 		}
+		if (this._settingsComp && this._settingsComp.resetScroll) {
+			this._settingsComp.resetScroll(); // T9.14: 翻页重置滚动（共用 panewrap 滚动层，内容高度变化后滚动位置残留）
+		}
 	}
 
 	/**

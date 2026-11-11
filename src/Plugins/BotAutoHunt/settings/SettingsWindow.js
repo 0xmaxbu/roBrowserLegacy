@@ -294,7 +294,14 @@ export function bindSettingsBehavior(root, onClose, onReset, onTabChange) {
 			tabEl.classList.toggle('active', i === index);
 			if (panes[i]) panes[i].style.display = i === index ? '' : 'none';
 		});
+		resetScroll(); // T9.14: 页签切换重置滚动（panewrap 为全页签共用滚动层，display 切换不清 scrollTop）
 		if (typeof onTabChange === 'function') onTabChange(index);
+	}
+
+	// T9.14: 滚动复位（页签切换自动调用；分页器翻页由壳层 _switchPotionPage 经返回值调用）
+	function resetScroll() {
+		const wrap = root.querySelector('.botsw-panewrap');
+		if (wrap) wrap.scrollTop = 0;
 	}
 
 	tabs.forEach(function (tabEl, index) {
@@ -359,7 +366,8 @@ export function bindSettingsBehavior(root, onClose, onReset, onTabChange) {
 	return {
 		setActive: setActive,
 		getActiveIndex: function () { return activeIndex; },
-		setPager: setPager
+		setPager: setPager,
+		resetScroll: resetScroll
 	};
 }
 
@@ -404,6 +412,8 @@ export function createSettingsComponent(opts) {
 		Component.getActiveIndex = behavior.getActiveIndex;
 		// T9: 官方分页器（« 1 / 2 »）接线（药水等两页页签使用）
 		Component.setPager = behavior.setPager;
+		// T9.14: 滚动复位（分页器翻页后由壳层调用）
+		Component.resetScroll = behavior.resetScroll;
 	};
 
 	/** 取指定頁籤內容根元素（供外部填充頁籤內容，index 對應 buildSettingsHTML 順序） */
