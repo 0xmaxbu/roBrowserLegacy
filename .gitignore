@@ -8,6 +8,7 @@
 /src/Plugins/*/
 !/src/Plugins/BotAutoHunt/
 !/src/Plugins/BotAutoHunt/data/
+!/src/Plugins/SupportCenter/
 /index.html
 Config.local.js
 /package-lock.json

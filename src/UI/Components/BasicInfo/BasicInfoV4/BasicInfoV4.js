@@ -156,6 +156,13 @@ BasicInfoV4.init = function init() {
 					window.botAutoHunt.toggle();
 				}
 				break;
+			case 'support':
+				// P1 玩家自助：客服中心（Plugins/SupportCenter，工单/订单自查）。
+				// 与 bot 同款 null-safe bridge。
+				if (window.supportCenter && typeof window.supportCenter.toggle === 'function') {
+					window.supportCenter.toggle();
+				}
+				break;
 			}
 		});
 	});
