@@ -565,7 +565,37 @@ function createApiHTML() {
                 50% { opacity: 1; transform: translateY(-4px); }    
             }    
         </style>    
-        <script src="api.js"></script>    
+        <script src="api.js"></script>
+        <script>
+            // 2026-11-11 临时诊断：页面级错误收集器（签到黑屏排查）。
+            // 全局 error / unhandledrejection 直接显示在屏幕顶部，玩家截图即可回报。
+            // 诊断结束后移除本段。
+            (function() {
+                var box = null;
+                var count = 0;
+                function show(msg) {
+                    count++;
+                    if (!box) {
+                        box = document.createElement('div');
+                        box.id = 'err-collector';
+                        box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
+                            'background:rgba(0,0,0,0.85);color:#ff6666;font:12px monospace;' +
+                            'max-height:45%;overflow-y:auto;padding:6px;white-space:pre-wrap;pointer-events:none;';
+                        (document.body || document.documentElement).appendChild(box);
+                    }
+                    var line = document.createElement('div');
+                    line.textContent = '[ERR ' + count + '] ' + msg;
+                    box.appendChild(line);
+                }
+                window.addEventListener('error', function(e) {
+                    show((e.message || 'unknown error') + ' @ ' + (e.filename || '').split('/').pop() + ':' + (e.lineno || 0));
+                });
+                window.addEventListener('unhandledrejection', function(e) {
+                    var r = e.reason && (e.reason.message || e.reason) ? (e.reason.message || String(e.reason)) : 'unknown rejection';
+                    show('promise: ' + r);
+                });
+            })();
+        </script>    
     </head>    
     <body>    
         <div id="ro-preloader">    

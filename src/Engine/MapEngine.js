@@ -743,7 +743,13 @@ function onMapChange(pkt) {
 		}
 
 		if (Configs.get('enableCheckAttendance') && PACKETVER.value >= 20180307) {
-			CheckAttendance.append();
+			// 2026-11-11 签到黑屏加固：入场 UI 追加链内任何签到窗口异常都不允许
+			// 中断后续（ButtonBar/PartyPanel/NOTIFY_ACTORINIT），降级 console.error
+			try {
+				CheckAttendance.append();
+			} catch (e) {
+				console.error('[CheckAttendance] append failed at map entry, skipped:', e);
+			}
 		}
 
 		// D-23: apply persisted layout lock before panels append
