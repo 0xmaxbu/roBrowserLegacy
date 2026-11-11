@@ -48,6 +48,12 @@ onmessage = function receive(event) {
 			FileManager.remoteClient = msg.data;
 			break;
 
+		// Inject per-file hash map (CacheManifest) so getHTTP() can append
+		// ?v=<hash> to asset URLs for CDN cache-busting.
+		case 'SET_VERSION_MAP':
+			FileManager.fileVersionMap = msg.data;
+			break;
+
 		// Save full client and use it
 		case 'CLIENT_INIT':
 			FileSystem.bind('onprogress', function (progress) {

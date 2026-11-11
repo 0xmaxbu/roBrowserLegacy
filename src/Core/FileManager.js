@@ -17,6 +17,7 @@ import Sprite from 'Loaders/Sprite.js';
 import Action from 'Loaders/Action.js';
 import Str from 'Loaders/Str.js';
 import FileSystem from 'Core/FileSystem.js';
+import MojibakeDecoder from 'Utils/MojibakeDecoder.js';
 
 // Load dependencies
 /* global process */
@@ -50,6 +51,15 @@ class FileManager {
 	 * @var {string} http
 	 */
 	static remoteClient = '';
+
+	/**
+	 * Per-file hash map injected from main thread (CacheManifest.init()).
+	 * Keys are normalized paths (lowercased, forward slashes, mojibake-decoded
+	 * to Form C); values are md5 hex strings. getHTTP() consults this map to
+	 * append ?v=<hash> for CDN cache-busting on immutable resources.
+	 * @type {Object<string, string>}
+	 */
+	static fileVersionMap = {};
 
 	/**
 	 * List of Game Archives loads
@@ -254,6 +264,16 @@ class FileManager {
 			url = '/client/' + url;
 		} else {
 			url = FileManager.remoteClient + url;
+		}
+
+		// Append per-file version hash for CDN cache-busting on immutable
+		// resources. filename is forward-slash separated Form A (Latin1
+		// mojibake); normalize to Form C (GBK-mojibake UTF-8) to match the
+		// manifest keys, then lowercase (rAthena GRF paths are case-insensitive).
+		// misses (GRF-only assets) fall through with no query string.
+		const version = FileManager.fileVersionMap[MojibakeDecoder.normalize(filename).toLowerCase()];
+		if (version) {
+			url += '?v=' + version;
 		}
 
 		// Don't load mp3 sounds to avoid blocking the queue

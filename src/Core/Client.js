@@ -19,6 +19,7 @@ import Texture from 'Utils/Texture.js';
 import WebGL from 'Utils/WebGL.js';
 import GraphicsSettings from 'Preferences/Graphics.js';
 import UIThemeManager from 'UI/UIThemeManager.js';
+import CacheManifest from './CacheManifest.js';
 
 class Client {
 	/**
@@ -58,6 +59,12 @@ class Client {
 		// GRF Host config
 		if (remoteClient) {
 			Thread.send('SET_HOST', remoteClient);
+
+			// Fire-and-forget: fetch /file-hashes.json and inject into Worker so
+			// getHTTP() can append ?v=<hash> for immutable CDN cache-busting.
+			// Updates are silent — the browser refresh itself reloads all JS,
+			// so the new manifest + new ?v= URLs are applied automatically.
+			CacheManifest.init(remoteClient);
 		}
 
 		// Save full client

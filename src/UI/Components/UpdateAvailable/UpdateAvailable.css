@@ -1,0 +1,64 @@
+:host {
+	width: 360px;
+	height: 160px;
+	top: 0px;
+	left: 0px;
+}
+
+#update_available {
+	position: absolute;
+	width: 360px;
+	height: 160px;
+	background: #1a1a2e;
+	border: 2px solid #4a4a6a;
+	border-radius: 8px;
+	padding: 20px 24px;
+	box-sizing: border-box;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+	color: #e0e0e0;
+	font-family: 'Microsoft YaHei', 'PingFang SC', 'Malgun Gothic', sans-serif;
+}
+
+#update_available .title {
+	font-size: 16px;
+	font-weight: bold;
+	color: #ffd700;
+	margin-bottom: 12px;
+}
+
+#update_available .message {
+	font-size: 13px;
+	line-height: 1.6;
+	color: #c0c0c0;
+	margin-bottom: 18px;
+}
+
+#update_available .buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+#update_available .btn {
+	padding: 6px 16px;
+	border: 1px solid #5a5a7a;
+	border-radius: 4px;
+	background: #2a2a4e;
+	color: #e0e0e0;
+	font-size: 13px;
+	cursor: pointer;
+	transition: background 0.15s;
+}
+
+#update_available .btn:hover {
+	background: #3a3a6e;
+}
+
+#update_available .btn-reload {
+	background: #4a6a4e;
+	border-color: #6a8a6e;
+}
+
+#update_available .btn-reload:hover {
+	background: #5a7a5e;
+}

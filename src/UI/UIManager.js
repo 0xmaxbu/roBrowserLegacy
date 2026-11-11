@@ -145,7 +145,9 @@ class UIManager {
 		const count = keys.length;
 
 		for (let i = 0; i < count; ++i) {
-			this.components[keys[i]].remove();
+			const component = this.components[keys[i]];
+			if (component.persistent) continue;
+			component.remove();
 		}
 	}
 
