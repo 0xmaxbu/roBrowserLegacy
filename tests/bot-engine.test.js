@@ -1019,3 +1019,61 @@ describe('T9.13 看门狗近战豁免', () => {
 		expect(b._state.focus.GID).toBe(7);
 	});
 });
+
+// ---------------------------------------------------------------------
+// T9.15 终点判定门槛 + 拉黑自愈（"打一下就巡逻"根因修复）
+// ---------------------------------------------------------------------
+
+describe('T9.15 终点判定门槛：追击中/目标移动时终点不具判定效力', () => {
+	it('玩家行走中（追击在途）+ 终点远 + 目标站定 → 不拉黑（门槛跳过，看门狗兜底）', () => {
+		const mob = fakeMob(3101, 1002, [58, 50]); // dist 8 > 4，追击中
+		const { b, e } = makeEngine({ entities: [mob], walkEndpoint: [52, 50] }); // 终点距怪 6 > 1+2
+		e._combatLoopInner(); // 选目标 + 发起追击
+		expect(b._state.focus.GID).toBe(3101);
+		b._state.self.walking = true; // 服务端带位走ing——终点是过期坐标
+		e._combatLoopInner();
+		expect(e._mobBlacklist.get(3101) || 0).toBe(0); // 旧逻辑此处必拉黑
+		expect(b._state.focus.GID).toBe(3101); // 焦点保持，持续攻击
+	});
+
+	it('玩家停走 + 目标移动中（action=WALK 迎面接近）+ 终点远 → 不拉黑', () => {
+		const mob = fakeMob(3102, 1002, [58, 50]);
+		mob.action = mob.ACTION.WALK; // 怪正在跑向我
+		const { b, e } = makeEngine({ entities: [mob], walkEndpoint: [52, 50] });
+		e._combatLoopInner();
+		e._combatLoopInner();
+		expect(e._mobBlacklist.get(3102) || 0).toBe(0);
+		expect(b._state.focus.GID).toBe(3102);
+	});
+
+	it('玩家停走 + 目标站定 + 终点远 → 照常拉黑（不可达确定性信号，主判据保留）', () => {
+		const mob = fakeMob(3103, 1002, [62, 50]); // dist 12，站桩不可达
+		const { b, e } = makeEngine({ entities: [mob], walkEndpoint: [50, 50] }); // 服务端停在原地
+		e._combatLoopInner();
+		e._combatLoopInner();
+		expect(e._mobBlacklist.get(3103) || 0).toBeGreaterThan(Date.now() - 60000);
+		expect(b._state.focus).toBe(null);
+	});
+});
+
+describe('T9.15 拉黑自愈：正在攻击我的怪 + 客户端可达 → 当场解除拉黑', () => {
+	it('拉黑期怪贴身攻击我（cost>0）→ 解除拉黑、恢复接战（误拉黑代价 15s → 1 拍）', () => {
+		const mob = fakeMob(7, 1002, [51, 50]); // 相邻，正在攻击我
+		mob.targetGID = 100;
+		const { b, e } = makeEngine({ entities: [mob] });
+		e._mobBlacklist.set(7, Date.now() + 15000); // 模拟误拉黑
+		e._combatLoopInner();
+		expect(e._mobBlacklist.size).toBe(0); // 自愈
+		expect(b.calls.attack).toContain(7); // 恢复接战
+	});
+
+	it('拉黑期怪想攻击我但客户端判定不可达（cost=0）→ 维持排除（T9.3 冻结保护不变）', () => {
+		const mob = fakeMob(7, 1002, [51, 50]);
+		mob.targetGID = 100;
+		const { b, e } = makeEngine({ entities: [mob], mobCosts: { 7: 0 } });
+		e._mobBlacklist.set(7, Date.now() + 15000);
+		e._combatLoopInner();
+		expect(e._mobBlacklist.get(7)).toBeGreaterThan(Date.now()); // 拉黑保持
+		expect(b.calls.attack).not.toContain(7); // 不接战（无怪回落链语义保留）
+	});
+});

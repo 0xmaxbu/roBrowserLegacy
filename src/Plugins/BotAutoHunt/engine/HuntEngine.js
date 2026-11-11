@@ -502,7 +502,13 @@ class HuntEngine {
 				) {
 					// T9.3: 追击拉黑期（不可达目标）不计入 hasMob——否则怪滞留视野时
 					// 无怪回落链（瞬移/飞翅解围）永不触发，角色在盲发期与拉黑期之间永久站立
-					if ((this._mobBlacklist.get(entity.GID) || 0) > Date.now()) return;
+					// T9.15 拉黑自愈：拉黑语义 = "追击不可达"。正在攻击我的怪若客户端判定可达，
+					// 说明拉黑已过时（贴身铁证），当场解除恢复接战——误拉黑代价从 15s 塔缩到 1 拍；
+					// 不可达（如悬崖对侧想打我但够不着的怪）维持排除，T9.3 无怪回落链语义不变
+					if ((this._mobBlacklist.get(entity.GID) || 0) > Date.now()) {
+						if (entity.targetGID !== myGid || this.bindings.mobPathCost(entity) <= 0) return;
+						this._mobBlacklist.delete(entity.GID);
+					}
 					// T9.12: 反击信号——targetGID===自己（ZC_NOTIFY_ACT，与 T9.8 坐下分支同一读出口）
 					const attacker = entity.targetGID === myGid;
 					if (attacker && hasWhitelist && !this._isMobTargetable(entity, currentMap)) {
@@ -634,7 +640,9 @@ class HuntEngine {
 
 		// 4.5 T9.3 不可达目标看门狗：追击无进展（自身与目标均未位移超 2 格）超 8s →
 		// 判定不可达（悬崖/障碍/水面对侧），拉黑 15s 并清焦点，恢复巡逻与无怪回落链。
-		// 服务端追击到不可达怪的最近可站立点后停走，旧逻辑每 tick 盲发攻击包 → 永久冻结
+		// 服务端追击到不可达怪的最近可站立点后停走，旧逻辑每 tick 盲发攻击包 → 永久冻结。
+		// T9.15 定位：终点校验（确定性信号）为主判据，本看门狗仅为兜底
+		// （丢包/信号缺失等终点校验覆盖不到的边界），不得作为任何问题的唯一处理机制。
 		{
 			const w = this._focusWatch;
 			const now = Date.now();
@@ -674,8 +682,12 @@ class HuntEngine {
 					// T9.6 追击终点校验（数据驱动）：服务端回包路径终点距目标超过 攻击距离+2 →
 					// 服务端已判定不可达（走到最近可站立点即停），立即清焦点重选（路径感知选目标
 					// 会按可达代价换怪），不盲等 8s 看门狗。终点不变则只判一次（_chaseWalkEnd 去重）。
+					// T9.15 判定门槛：终点距离只有当「玩家已停走 且 目标站定」时才是不可达的确证
+					// （= 服务端放弃追击的完整信号）；追击中/目标移动时终点必然滞后于目标位移
+					// （服务端分段重算延迟），提前判定会把正常追击/迎面接近误判为不可达 → 拉黑
+					// 15s → 打一下就巡逻（玩家实测根因）。跳过时看门狗兜底。
 					const ep = this.bindings.walkEndpoint();
-					if (ep) {
+					if (ep && !self.walking && target.action !== target.ACTION.WALK) {
 						const epKey = ep[0] + ',' + ep[1];
 						if (this._chaseWalkEnd !== epKey) {
 							this._chaseWalkEnd = epKey;
