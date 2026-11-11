@@ -126,10 +126,17 @@ CheckAttendance.updateUI = function updateUI() {
 	let current_day = 1;
 	if (_CheckAttendanceInfo.Config) {
 		const regex = /(\d{4})(\d{2})(\d{2})/;
-		const start = regex.exec(_CheckAttendanceInfo.Config.StartDate);
-		const end = regex.exec(_CheckAttendanceInfo.Config.EndDate);
-		const period_string = `Event Period: From ${start[2]}/${start[3]} ~ Until ${end[2]}/${end[3]} (Month/Day) 24:00`;
-		this.ui.find('.top-panel-period').html(period_string);
+		// 2026-11-11 防御：StartDate/EndDate 缺失或格式异常（如 lub 未加载/桥接值
+		// 非预期）时 exec 返回 null，直接取 start[2] 会炸掉窗口渲染——降级为
+		// 跳过日期文案与剩余天数，奖励格照常渲染。
+		const start = regex.exec(String(_CheckAttendanceInfo.Config.StartDate || ''));
+		const end = regex.exec(String(_CheckAttendanceInfo.Config.EndDate || ''));
+		const period_string = start && end
+			? `Event Period: From ${start[2]}/${start[3]} ~ Until ${end[2]}/${end[3]} (Month/Day) 24:00`
+			: '';
+		if (period_string) {
+			this.ui.find('.top-panel-period').html(period_string);
+		}
 
 		if (_checkAttendanceData >= 0) {
 			already_requested = _checkAttendanceData % 10;
@@ -140,12 +147,13 @@ CheckAttendance.updateUI = function updateUI() {
 					? `${attendance_count} Day attendance success`
 					: `Click the item to claim day ${current_day} reward`;
 
-			const end_date = new Date(`${end[1]}-${end[2]}-${end[3]}`);
-			const now_date = new Date();
-			const remaining_days = Math.round(Math.abs((end_date.getTime() - now_date.getTime()) / (1000 * 3600 * 24)));
-
-			this.ui.find('.total-days').html(total_days_string);
-			this.ui.find('.remaining-day-text').html(remaining_days);
+			if (start && end) {
+				const end_date = new Date(`${end[1]}-${end[2]}-${end[3]}`);
+				const now_date = new Date();
+				const remaining_days = Math.round(Math.abs((end_date.getTime() - now_date.getTime()) / (1000 * 3600 * 24)));
+				this.ui.find('.total-days').html(total_days_string);
+				this.ui.find('.remaining-day-text').html(remaining_days);
+			}
 		}
 	}
 

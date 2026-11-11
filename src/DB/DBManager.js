@@ -11,6 +11,7 @@
 import Client from 'Core/Client.js';
 import Configs from 'Core/Configs.js';
 import TextEncoding from 'Utils/CodepageManager.js';
+import FileManager from 'Core/FileManager.js';
 import CLua from 'Vendors/wasmoon-lua5.1.js';
 import JobId from './Jobs/JobConst.js';
 import ClassTable from './Jobs/JobNameTable.js';
@@ -4337,11 +4338,22 @@ function mergeEz2Effects(EffectTable, SkillEffect) {
  * @author alisonrag
  */
 function loadAttendanceFile(filename, callback, onEnd) {
-	Client.loadFile(
-		filename,
-		async function (file) {
+	// 2026-11-11 签到修复：主线程直接 fetch（绕过 Thread/worker 管道——实测该管道
+	// 会静默丢弃本文件的请求，remote-client 日志无任何网络记录），lua 执行
+	// （wasmoon, wasm 内联主线程）行为不变；成功/失败路径都保证 onEnd 触发。
+	// FileManager.remoteClient 仅在 worker 实例中被 SET_HOST 赋值，主线程恒为空串——
+	// 改读 Configs（remoteClient = 'http://<host>:8080/'，见 Config.local.js）
+	const url = (Configs.get('remoteClient') || '') + filename.replace(/\\/g, '/');
+	fetch(url)
+		.then(function (response) {
+			if (!response.ok) {
+				throw new Error('HTTP ' + response.status);
+			}
+			return response.arrayBuffer();
+		})
+		.then(async function (buffer) {
 			try {
-				const buffer = new Uint8Array(file);
+				const bytes = new Uint8Array(buffer);
 				// get context, a proxy. It will be used to interact with lua conveniently
 				const ctx = lua.ctx;
 				// create CheckAttendance required functions in context
@@ -4352,10 +4364,9 @@ function loadAttendanceFile(filename, callback, onEnd) {
 				};
 				ctx.InsertCheckAttendanceReward = (day, item_id, quantity) => {
 					CheckAttendanceTable.Rewards[day - 1] = { day: day, item_id: item_id, quantity: quantity };
-					return 1;
 				};
 				// mount file
-				lua.mountFile('CheckAttendance.lub', buffer);
+				lua.mountFile('CheckAttendance.lub', bytes);
 				// execute file
 				await lua.doFile('CheckAttendance.lub');
 				// execute main lua function
@@ -4368,9 +4379,11 @@ function loadAttendanceFile(filename, callback, onEnd) {
 				// call onEnd
 				onEnd();
 			}
-		},
-		onEnd
-	);
+		})
+		.catch(function (error) {
+			console.error('[loadAttendanceFile] Fetch failed: ', error);
+			onEnd();
+		});
 }
 
 /**
