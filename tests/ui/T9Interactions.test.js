@@ -427,3 +427,56 @@ describe('T9.16 悬浮开关层级（窗口层应遮挡按钮）', () => {
 		toast.remove();
 	});
 });
+
+describe('悬浮开关状态图标（粉=停止 / 蓝=挂机中）', () => {
+	function freshBtn(plugin) {
+		if (plugin._floatBtn) plugin._floatBtn.remove();
+		plugin._floatBtn = null;
+		plugin._createFloatingButton();
+		return document.getElementById('bot-float-btn');
+	}
+	function getIcons(btn) {
+		return {
+			pink: btn.querySelector('.bot-btn-icon-pink'),
+			blue: btn.querySelector('.bot-btn-icon-blue')
+		};
+	}
+
+	it('startAutoHunt 成功路径切换到蓝色图标（回归：成功路径从不刷新图标）', () => {
+		const plugin = getPlugin();
+		let engineStub = { active: false, applySettings: vi.fn() };
+		engineStub.start = vi.fn(() => { engineStub.active = true; });
+		engineStub.stop = vi.fn(() => { engineStub.active = false; });
+		plugin.engine = engineStub;
+		Session.Entity = { GID: 1 };
+		vi.spyOn(plugin, '_getCurrentMapName').mockReturnValue('prt_fild08');
+		vi.spyOn(plugin, 'sendCommand').mockReturnValue(true);
+		vi.spyOn(plugin, '_hookInventoryAdd').mockImplementation(() => {});
+		vi.spyOn(plugin, '_sendChat').mockImplementation(() => {});
+		const btn = freshBtn(plugin);
+		const { pink, blue } = getIcons(btn);
+		expect(pink.style.display).not.toBe('none');   // 初始粉色可见
+		plugin.startAutoHunt();
+		expect(pink.style.display).toBe('none');       // 粉隐藏
+		expect(blue.style.display).toBe('block');      // 蓝显示
+		btn.remove();
+		plugin._floatBtn = null;
+	});
+
+	it('stopAutoHunt 成功路径切回粉色图标', () => {
+		const plugin = getPlugin();
+		let engineStub = { active: true, applySettings: vi.fn() };
+		engineStub.start = vi.fn(() => { engineStub.active = true; });
+		engineStub.stop = vi.fn(() => { engineStub.active = false; });
+		plugin.engine = engineStub;
+		vi.spyOn(plugin, 'sendCommand').mockReturnValue(true);
+		vi.spyOn(plugin, '_sendChat').mockImplementation(() => {});
+		const btn = freshBtn(plugin);
+		const { pink, blue } = getIcons(btn);
+		plugin.stopAutoHunt();
+		expect(pink.style.display).toBe('block');      // 粉恢复
+		expect(blue.style.display).toBe('none');       // 蓝隐藏
+		btn.remove();
+		plugin._floatBtn = null;
+	});
+});

@@ -3237,6 +3237,9 @@ class BotAutoHunt {
 		this._hookInventoryAdd(); // T6: 拾取结果校验钩子（开设置窗口之外也要生效）
 		// 自动开启 @autoloot — 聊天封包格式必须是 "角色名 : 消息"
 		this._sendChat('@autoloot');
+		// 同步悬浮开关状态图标（粉→蓝）。修复：成功路径从不刷新图标，
+		// 旧绿色描边因此也只在死亡/回退路径出现（2026-11-11 用户报告）
+		this._updateFloatBtnState();
 	}
 
 	stopAutoHunt() {
@@ -3244,6 +3247,8 @@ class BotAutoHunt {
 		if (!this.sendCommand(1)) return;
 		this.engine.stop();
 		this._sendChat('@autoloot 0');
+		// 同步悬浮开关状态图标（蓝→粉），同 startAutoHunt 修复
+		this._updateFloatBtnState();
 	}
 
 	startOffline() {
