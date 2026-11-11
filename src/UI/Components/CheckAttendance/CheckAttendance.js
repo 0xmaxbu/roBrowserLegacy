@@ -48,6 +48,17 @@ const _preferences = Preferences.get(
 );
 
 /**
+ * UIOpen (ZC.UI_OPEN type 7) 前置调用（上游接口约定）。
+ * 上游 MrAntares/UIOpen.js 会调用本方法但组件从未定义它——服务端签到活动
+ * 生效后每次入场都会触发，TypeError 打断入场封包链导致加载完成即黑屏
+ * （2026-11-11 玩家实测）。本组件完整初始化在 append() 生命周期内完成，
+ * 这里仅重置数据标志，保证 prepare→setData→append 链路幂等。
+ */
+CheckAttendance.prepare = function prepare() {
+	_checkAttendanceData = undefined;
+};
+
+/**
  * Initialize the component (event listener, etc.)
  */
 CheckAttendance.init = function init() {
@@ -152,6 +163,10 @@ CheckAttendance.updateUI = function updateUI() {
 	if (_CheckAttendanceInfo.Rewards) {
 		for (let i = 0; i < 20; i++) {
 			const item = DB.getItemInfo(_CheckAttendanceInfo.Rewards[i].item_id);
+			// 2026-11-11 防御：客户端物品表缺失该 id 时跳过该格，不允许 TypeError 炸掉窗口渲染
+			if (!item) {
+				continue;
+			}
 			const day = i + 1;
 			const background =
 				!already_requested && day == current_day

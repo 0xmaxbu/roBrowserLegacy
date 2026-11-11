@@ -39,32 +39,39 @@ function onUIOpen(pkt) {
 	//    8 = ENCHANTGRADE_UI
 	//    9 = CHANGE_MATERIAL_UI
 	//    10 = ENCHANT_UI
-
-	switch (pkt.ui_type) {
-		case 7:
-			if (Configs.get('enableCheckAttendance') && PACKETVER.value >= 20180307) {
-				CheckAttendance.prepare();
-				CheckAttendance.setData(pkt.data);
-				CheckAttendance.cleanUI();
-				CheckAttendance.append();
-				CheckAttendance.ui.show();
-				CheckAttendance.ui.focus();
-			}
-			break;
-		case 8:
-			if (PACKETVER.value >= 20200724) {
-				EnchantGradeUI.prepare();
-				EnchantGradeUI.onOpenEnchantGradeUI();
-			}
-			break;
-		case 10:
-			if (PACKETVER.value >= 20211103) {
-				EnchantUI.prepare();
-				EnchantUI.onOpenEnchantUI(pkt.data);
-			}
-			break;
-		default:
-			console.error(`[PACKET.ZC.UI_OPEN] not implemented (${pkt.ui_type})`);
+	//
+	// 2026-11-11 签到黑屏加固：本 handler 在地图入场封包链内同步执行，服务端活动
+	// 生效后每次入场都会推送（如 ZC_UI_OPEN(7)）。装饰性 UI 的任何异常都不允许
+	// 炸掉入场序列（曾因 CheckAttendance.prepare 缺失 TypeError 致加载完成即黑屏）。
+	try {
+		switch (pkt.ui_type) {
+			case 7:
+				if (Configs.get('enableCheckAttendance') && PACKETVER.value >= 20180307) {
+					CheckAttendance.prepare();
+					CheckAttendance.setData(pkt.data);
+					CheckAttendance.cleanUI();
+					CheckAttendance.append();
+					CheckAttendance.ui.show();
+					CheckAttendance.ui.focus();
+				}
+				break;
+			case 8:
+				if (PACKETVER.value >= 20200724) {
+					EnchantGradeUI.prepare();
+					EnchantGradeUI.onOpenEnchantGradeUI();
+				}
+				break;
+			case 10:
+				if (PACKETVER.value >= 20211103) {
+					EnchantUI.prepare();
+					EnchantUI.onOpenEnchantUI(pkt.data);
+				}
+				break;
+			default:
+				console.error(`[PACKET.ZC.UI_OPEN] not implemented (${pkt.ui_type})`);
+		}
+	} catch (e) {
+		console.error('[PACKET.ZC.UI_OPEN] UI open failed, skipped to protect map entry:', e);
 	}
 }
 
