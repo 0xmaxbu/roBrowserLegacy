@@ -14,7 +14,7 @@ import GUIComponent from 'UI/GUIComponent.js';
 import htmlText from './MapName.html?raw';
 import cssText from './MapName.css?raw';
 import Client from 'Core/Client.js';
-import Events from 'Core/Events.js';
+import LangOverlay from 'DB/LangOverlay.js';
 
 /**
  * Create Component
@@ -61,25 +61,40 @@ MapName.init = function init() {};
  * Append MapName
  */
 MapName.onAppend = function onAppend() {
-	if (_fadeTimeoutId !== null) Events.clearTimeout(_fadeTimeoutId);
-	if (_removeTimeoutId !== null) Events.clearTimeout(_removeTimeoutId);
+	if (_fadeTimeoutId !== null) clearTimeout(_fadeTimeoutId);
+	if (_removeTimeoutId !== null) clearTimeout(_removeTimeoutId);
 	_fadeTimeoutId = null;
 	_removeTimeoutId = null;
 
 	if (_mapinfo && _mapinfo.notifyEnter && _newMap) {
-		// Force browser to acknowledge opacity:0 from :host before transitioning
-		// eslint-disable-next-line no-unused-expressions
-		this._host.offsetHeight;
-
+		// Show instantly WITHOUT a CSS transition. requestAnimationFrame is
+		// throttled during heavy map loading (WebGL init / asset processing
+		// blocks the main thread), so a rAF-based or transition-based show is
+		// delayed by ~1s+ and then immediately cancelled by the 5s fade-out
+		// timer -> the box never becomes visible. Instead: disable transition,
+		// jump to opacity:1, force a reflow to commit it, then re-enable the
+		// transition so the 5s fade-out still animates.
+		this._host.style.transition = 'none';
 		this._host.style.opacity = '1';
+		// Render above the Background loading blackout (z-index 1000) so the
+		// name stays visible while the loading screen fades out on heavy maps
+		// (cities). The value is harmless to keep between show/hide cycles.
+		this._host.style.zIndex = '1001';
+		void this._host.offsetHeight; // commit the shown state
+		this._host.style.transition = '';
 
-		// After 5s, start fade-out (CSS transition handles the animation)
-		_fadeTimeoutId = Events.setTimeout(() => {
+		// NOTE: use the GLOBAL setTimeout (wall-clock time), NOT Events.setTimeout.
+		// Events.setTimeout schedules against the render-loop tick (_tick), which
+		// is FROZEN while the main render loop is paused during map loading. Since
+		// onAppend runs immediately after loading, _tick is stale by the load
+		// duration, so Events.setTimeout(fn, 5000) fires almost instantly once the
+		// loop resumes -> the box vanished in 0.1-1.8s instead of staying 5s.
+		_fadeTimeoutId = window.setTimeout(() => {
 			this._host.style.opacity = '0';
 		}, 5000);
 
 		// After 6s (5s wait + 1s CSS transition), remove
-		_removeTimeoutId = Events.setTimeout(() => {
+		_removeTimeoutId = window.setTimeout(() => {
 			MapName.remove();
 		}, 6000);
 	} else {
@@ -103,7 +118,17 @@ MapName.setMap = function setMap(mapname) {
 	_currMap = mapname;
 	_newMap = _currMap !== _prevMap;
 
-	_mapinfo = DB.getMapInfo(mapname.replace('.gat', '.rsw'));
+	const rswName = mapname.replace('.gat', '.rsw');
+	_mapinfo = DB.getMapInfo(rswName);
+
+	// i18n overlay: when a Chinese map sign-name exists, use it (mainTitle as
+	// the big place name, subTitle as the small region/description line, like
+	// the original English layout). Otherwise fall back to signName.
+	const mapsignoverlay = LangOverlay.getMapSignName(rswName, null);
+	const signMainTitle = mapsignoverlay ? (mapsignoverlay.mainTitle || '')
+		: (_mapinfo && _mapinfo.signName ? _mapinfo.signName.mainTitle : '');
+	const signSubTitle = mapsignoverlay ? (mapsignoverlay.subTitle || '')
+		: (_mapinfo && _mapinfo.signName ? _mapinfo.signName.subTitle : '');
 
 	const mapbg = root.querySelector('.mapbg');
 	if (_mapinfo && _mapinfo.backgroundBmp) {
@@ -115,18 +140,10 @@ MapName.setMap = function setMap(mapname) {
 	}
 
 	const mapsubtitle = root.querySelector('.mapsubtitle');
-	if (_mapinfo && _mapinfo.signName && _mapinfo.signName.subTitle) {
-		mapsubtitle.textContent = _mapinfo.signName.subTitle;
-	} else {
-		mapsubtitle.textContent = '';
-	}
+	mapsubtitle.textContent = signSubTitle || '';
 
 	const maptitle = root.querySelector('.maptitle');
-	if (_mapinfo && _mapinfo.signName && _mapinfo.signName.mainTitle) {
-		maptitle.textContent = _mapinfo.signName.mainTitle;
-	} else {
-		maptitle.textContent = '';
-	}
+	maptitle.textContent = signMainTitle || '';
 };
 
 /**
