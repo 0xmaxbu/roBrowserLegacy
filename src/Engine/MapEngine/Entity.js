@@ -1422,7 +1422,7 @@ function onEntityUseSkill(pkt) {
 
 		// Steal Coin zeny
 		if (pkt.SKID === SkillId.RG_STEALCOIN) {
-			ChatBox.addText('You got ' + pkt.level + ' zeny.', ChatBox.TYPE.BLUE, ChatBox.FILTER.ITEM);
+			ChatBox.addText(DB.getMessage(6400, 'You got {0} zeny.').replace('{0}', pkt.level), ChatBox.TYPE.BLUE, ChatBox.FILTER.ITEM);
 		}
 
 		if (pkt.SKID === SkillId.GC_ROLLINGCUTTER) {
@@ -2599,13 +2599,13 @@ function onNotifyExp(pkt) {
 		case 1:
 			if (pkt.varID === 1) {
 				ChatBox.addText(
-					'Experience gained from Quest, Base:' + pkt.amount,
+					DB.getMessage(6404, 'Experience gained from Quest, Base:{0}').replace('{0}', pkt.amount),
 					null,
 					ChatBox.FILTER.EXP,
 					'#A442DC'
 				);
 			} else if (pkt.varID === 2) {
-				ChatBox.addText('Experience gained from Quest, Job:' + pkt.amount, null, ChatBox.FILTER.EXP, '#A442DC');
+				ChatBox.addText(DB.getMessage(6401, 'Experience gained from Quest, Job:{0}').replace('{0}', pkt.amount), null, ChatBox.FILTER.EXP, '#A442DC');
 			}
 			break;
 	}
@@ -2628,7 +2628,7 @@ function onMarkMvp(pkt) {
 			}*/
 	}
 	if (pkt.infoType == 0) {
-		ChatBox.addText('Boss monster not found.', ChatBox.TYPE.ERROR, ChatBox.FILTER.PUBLIC_LOG);
+		ChatBox.addText(DB.getMessage(6402, 'Boss monster not found.'), ChatBox.TYPE.ERROR, ChatBox.FILTER.PUBLIC_LOG);
 	}
 }
 

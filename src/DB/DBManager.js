@@ -2957,9 +2957,10 @@ class DB {
 	static getQuestInfo(questID) {
 		return (
 			QuestInfo[questID] || {
-				Title: 'Unknown Quest',
+				// i18n: msgstringtable 6011（zh 覆盖见 LangOverlayData）
+				Title: DB.getMessage(6011, 'Unknown Quest'),
 				Description: [],
-				Summary: 'Uknown Quest',
+				Summary: DB.getMessage(6011, 'Unknown Quest'),
 				IconName: '',
 				NpcSpr: null,
 				NpcNavi: null,

@@ -124,7 +124,7 @@ InputBox.setType = function setType(type, isPersistent, defaultVal, itemId = nul
 
 		case 'price':
 			this.ui.addClass('number');
-			this.ui.find('.text').text('Input Price');
+			this.ui.find('.text').text(DB.getMessage(6200, 'Input Price'));
 			this.ui.find('input').attr('type', 'text');
 			defaultVal = defaultVal || 0;
 			break;
@@ -137,7 +137,7 @@ InputBox.setType = function setType(type, isPersistent, defaultVal, itemId = nul
 
 		case 'shopname':
 			this.ui.removeClass('number');
-			this.ui.find('.text').text('Input your Shop Name');
+			this.ui.find('.text').text(DB.getMessage(6201, 'Input your Shop Name'));
 			this.ui.find('input').attr('type', 'text');
 			break;
 

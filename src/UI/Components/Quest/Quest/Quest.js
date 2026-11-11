@@ -215,10 +215,16 @@ Quest.updateMissionHunt = function updateMissionHunt(hunt_info, questID, huntID)
 
 	const mob_name = _questList[questID].hunt_list[huntID].mobName;
 	const quest_info = DB.getQuestInfo(questID);
-	const chat_quest_text = `Mission [${quest_info.Title}], you killed [${mob_name}]. (${_questList[questID].hunt_list[huntID].huntCount}/${_questList[questID].hunt_list[huntID].maxCount})`;
+	// i18n: msgstringtable 6008（zh 覆盖见 LangOverlayData，{0}-{3} 占位）
+	const chat_quest_text = DB
+		.getMessage(6008, 'Mission [{0}], you killed [{1}]. ({2}/{3})')
+		.replace('{0}', quest_info.Title)
+		.replace('{1}', mob_name)
+		.replace('{2}', _questList[questID].hunt_list[huntID].huntCount)
+		.replace('{3}', _questList[questID].hunt_list[huntID].maxCount);
 	let self_msg;
 	if (_questList[questID].hunt_list[huntID].maxCount == _questList[questID].hunt_list[huntID].huntCount) {
-		self_msg = `${mob_name} [Completed]`;
+		self_msg = `${mob_name} [${DB.getMessage(6009, 'Completed')}]`;
 	} else {
 		self_msg = `${mob_name} [${_questList[questID].hunt_list[huntID].huntCount}/${_questList[questID].hunt_list[huntID].maxCount}]`;
 	}

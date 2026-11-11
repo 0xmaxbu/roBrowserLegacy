@@ -141,7 +141,7 @@ CaptchaAnswer.onRemove = function OnRemove() {
 
 	// clean inputs
 	this.ui.find('.image_container').empty();
-	this.ui.find('.retry_count').text('Remaining chance: 0');
+	this.ui.find('.retry_count').text(DB.getMessage(6501, 'Remaining chance: 0'));
 	this.ui.find('.timer_text').text('0');
 	this.ui.find('.error_text').text('');
 

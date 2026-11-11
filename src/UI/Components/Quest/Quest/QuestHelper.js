@@ -226,7 +226,7 @@ QuestHelper.setQuestInfo = function setQuestInfo(quest) {
 	if (quest.end_time) {
 		const d = new Date(0);
 		d.setUTCSeconds(quest.end_time);
-		QuestHelper.ui.find('.quest-info-bottom-deadline-info-text').html('Deadline [' + d.toLocaleString() + ']');
+		QuestHelper.ui.find('.quest-info-bottom-deadline-info-text').html(DB.getMessage(6010, 'Deadline: {0}').replace('{0}', d.toLocaleString()));
 	}
 };
 

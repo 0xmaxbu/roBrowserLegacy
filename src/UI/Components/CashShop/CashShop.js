@@ -354,8 +354,8 @@ CashShop.setSuccessCashShopUpdate = function setSuccessCashShopUpdate(res) {
 
 			case 4:
 				//overweight limit
-				UIManager.showMessageBox("You are over you're weight limit!", 'ok');
-				ChatBox.addText('You are over youre weight limit!', ChatBox.TYPE.ERROR, ChatBox.FILTER.PUBLIC_LOG);
+				UIManager.showMessageBox(DB.getMessage(5019, "You are over your weight limit!"), 'ok');
+				ChatBox.addText(DB.getMessage(5019, 'You are over your weight limit!'), ChatBox.TYPE.ERROR, ChatBox.FILTER.PUBLIC_LOG);
 				break;
 
 			default:
@@ -624,14 +624,14 @@ function onClickActionCounterButtonCart(e) {
 	const itemCart = CashShop.cartItem.find(i => i.itemId === itemId);
 
 	if (itemCart.amount >= 99 && counter === 'up') {
-		UIManager.showMessageBox('Max Quantity 99!', 'ok');
-		ChatBox.addText('Max Quantity 99!', ChatBox.TYPE.ERROR, ChatBox.FILTER.PUBLIC_LOG);
+		UIManager.showMessageBox(DB.getMessage(5017, 'Max Quantity 99!'), 'ok');
+		ChatBox.addText(DB.getMessage(5017, 'Max Quantity 99!'), ChatBox.TYPE.ERROR, ChatBox.FILTER.PUBLIC_LOG);
 		return;
 	}
 
 	if (itemCart.amount <= 1 && counter === 'down') {
-		UIManager.showMessageBox('Minimum Quantity 1!', 'ok');
-		ChatBox.addText('Minimum Quantity 1!', ChatBox.TYPE.ERROR, ChatBox.FILTER.PUBLIC_LOG);
+		UIManager.showMessageBox(DB.getMessage(5018, 'Minimum Quantity 1!'), 'ok');
+		ChatBox.addText(DB.getMessage(5018, 'Minimum Quantity 1!'), ChatBox.TYPE.ERROR, ChatBox.FILTER.PUBLIC_LOG);
 		return;
 	}
 
@@ -723,8 +723,8 @@ function addItemToCart(itemId, amount = 1) {
 	}
 
 	if (item.amount >= 99) {
-		UIManager.showMessageBox('Max Quantity 99!', 'ok');
-		ChatBox.addText('Max Quantity 99!', ChatBox.TYPE.ERROR, ChatBox.FILTER.PUBLIC_LOG);
+		UIManager.showMessageBox(DB.getMessage(5017, 'Max Quantity 99!'), 'ok');
+		ChatBox.addText(DB.getMessage(5017, 'Max Quantity 99!'), ChatBox.TYPE.ERROR, ChatBox.FILTER.PUBLIC_LOG);
 		return;
 	}
 

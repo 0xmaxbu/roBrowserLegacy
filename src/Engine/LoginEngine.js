@@ -29,6 +29,7 @@ import LangOverlay from 'DB/LangOverlay.js';
 import { getTranslation } from 'DB/NpcTranslateTable.js';
 import SkillInfo from 'DB/Skills/SkillInfo.js';
 import UIManager from 'UI/UIManager.js';
+import GUIComponent from 'UI/GUIComponent.js';
 import ChatBox from 'UI/Components/ChatBox/ChatBox.js';
 import WinList from 'UI/Components/WinList/WinList.js';
 import WinPopup from 'UI/Components/WinPopup/WinPopup.js';
@@ -296,6 +297,28 @@ class LoginEngine {
 			}
 		} catch (e) {
 			// SkillList 未注册/未打开
+		}
+
+		// 3.5 UI 文本实时刷新：重跑已挂载组件的 data-text 节点（Phase 14.6）
+		// parseHTML 只在组件挂载时执行一次；不重跑的话，已打开窗口
+		// （任务/商城/基础信息等）的 data-text 文本会保持切换前语言。
+		// 仅处理 data-text 节点，避免重新拉取 data-background 图片。
+		try {
+			Object.values(UIManager.components).forEach(component => {
+				try {
+					const root = component.ui && component.ui[0];
+					if (!root || !root.isConnected) {
+						return;
+					}
+					root.querySelectorAll('[data-text]').forEach(node => {
+						GUIComponent.processDataAttrs(node);
+					});
+				} catch (e) {
+					// 单个组件失败不影响其余组件刷新
+				}
+			});
+		} catch (e) {
+			// UIManager 未初始化
 		}
 
 		// 4. 同步到服务端 @langtype（NPC 对话语言由服务端 F_MSG 控制）

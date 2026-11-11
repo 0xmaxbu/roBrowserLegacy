@@ -1158,7 +1158,7 @@ function refreshActionContent() {
 					EnchantState.selectedSlot = selectedEntry.slotNum;
 					Enchant.ui
 						.find('.upgrade_result')
-						.text('Result: ' + (selectedEntry.entry.result ? selectedEntry.entry.result.base : ''));
+						.text(DB.getMessage(6502, 'Result: ') + (selectedEntry.entry.result ? selectedEntry.entry.result.base : ''));
 					renderCosts(100000, selectedEntry.entry.zeny, selectedEntry.entry.materials);
 					actionReady =
 						availability.upgrade && canAffordCost(selectedEntry.entry.zeny, selectedEntry.entry.materials);

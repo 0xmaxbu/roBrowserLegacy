@@ -14,6 +14,8 @@ class LangOverlay {
     static getSkillDescription(id, fallback) { return this._get('skillDescription', id) ?? fallback; }
     static getMonsterName(id, fallback) { return this._get('monsterName', id) ?? fallback; }
     static getMessage(id, fallback) { return this._get('message', id) ?? fallback; }
+    // 地图名称特效（MapName）：返回 {mainTitle, subTitle?} 对象或 null
+    static getMapSignName(mapname, fallback) { return this._get('mapSignName', mapname) ?? fallback; }
 
     // 物品数量单位（全局，非 per-ID，不入 LANG_OVERLAY_DATA）
     static getItemUnit(fallback = ' ea') {

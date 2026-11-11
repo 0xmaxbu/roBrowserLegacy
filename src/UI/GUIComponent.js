@@ -94,6 +94,7 @@ class GUIComponent {
 
 		this.mouseMode = MouseMode.STOP;
 		this.needFocus = true;
+		this.persistent = false; // Survives UIManager.removeComponents()
 		this.manager = null; // Set by UIManager.addComponent()
 
 		this.__loaded = false;
@@ -956,8 +957,20 @@ class GUIComponent {
 		};
 
 		// Localized text
-		if (msgId && _DB?.getMessage(msgId, '')) {
-			node.textContent = _DB?.getMessage(msgId, '');
+		if (msgId) {
+			// i18n: data-text 节点双语重绘。
+			// 首次解析时保留 HTML 内的英文原文（dataset.origText）作为回退：
+			// zh 命中 LangOverlay 覆盖；en 未命中时 getMessage 返回空串，
+			// 若不回滚会把上一次 zh 渲染的中文残留在节点上（语言切换来回时不还原）。
+			const msg = _DB?.getMessage(msgId, '');
+			if (msg) {
+				if (node.dataset.origText === undefined) {
+					node.dataset.origText = node.textContent;
+				}
+				node.textContent = msg;
+			} else if (node.dataset.origText !== undefined) {
+				node.textContent = node.dataset.origText;
+			}
 		}
 
 		// Default background

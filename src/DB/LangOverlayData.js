@@ -2,8 +2,9 @@
 // monsterName：MonsterNameTable.js 合并（2445 键，ID 对部署怪 2183 覆盖 100%；
 // 但值仅 202 条中文，其余为英文回退显示原文，待批2 补全）
 // itemName/skillName/skillDescription/message：按需维护的子集，未命中 ID 回退原文
-
+import MAP_SIGN_NAME_OVERLAY_ZH from 'DB/Map/MapSignNameOverlay_zh.js';
 import MONSTER_NAME_TABLE_ZH from 'DB/Monsters/MonsterNameTable.js';
+
 export const LANG_OVERLAY_DATA = {
     zh: {
         // 物品名（key=物品ID）
@@ -21,6 +22,9 @@ export const LANG_OVERLAY_DATA = {
         // ID 键覆盖部署怪 2183/2183；值仅 202 条中文（其余英文，显示原文），
         // 2026-11-10 复核修正（此前误报覆盖率 100%）。补全跟踪：docs/research/npc-name-translation/
         monsterName: { ...MONSTER_NAME_TABLE_ZH },
+        // 地图名称特效（MapName）覆盖（key=mapname.rsw，value={mainTitle,subTitle?}）
+        // 数据来源: DB/Map/MapSignNameOverlay_zh.js（从 MapTable.js displayName 提取）
+        mapSignName: MAP_SIGN_NAME_OVERLAY_ZH,
         // UI 消息（key=msgstringtable ID）
         message: {
             // 基础消息（已有）
@@ -179,6 +183,10 @@ export const LANG_OVERLAY_DATA = {
             5014: '现金点数',
             5015: '购买',
             5016: '搜索物品',
+            // CashShop JS 动态提示（2026-11-10 UI 硬编码接入，审计编号 U3）
+            5017: '数量上限为 99！',
+            5018: '数量至少为 1！',
+            5019: '已超过负重上限！',
 
             // 5500-5999: BasicInfoV4 UI
             5500: '状态窗 (Alt + A)',
@@ -201,7 +209,38 @@ export const LANG_OVERLAY_DATA = {
             5517: '签到',
             5518: '冒险者公会 (Ctrl + Z)',
             5519: '自动战斗',
-            5520: '挂机'
+            5520: '挂机',
+
+            // 6000-6099: Quest UI（任务窗口/详情页，2026-11-10 接入，审计编号 Q1-Q7）
+            // 英文 fallback 保留在各 HTML/JS 原处；en 为默认语言时命中原值
+            6000: '任务信息',
+            6001: '显示任务',
+            6002: '说明',
+            6003: '怪物',
+            6004: '奖励',
+            6005: '基础经验',
+            6006: '职业经验',
+            6007: '道具',
+            6008: '任务 [{0}]，你击杀了 [{1}]。({2}/{3})',
+            6009: '已完成',
+            6010: '截止时间：{0}',
+            6011: '未知任务',
+
+            // 6200-6299: InputBox（审计编号 U1/U2）
+            6200: '输入价格',
+            6201: '输入店铺名称',
+
+            // 6400-6499: MapEngine 消息（审计编号 U5-U7、U14）
+            6400: '获得 {0} 金币。',
+            6401: '任务获得职业经验 {0}',
+            6402: '未找到 Boss 魔物。',
+            6403: '未知状态：',
+            6404: '任务获得基础经验 {0}',
+
+            // 6500-6599: 杂项 UI（审计编号 U4/U9/U10）
+            6500: '当前没有签到活动。',
+            6501: '剩余机会：0',
+            6502: '结果：'
         }
     }
     // en: {} —— 英文为默认，无需覆盖（命中即原值）
