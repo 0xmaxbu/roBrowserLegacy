@@ -143,6 +143,13 @@ ButtonBar._onAction = function _onAction(action) {
                 window.botAutoHunt.toggle();
             }
             break;
+        case 'support':
+            // P1 玩家自助：客服中心（Plugins/SupportCenter）。
+            // 与 bot 同款 null-safe bridge。
+            if (window.supportCenter && typeof window.supportCenter.toggle === 'function') {
+                window.supportCenter.toggle();
+            }
+            break;
         default: break;
     }
     this._closePopup(); // close popup after any action
