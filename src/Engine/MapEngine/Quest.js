@@ -12,6 +12,7 @@
  * Load dependencies
  */
 import DB from 'DB/DBManager.js';
+import LangOverlay from 'DB/LangOverlay.js';
 import Network from 'Network/NetworkManager.js';
 import PACKET from 'Network/PacketStructure.js';
 import jQuery from 'Utils/jquery.js';
@@ -58,7 +59,9 @@ function onAllQuestList(pkt) {
 					lvlMax: hunt.lvlMax || null,
 					huntCount: hunt.huntCount || 0,
 					maxCount: hunt.maxCount || 0,
-					mobName: hunt.mobName || ''
+					// i18n: 任务猎杀目标名由服务端封包直发（mob_db 英文 jname），
+					// 按 mobGID 查客户端已汉化怪物名表替换（§14.6 体系，en 回退封包原文）
+					mobName: LangOverlay.getMonsterName(hunt.mobGID, hunt.mobName) || ''
 				};
 				const ID = hunt.huntID ? hunt.huntID : hunt.mobGID;
 				local_quest.hunt_list[ID] = local_hunt; // prefer huntid over the mobGID
@@ -107,7 +110,8 @@ function onAddQuest(pkt) {
 				lvlMax: hunt.lvlMax || null,
 				huntCount: hunt.huntCount || 0,
 				maxCount: hunt.maxCount || 0,
-				mobName: hunt.mobName || ''
+				// i18n: 同上，封包直发怪物名按 ID 查表替换
+				mobName: LangOverlay.getMonsterName(hunt.mobGID, hunt.mobName) || ''
 			};
 			const ID = hunt.huntID ? hunt.huntID : hunt.mobGID;
 			quest.hunt_list[ID] = local_hunt; // prefer huntid over the mobGID

@@ -19,8 +19,8 @@ export const LANG_OVERLAY_DATA = {
         },
         // 怪物名（key=job/怪物ID，ID 取自 rAthena mob_db.yml）
         // 合并数据源：MonsterNameTable.js（ro.dvg.cn 提取）。
-        // ID 键覆盖部署怪 2183/2183；值仅 202 条中文（其余英文，显示原文），
-        // 2026-11-10 复核修正（此前误报覆盖率 100%）。补全跟踪：docs/research/npc-name-translation/
+        // 2026-11-10 复核：2445 键中中文 2191（含任务目标怪补全 50 个），未命中回退原文；
+        // 此前注释"仅 202 条中文"为过时信息。剩余缺口主要为非任务怪。
         monsterName: { ...MONSTER_NAME_TABLE_ZH },
         // 地图名称特效（MapName）覆盖（key=mapname.rsw，value={mainTitle,subTitle?}）
         // 数据来源: DB/Map/MapSignNameOverlay_zh.js（从 MapTable.js displayName 提取）
