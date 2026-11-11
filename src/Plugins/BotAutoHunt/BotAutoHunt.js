@@ -36,6 +36,8 @@ import Client from 'Core/Client.js'; // loadFile() 加载 GRF 中的 BMP 图标
 import ItemType from 'DB/Items/ItemType.js'; // HEALING/USABLE/CASH 消耗品过滤
 import { createSettingsComponent } from './settings/SettingsWindow.js'; // T1: 官方样式设置窗口（GUIComponent，8 页签）
 import { migrateSettings, SCHEMA_VERSION, TOTAL_SLOT_COUNT } from './settings/schema.js'; // 壳层仅用迁移与常量；决策纯函数已随引擎内迁（engine/HuntEngine.js）
+import battlePinkUrl from './assets/battle_pink.png';   // 悬浮开关图标：默认/停止态（粉）
+import battleBlueUrl from './assets/battle_blue.png';   // 悬浮开关图标：挂机中态（蓝）
 import HuntEngine, {
 	SKILL_TYPE_ATTACK, SKILL_TYPE_HEAL, SKILL_TYPE_BUFF,
 	AUX_TYPE_POTION, AUX_TYPE_BUFF_ITEM,
@@ -1000,10 +1002,13 @@ class BotAutoHunt {
 			// 全屏窗口（世界地图等）才能遮挡按钮；高于游戏画布（z=0）。旧值 900 永远压在窗口上
 			'position:fixed;z-index:40;width:36px;height:36px;display:none;' +
 			'line-height:32px;text-align:center;font-size:18px;cursor:pointer;' +
-			'background:linear-gradient(to bottom,#f7ecd3,#e8d5ae);' +
-			'border:2px solid #7a5c2e;border-radius:6px;color:#6d5228;' +
+			// 图标自带圆角框（粉=默认/停止，蓝=挂机中），按钮本体不再画背景/边框
+			'background:none;border:none;border-radius:0;padding:0;' +
 			'box-shadow:0 2px 6px rgba(0,0,0,0.4);user-select:none;';
-		btn.textContent = '⚔';
+		// 状态图标：两张 35x35 透明 PNG 叠放，切状态只切 visibility（无闪烁/无重载）
+		btn.innerHTML =
+			'<img class="bot-btn-icon bot-btn-icon-pink" alt="自动战斗" draggable="false" style="position:absolute;inset:0;margin:auto;display:block;width:35px;height:35px;image-rendering:pixelated;" src="' + battlePinkUrl + '">' +
+			'<img class="bot-btn-icon bot-btn-icon-blue" alt="" draggable="false" style="position:absolute;inset:0;margin:auto;display:none;width:35px;height:35px;image-rendering:pixelated;" src="' + battleBlueUrl + '">';
 
 		// 默认停靠小地图下方（MiniMap 位于右上角 16px 内）；已保存位置优先
 		const saved = this._loadFloatBtnPos();
@@ -1086,8 +1091,13 @@ class BotAutoHunt {
 	/** 悬浮开关高亮态：挂机中绿色描边，停止时普通外观 */
 	_updateFloatBtnState() {
 		if (!this._floatBtn) return;
+		// 状态图标切换：粉 = 默认/停止，蓝 = 挂机中（图标即状态信号，替代旧绿色描边）
+		const pink = this._floatBtn.querySelector('.bot-btn-icon-pink');
+		const blue = this._floatBtn.querySelector('.bot-btn-icon-blue');
+		if (pink) pink.style.display = this.active ? 'none' : 'block';
+		if (blue) blue.style.display = this.active ? 'block' : 'none';
 		this._floatBtn.style.boxShadow = this.active
-			? '0 0 6px 2px rgba(80,200,80,0.8)'
+			? '0 0 6px 2px rgba(80,160,220,0.55)'
 			: '0 2px 6px rgba(0,0,0,0.4)';
 	}
 
