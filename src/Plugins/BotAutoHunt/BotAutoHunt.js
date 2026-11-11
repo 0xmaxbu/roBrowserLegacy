@@ -996,7 +996,9 @@ class BotAutoHunt {
 		btn.id = 'bot-float-btn';
 		btn.title = '自动战斗：左键启停，右键打开设置';
 		btn.style.cssText =
-			'position:fixed;z-index:900;width:36px;height:36px;display:none;' +
+			// T9.16: z-index 40 —— 必须低于窗口层（GUIComponent 聚焦栈 ≥50 / legacy 100），
+			// 全屏窗口（世界地图等）才能遮挡按钮；高于游戏画布（z=0）。旧值 900 永远压在窗口上
+			'position:fixed;z-index:40;width:36px;height:36px;display:none;' +
 			'line-height:32px;text-align:center;font-size:18px;cursor:pointer;' +
 			'background:linear-gradient(to bottom,#f7ecd3,#e8d5ae);' +
 			'border:2px solid #7a5c2e;border-radius:6px;color:#6d5228;' +
@@ -1188,7 +1190,8 @@ class BotAutoHunt {
 			toast = document.createElement('div');
 			toast.id = 'bot-float-toast';
 			toast.style.cssText =
-				'position:fixed;z-index:901;padding:6px 10px;background:rgba(0,0,0,0.75);' +
+				// T9.16: 与悬浮按钮同层语义（41 > 40 保持可读、< 50 被窗口遮挡）
+				'position:fixed;z-index:41;padding:6px 10px;background:rgba(0,0,0,0.75);' +
 				'color:#fff;font-size:12px;border-radius:4px;pointer-events:none;' +
 				'transition:opacity 0.3s;opacity:0;max-width:220px;' +
 				'font-family:Gulim,Dotum,"Malgun Gothic",sans-serif;';

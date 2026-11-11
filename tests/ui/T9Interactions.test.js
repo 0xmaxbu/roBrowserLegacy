@@ -410,3 +410,20 @@ describe('T9.14 分页器翻页滚动复位', () => {
 		expect(resetScroll).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe('T9.16 悬浮开关层级（窗口层应遮挡按钮）', () => {
+	it('按钮与 toast z-index 低于窗口层（≥50）——全屏窗口（世界地图等）可遮挡', () => {
+		const plugin = getPlugin();
+		plugin._createFloatingButton();
+		const btn = document.getElementById('bot-float-btn');
+		expect(btn).not.toBe(null);
+		expect(parseInt(btn.style.zIndex, 10)).toBeLessThan(50); // 低于 GUIComponent 窗口层起点 50
+		expect(parseInt(btn.style.zIndex, 10)).toBeGreaterThan(0); // 高于游戏画布 z=0
+		plugin._showToast('层级回归测试');
+		const toast = document.getElementById('bot-float-toast');
+		expect(toast).not.toBe(null);
+		expect(parseInt(toast.style.zIndex, 10)).toBeLessThan(50);
+		btn.remove(); // 清理，避免干扰同文件其他用例
+		toast.remove();
+	});
+});
