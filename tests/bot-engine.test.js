@@ -898,3 +898,124 @@ describe('T9.6.1 巡逻打断：走位中发现怪立即停下攻击（服务端
 		expect(b.calls.attack).toEqual([]);
 	});
 });
+
+// ---------------------------------------------------------------------
+// T9.12 反击优先 + 被名单外魔物攻击自保分流（2026-11-10 玩家实测反馈）
+// ---------------------------------------------------------------------
+
+describe('T9.12 反击优先：正在攻击我的怪在切换目标时优先锁定', () => {
+	it('攻击者更远 → 仍优先锁攻击者（距离不再是唯一排序键）', () => {
+		const near = fakeMob(11, 1002, [52, 50]); // 距离 2，没打我
+		const atk = fakeMob(22, 1002, [56, 50]);  // 距离 6，正在攻击我
+		atk.targetGID = 100;
+		const { b, e } = makeEngine({ entities: [near, atk] });
+		e._combatLoopInner();
+		expect(e._scanTarget).toBe(atk);
+		expect(b.calls.attack).toContain(22);
+	});
+
+	it('焦点粘性：正在打怪A时另一怪开始攻击我 → 不切换（打死才换，多怪围攻不频繁切目标）', () => {
+		const a = fakeMob(11, 1002, [52, 50]);
+		const { b, e } = makeEngine({ entities: [a] });
+		e._combatLoopInner();
+		expect(b._state.focus.GID).toBe(11);
+		const atk = fakeMob(22, 1002, [56, 50]);
+		atk.targetGID = 100;
+		b._state.entities = [a, atk];
+		e._combatLoopInner();
+		expect(b._state.focus.GID).toBe(11);
+		expect(b.calls.attack[b.calls.attack.length - 1]).toBe(11);
+	});
+});
+
+describe('T9.12 被名单外魔物攻击 → 飞走或反击（用户决定 A：没设置瞬移就反击）', () => {
+	it('瞬移道具已配置且有货 → 立即飞走（useItem），不接战', () => {
+		const invader = fakeMob(33, 1004, [53, 50]); // job 1004 不在名单
+		invader.targetGID = 100;
+		const { b, e } = makeEngine({ entities: [invader], itemCounts: { 601: 5 } });
+		e.applySettings(baseSettings({
+			mobWhitelist: { testmap01: [1002] },
+			teleport: { item: { enabled: true, id: ITEM_FLY_WING }, skill: { enabled: false, id: 0, level: 1 } }
+		}));
+		e._combatLoopInner();
+		expect(b.calls.useItem).toContain(ITEM_FLY_WING);
+		expect(b.calls.attack).not.toContain(33); // 飞走优先，不反击
+	});
+
+	it('瞬移技能可用（道具未配置）→ castSkill(AL_TELEPORT Lv1) 飞走', () => {
+		const invader = fakeMob(33, 1004, [53, 50]);
+		invader.targetGID = 100;
+		const { b, e } = makeEngine({ entities: [invader] });
+		e.applySettings(baseSettings({
+			mobWhitelist: { testmap01: [1002] },
+			teleport: { item: { enabled: false, id: 0 }, skill: { enabled: true, id: 26, level: 1 } }
+		}));
+		e._combatLoopInner();
+		expect(b.calls.castSkill).toContainEqual([26, 1, 100]);
+		expect(b.calls.attack).not.toContain(33);
+	});
+
+	it('无瞬移设定 → 反击：攻击名单外攻击者（打破名单语义自保，不兜底苍蝇翅膀）', () => {
+		const invader = fakeMob(33, 1004, [53, 50]);
+		invader.targetGID = 100;
+		const { b, e } = makeEngine({ entities: [invader] });
+		e.applySettings(baseSettings({
+			mobWhitelist: { testmap01: [1002] },
+			teleport: { item: { enabled: false, id: 0 }, skill: { enabled: false, id: 0, level: 1 } }
+		}));
+		e._combatLoopInner();
+		expect(b.calls.attack).toContain(33);
+		expect(b.calls.useItem).not.toContain(ITEM_FLY_WING);
+	});
+
+	it('名单外怪路过（没打我）→ 照常名单过滤，不攻击不飞走', () => {
+		const passer = fakeMob(33, 1004, [53, 50]); // targetGID=0
+		const { b, e } = makeEngine({ entities: [passer] });
+		e.applySettings(baseSettings({ mobWhitelist: { testmap01: [1002] } }));
+		e._combatLoopInner();
+		expect(b.calls.attack).not.toContain(33);
+		expect(b.calls.useItem).not.toContain(ITEM_FLY_WING);
+	});
+
+	it('名单内怪攻击我 → 不飞走（是猎物），正常接战', () => {
+		const prey = fakeMob(44, 1002, [53, 50]);
+		prey.targetGID = 100;
+		const { b, e } = makeEngine({ entities: [prey], itemCounts: { 601: 5 } });
+		e.applySettings(baseSettings({ mobWhitelist: { testmap01: [1002] } }));
+		e._combatLoopInner();
+		expect(b.calls.useItem).not.toContain(ITEM_FLY_WING);
+		expect(b.calls.attack).toContain(44);
+	});
+});
+
+// ---------------------------------------------------------------------
+// T9.13 看门狗近战豁免：攻击距离内站定对砍 ≠ 追击冻结（"卡卡案"真根因修复）
+// ---------------------------------------------------------------------
+
+describe('T9.13 看门狗近战豁免', () => {
+	it('攻击距离内站定对砍 >8s → 不拉黑、焦点保持、持续攻击', () => {
+		const mob = fakeMob(7, 1002, [51, 50]); // 相邻（chebyshev 1 ≤ 默认近战 range 4）
+		const { b, e } = makeEngine({ entities: [mob] });
+		e._combatLoopInner();
+		expect(e._focusWatch.gid).toBe(7);
+		const attacksBefore = b.calls.attack.length;
+		e._focusWatch.since = Date.now() - 9000; // 旧逻辑此处必拉黑（无位移 = 误判冻结）
+		e._combatLoopInner();
+		expect(e._mobBlacklist.size).toBe(0);
+		expect(b._state.focus.GID).toBe(7);
+		expect(b.calls.attack.length).toBeGreaterThan(attacksBefore);
+	});
+
+	it('远程职业（attackRange=10）站定对砍 8 格外 → 同样豁免', () => {
+		const mob = fakeMob(7, 1002, [58, 50]); // chebyshev 8 ≤ 10
+		const { b, e } = makeEngine({
+			self: { gid: 1, dead: false, position: [50, 50], walking: false, amotionBusy: false, life: { hp: 1000, hpMax: 1000, sp: 100, spMax: 100 }, weightPct: 0, bodyState: 0, healthState: 0, attackRange: 10 },
+			entities: [mob]
+		});
+		e._combatLoopInner();
+		e._focusWatch.since = Date.now() - 9000;
+		e._combatLoopInner();
+		expect(e._mobBlacklist.size).toBe(0);
+		expect(b._state.focus.GID).toBe(7);
+	});
+});

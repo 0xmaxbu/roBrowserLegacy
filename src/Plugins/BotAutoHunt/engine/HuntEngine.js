@@ -341,6 +341,7 @@ class HuntEngine {
 					noMobMs: now - this._lastMobSeenTick,
 					castBlockMs: Math.max(0, this._castingUntil - now),
 					portalAvoid: this._needMoveAwayFromPortal,
+					nonListAttacked: !!this._dbgNonListAttacked, // T9.12: 名单外魔物正在攻击我（飞走/反击分流诊断）
 					loading: this.bindings.mapState().loading, // T9.9: 卡 loading 即永远在此 return
 					ret: this._returnDebug // T9.9: 返回链路诊断（非挂机图时非空）
 				}));
@@ -489,7 +490,10 @@ class HuntEngine {
 		{
 			let mobCount = 0;
 			let mvpSeen = false;
-			const candidates = []; // { mob, d } 可战候选（拉黑期怪排除，d=与玩家欧氏距离平方）
+			let nonListAttackerSeen = false; // T9.12: 名单外魔物正在攻击我（自保分流：飞走或反击）
+			const hasWhitelist = this._hasWhitelist(currentMap);
+			const myGid = self.gid;
+			const candidates = []; // { mob, d, attacker } 可战候选（拉黑期怪排除，d=与玩家欧氏距离平方，attacker=正在攻击我）
 			this.bindings.forEachEntity(entity => {
 				if (
 					entity.objecttype === this.bindings.entityTypes.mob &&
@@ -499,22 +503,31 @@ class HuntEngine {
 					// T9.3: 追击拉黑期（不可达目标）不计入 hasMob——否则怪滞留视野时
 					// 无怪回落链（瞬移/飞翅解围）永不触发，角色在盲发期与拉黑期之间永久站立
 					if ((this._mobBlacklist.get(entity.GID) || 0) > Date.now()) return;
+					// T9.12: 反击信号——targetGID===自己（ZC_NOTIFY_ACT，与 T9.8 坐下分支同一读出口）
+					const attacker = entity.targetGID === myGid;
+					if (attacker && hasWhitelist && !this._isMobTargetable(entity, currentMap)) {
+						nonListAttackerSeen = true; // 名单外魔物正在攻击我
+					}
 					mobCount++;
 					if (!mvpSeen && MVP_JOBS.indexOf(entity.job) !== -1) mvpSeen = true;
 					if (this.events.onMobSeen) this.events.onMobSeen(entity.job, currentMap); // T4: 魔物页清单
 					const dx = entity.position[0] - self.position[0];
 					const dy = entity.position[1] - self.position[1];
-					candidates.push({ mob: entity, d: dx * dx + dy * dy });
+					candidates.push({ mob: entity, d: dx * dx + dy * dy, attacker: attacker });
 				}
 			});
+			this._dbgNonListAttacked = nonListAttackerSeen;
 			// T4: 白名单非空时，名单外魔物不计入 hasMob（"只剩名单外怪 = 无怪"语义）
+			// T9.12 反击例外：正在攻击我的名单外怪保留在池内（自保优先于名单——用户决定 A）
 			let pool = candidates;
-			if (this._hasWhitelist(currentMap)) {
-				pool = candidates.filter(c => this._isMobTargetable(c.mob, currentMap));
+			if (hasWhitelist) {
+				pool = candidates.filter(c => this._isMobTargetable(c.mob, currentMap) || c.attacker);
 			}
 			// T9.6: 按欧氏距离升序做寻路评估（单 tick 最多 8 只，防最坏情况主线程超载），
 			// 首个可达（代价>0）即为目标池最优解；全不可达 → hasMob=false → 无怪回落链接管
-			pool.sort((a, b) => a.d - b.d);
+			// T9.12: 反击优先——正在攻击我的怪排最前（用户需求：优先攻击正在攻击自己的怪物）。
+			// 只影响切换目标那一刻的排序；焦点粘性不变（正在打的目标不打死不换，多怪围攻不频繁切换）
+			pool.sort((a, b) => (a.attacker !== b.attacker) ? (a.attacker ? -1 : 1) : (a.d - b.d));
 			let evalCount = 0;
 			let scanTarget = null;
 			for (const c of pool) {
@@ -535,6 +548,16 @@ class HuntEngine {
 				this._markAction('fly_trigger', 5000);
 				this._executeTeleport();
 				return;
+			}
+
+			// T9.12: 名单外魔物正在攻击我 → 瞬移设定严格可用（登录技能已学且SP足 / 登录道具有货）
+			// 则立即飞走；未配置/不可用不兜底苍蝇翅膀（用户约定：没设置瞬移就反击——攻击者
+			// 已在目标池中，本 tick 下方自然锁定反击）。名单内怪攻击永不触发此分流（是猎物）。
+			if (onHuntMap && nonListAttackerSeen && !this._isOnCooldown('fly_attacked')) {
+				if (this._executeTeleportStrict()) {
+					this._markAction('fly_attacked', 5000);
+					return;
+				}
 			}
 
 			if (hasMob) {
@@ -622,40 +645,52 @@ class HuntEngine {
 				w.lastTargetX = target.position[0]; w.lastTargetY = target.position[1];
 				this._chaseWalkEnd = null; // T9.6: 新目标重置追击终点追踪
 			} else {
-				const progressed = Math.abs(self.position[0] - w.lastSelfX) + Math.abs(self.position[1] - w.lastSelfY) > 2 ||
-					Math.abs(target.position[0] - w.lastTargetX) + Math.abs(target.position[1] - w.lastTargetY) > 2;
-				if (progressed) {
+				// T9.13 近战豁免：攻击距离内 = 正在对砍（双方站定不动是常态），不是追击冻结。
+				// 坚固怪 >8s 站定对砍曾被误判"无进展追击"拉黑 15s 清焦点 → 角色周期性放弃
+				// 正在攻击自己的怪（玩家实测"卡卡案"真根因）。豁免期刷新计时与位置基线，
+				// 离开攻击距离后重新计 8s；拉黑与终点校验只在距离外（真正的追击/僵持）执行。
+				const atkRange = self.attackRange > 0 ? self.attackRange : 4; // 未知攻击距离时按近战保守处理（与终点校验同一约定）
+				const distToTarget = Math.max(Math.abs(target.position[0] - self.position[0]), Math.abs(target.position[1] - self.position[1]));
+				if (distToTarget <= atkRange) {
 					w.since = now;
 					w.lastSelfX = self.position[0]; w.lastSelfY = self.position[1];
 					w.lastTargetX = target.position[0]; w.lastTargetY = target.position[1];
-					this._chaseWalkEnd = null; // 有位移 = 服务端重新寻路/目标位置变化，下段路径重新校验
-				} else if (now - w.since > 8000) {
-					this._mobBlacklist.set(target.GID, now + 15000);
-					this.bindings.setFocusEntity(null);
-					w.gid = 0;
-					return;
-				}
-
-				// T9.6 追击终点校验（数据驱动）：服务端回包路径终点距目标超过 攻击距离+2 →
-				// 服务端已判定不可达（走到最近可站立点即停），立即清焦点重选（路径感知选目标
-				// 会按可达代价换怪），不盲等 8s 看门狗。终点不变则只判一次（_chaseWalkEnd 去重）。
-				const ep = this.bindings.walkEndpoint();
-				if (ep) {
-					const epKey = ep[0] + ',' + ep[1];
-					if (this._chaseWalkEnd !== epKey) {
-						this._chaseWalkEnd = epKey;
-						const range = self.attackRange > 0 ? self.attackRange : 4; // 未知攻击距离时按近战保守处理
-						const endDist = Math.max(Math.abs(ep[0] - target.position[0]), Math.abs(ep[1] - target.position[1]));
-						if (endDist > range + 2) {
-							this._mobBlacklist.set(target.GID, now + 15000);
-							this.bindings.setFocusEntity(null);
-							w.gid = 0;
-							this._chaseWalkEnd = null;
-							return;
-						}
-					}
+					this._chaseWalkEnd = null; // 在途终点是逼近残影，战斗中无意义
 				} else {
-					this._chaseWalkEnd = null; // 无在途路径（已停走/到达），下段路径重新校验
+					const progressed = Math.abs(self.position[0] - w.lastSelfX) + Math.abs(self.position[1] - w.lastSelfY) > 2 ||
+						Math.abs(target.position[0] - w.lastTargetX) + Math.abs(target.position[1] - w.lastTargetY) > 2;
+					if (progressed) {
+						w.since = now;
+						w.lastSelfX = self.position[0]; w.lastSelfY = self.position[1];
+						w.lastTargetX = target.position[0]; w.lastTargetY = target.position[1];
+						this._chaseWalkEnd = null; // 有位移 = 服务端重新寻路/目标位置变化，下段路径重新校验
+					} else if (now - w.since > 8000) {
+						this._mobBlacklist.set(target.GID, now + 15000);
+						this.bindings.setFocusEntity(null);
+						w.gid = 0;
+						return;
+					}
+
+					// T9.6 追击终点校验（数据驱动）：服务端回包路径终点距目标超过 攻击距离+2 →
+					// 服务端已判定不可达（走到最近可站立点即停），立即清焦点重选（路径感知选目标
+					// 会按可达代价换怪），不盲等 8s 看门狗。终点不变则只判一次（_chaseWalkEnd 去重）。
+					const ep = this.bindings.walkEndpoint();
+					if (ep) {
+						const epKey = ep[0] + ',' + ep[1];
+						if (this._chaseWalkEnd !== epKey) {
+							this._chaseWalkEnd = epKey;
+							const endDist = Math.max(Math.abs(ep[0] - target.position[0]), Math.abs(ep[1] - target.position[1]));
+							if (endDist > atkRange + 2) {
+								this._mobBlacklist.set(target.GID, now + 15000);
+								this.bindings.setFocusEntity(null);
+								w.gid = 0;
+								this._chaseWalkEnd = null;
+								return;
+							}
+						}
+					} else {
+						this._chaseWalkEnd = null; // 无在途路径（已停走/到达），下段路径重新校验
+					}
 				}
 			}
 		}
@@ -1098,6 +1133,23 @@ class HuntEngine {
 		}
 		if (tp.item.enabled && tp.item.id && this.bindings.useItem(tp.item.id)) return true;
 		return this.bindings.useItem(ITEM_FLY_WING); // 兜底（未配置时保持旧行为）
+	}
+
+	/**
+	 * T9.12: 严格瞬移（被名单外魔物攻击的自保飞走）：登录技能（已学且SP足）→ 登录道具。
+	 * 未配置/不可用返回 false——不兜底苍蝇翅膀（用户约定：没设置瞬移就反击，不飞）。
+	 * @return {boolean} true=已执行飞走
+	 */
+	_executeTeleportStrict() {
+		const tp = this.teleport;
+		if (tp.skill.enabled && tp.skill.id && this.bindings.skillReady(tp.skill.id, tp.skill.level)) {
+			this.bindings.castSkill(tp.skill.id, tp.skill.level || 1, this.bindings.self().gid);
+			return true;
+		}
+		if (tp.item.enabled && tp.item.id && this.bindings.itemCount(tp.item.id) > 0) {
+			return this.bindings.useItem(tp.item.id);
+		}
+		return false;
 	}
 
 	/**
