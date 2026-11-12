@@ -187,15 +187,19 @@ const CSS_TEXT = `
 	padding: 0 6px;
 }
 
-.botsw-pager-btn {
+/* 特异性 (0,2,0) 需高于 .botsw-footer button (0,1,1)——否则页脚通用按钮样式
+   （渐变底/边框/padding）会套在箭头钮上变成方形框 */
+.botsw-footer button.botsw-pager-btn,
+.botsw-pager .botsw-pager-btn {
 	width: 22px;
 	height: 22px;
+	padding: 0;
 	border: none;
+	border-radius: 0;
 	background-color: transparent;
 	background-repeat: no-repeat;
 	background-position: center;
 	background-size: 100% 100%;
-	padding: 0;
 	cursor: pointer;
 }
 
