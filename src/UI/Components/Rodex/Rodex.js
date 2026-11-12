@@ -21,6 +21,31 @@ import htmlText from './Rodex.html?raw';
 import cssText from './Rodex.css?raw';
 
 /**
+ * rAthena 系统邮件约定：标题/正文/发件人可携带 <MSG>msgstringtable_id[,arg...]</MSG>
+ * 引用标记，由客户端查 msgstringtable 渲染（官方客户端行为；rAthena 签到邮件
+ * pc.cpp msg 788-790 即此格式：3455=发件人、3456=%d 天数格式串）。
+ * roBrowser 未实现时标签被 innerHTML 吞掉、露出裸 ID（2026-11-12 修复）。
+ * 查表未命中或无标记时原样返回（等价旧行为，零回归）。
+ *
+ * @param {string} text 原始邮件文本
+ * @returns {string} 渲染文本
+ */
+export function decodeMsgMarkup(text) {
+	if (!text || text.indexOf('<MSG>') === -1) {
+		return text;
+	}
+	return text.replace(/<MSG>\s*(\d+)\s*((?:,[^<>]*?)*)<\/MSG>/g, (whole, id, argStr) => {
+		const template = DB.getMessage(parseInt(id, 10), '');
+		if (!template) {
+			return whole;
+		}
+		const args = argStr ? argStr.split(',').slice(1).map(s => s.trim()).filter(s => s.length > 0) : [];
+		let i = 0;
+		return template.replace(/%[ds]/g, m => (i < args.length ? args[i++] : m));
+	});
+}
+
+/**
  * Create Component
  */
 const Rodex = new UIComponent('Rodex', htmlText, cssText);
@@ -157,8 +182,10 @@ Rodex.createRodexList = function createRodexList(tabID = 0, search = false, term
 	for (let i = start; total < Rodex.pageSize && i < mail_list.length; i++) {
 		const mail = mail_list[i];
 		const mailID = mail.MailID;
-		const title = mail.title.length > 18 ? mail.title.substring(0, 18) + '...' : mail.title;
-		const sender = mail.SenderName.length > 18 ? mail.SenderName.substring(0, 18) + '...' : mail.SenderName;
+		const title_src = decodeMsgMarkup(mail.title);
+		const title = title_src.length > 18 ? title_src.substring(0, 18) + '...' : title_src;
+		const sender_src = decodeMsgMarkup(mail.SenderName);
+		const sender = sender_src.length > 18 ? sender_src.substring(0, 18) + '...' : sender_src;
 		const mail_image = mail.Isread ? 'icon_status_mail_read' : 'icon_status_mail_received';
 		const mail_content = Rodex.attachmentType[mail.type];
 		const remaining_days = parseInt(mail.expireDateTime / 60 / 60 / 24);
@@ -209,11 +236,11 @@ Rodex.getMailsByTabID = function getMailsByTabID(tabID) {
 };
 
 Rodex.getMailsBySender = function getMailsBySender(term) {
-	return Rodex.list.filter(mail => mail.SenderName.indexOf(term) > -1);
+	return Rodex.list.filter(mail => decodeMsgMarkup(mail.SenderName).indexOf(term) > -1);
 };
 
 Rodex.getMailsByTitle = function getMailsByTitle(term) {
-	return Rodex.list.filter(mail => mail.title.indexOf(term) > -1);
+	return Rodex.list.filter(mail => decodeMsgMarkup(mail.title).indexOf(term) > -1);
 };
 
 Rodex.getMailByID = function getMailByID(mailID) {

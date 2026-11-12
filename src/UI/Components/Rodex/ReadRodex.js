@@ -15,7 +15,7 @@ import UIManager from 'UI/UIManager.js';
 import UIComponent from 'UI/UIComponent.js';
 import htmlText from './ReadRodex.html?raw';
 import cssText from './ReadRodex.css?raw';
-import Rodex from 'UI/Components/Rodex/Rodex.js';
+import Rodex, { decodeMsgMarkup } from 'UI/Components/Rodex/Rodex.js';
 
 /**
  * Create Component
@@ -63,9 +63,9 @@ ReadRodex.initData = function initData(data, mail) {
 	ReadRodex.MailID = mail.MailID;
 	ReadRodex.openType = mail.openType;
 	ReadRodex.SenderName = mail.SenderName;
-	ReadRodex.ui.find('.name').html(mail.SenderName);
-	ReadRodex.ui.find('.title-text').html(mail.title);
-	ReadRodex.ui.find('.content-text').html(data.Textcontent);
+	ReadRodex.ui.find('.name').html(decodeMsgMarkup(mail.SenderName));
+	ReadRodex.ui.find('.title-text').html(decodeMsgMarkup(mail.title));
+	ReadRodex.ui.find('.content-text').html(decodeMsgMarkup(data.Textcontent));
 	ReadRodex.ui.find('.value').html(prettifyZeny(data.zeny));
 	this.ui.find('.get-content').on('click', onClickGetItems);
 	this.ui.find('.get-zeny').on('click', onClickGetZeny);
