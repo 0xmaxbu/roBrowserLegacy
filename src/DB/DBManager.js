@@ -622,16 +622,6 @@ class DB {
 				loadSignBoardData('SystemEN/Sign_Data.lub', null, onSignBoardEnd);
 			});
 
-			// CheckAttendance
-			// 2026-11-11 签到修复：去掉 PACKETVER 门、仅保留 enableCheckAttendance 开关。
-			// 原因：本 init 在登录前运行，而 packetver 配置在 servers[0] 内（顶层无），
-			// 此时 PACKETVER.value 仍为初始 0 → 0 >= 20180307 恒假 → lub 永不加载 →
-			// 签到窗口永远空壳。对齐 mapInfo 先例（"enabled on any version due to
-			// popular demand"）——展示资源加载不依赖协议版本，UI 使用已在别处门控。
-			if (Configs.get('enableCheckAttendance')) {
-				loadAttendanceFile('System/CheckAttendance.lub', null, onLoad());
-			}
-
 			// Quest
 			const onQuestEnd = onLoad();
 			tryLoadLuaAliases(loadQuestInfo, getSystemAliases('System/OngoingQuestInfoList.lub'), null, () => {
@@ -748,6 +738,18 @@ class DB {
 
 			// Quest
 			loadTable('data/questid2display.txt', '#', 6, parseQuestEntry, onLoad(), true);
+		}
+
+		// CheckAttendance
+		// 2026-11-12 修复：调用点原位于上方 loadLua 块内——本部署 loadLua:false（kRO 2019
+		// GRF 缺 lua 集，开 true 登录卡死 97%），整块跳过 → loadAttendanceFile 从未执行 →
+		// 签到窗口空壳。上游 MrAntares master（DBLoadPlan.js）同样埋在块内，且上游全部默认
+		// 部署配置（api.js/pwa/builder-web/GitHub Pages 演示）均 loadLua:false，属上游潜伏
+		// 缺陷，rebase 上游时需重放本修复。本 lub 由本地 data 目录自供（不依赖 GRF lua 集），
+		// 加载器走主线程直连 fetch，故移出块外仅由 enableCheckAttendance 门控。
+		// UI 使用门控在 MapEngine/UIOpen（enableCheckAttendance + PACKETVER，彼时值已就绪）。
+		if (Configs.get('enableCheckAttendance')) {
+			loadAttendanceFile('System/CheckAttendance.lub', null, onLoad());
 		}
 
 		// Load ItemMoveInfo and attach to ItemTable
