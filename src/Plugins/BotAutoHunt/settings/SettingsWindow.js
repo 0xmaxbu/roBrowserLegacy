@@ -179,30 +179,24 @@ const CSS_TEXT = `
 	padding: 4px 8px;
 }
 
-/* 官方分页器（« 1 / 2 »，页脚中间；药水/捡拾等两页页签使用） */
+/* 官方分页器（与邮件面板 Rodex 页脚同款位图箭头钮 btn_prev/next 三态，页脚中间；药水/捡拾等两页页签使用） */
 .botsw-pager {
 	display: none;
 	align-items: center;
-	gap: 6px;
-	padding: 1px 10px;
-	background: linear-gradient(to bottom, #ffffff, #e8eef5);
-	border: 1px solid #9db8d2;
-	border-radius: 3px;
+	gap: 4px;
+	padding: 0 6px;
 }
 
-.botsw-pager button {
+.botsw-pager-btn {
+	width: 22px;
+	height: 22px;
 	border: none;
-	background: transparent;
-	color: #4a7ab5;
-	font-size: 12px;
-	font-weight: bold;
+	background-color: transparent;
+	background-repeat: no-repeat;
+	background-position: center;
+	background-size: 100% 100%;
+	padding: 0;
 	cursor: pointer;
-	padding: 0 2px;
-	font-family: inherit;
-}
-
-.botsw-pager button:hover {
-	color: #1a3a5c;
 }
 
 .botsw-pager-label {
@@ -265,9 +259,9 @@ export function buildSettingsHTML(tabs, placeholder) {
 		'<div class="botsw-footer">' +
 			'<button class="botsw-reset">初始化</button>' +
 			'<div class="botsw-pager">' +
-				'<button class="botsw-pager-prev">‹</button>' +
+				'<button class="botsw-pager-prev botsw-pager-btn" data-background="basic_interface/rodexsystem/renewal/btn_prev_out.bmp" data-hover="basic_interface/rodexsystem/renewal/btn_prev_over.bmp" data-down="basic_interface/rodexsystem/renewal/btn_prev_press.bmp"></button>' +
 				'<span class="botsw-pager-label">1 / 2</span>' +
-				'<button class="botsw-pager-next">›</button>' +
+				'<button class="botsw-pager-next botsw-pager-btn" data-background="basic_interface/rodexsystem/renewal/btn_next_out.bmp" data-hover="basic_interface/rodexsystem/renewal/btn_next_over.bmp" data-down="basic_interface/rodexsystem/renewal/btn_next_press.bmp"></button>' +
 			'</div>' +
 			'<button class="botsw-close">关闭</button>' +
 		'</div>'
