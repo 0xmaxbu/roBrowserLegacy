@@ -10,6 +10,7 @@
 
 import Client from 'Core/Client.js';
 import Configs from 'Core/Configs.js';
+import Session from 'Engine/SessionStorage.js';
 import TextEncoding from 'Utils/CodepageManager.js';
 import FileManager from 'Core/FileManager.js';
 import CLua from 'Vendors/wasmoon-lua5.1.js';
@@ -211,6 +212,12 @@ const ReputeInfo = {};
  * @const {Object} Achievement Table
  */
 const AchievementTable = {};
+
+/**
+ * @const {Object} Achievement i18n Table — 来自 achievement_list.lub 的
+ * achievement_tbl_i18n（ops 后台维护的多语言文案，按 lang 分组）
+ */
+const AchievementI18nTable = {};
 
 /**
  * @const {Object} CSV Tables
@@ -631,20 +638,6 @@ class DB {
 
 			// TODO: System/RecommendedQuests.lub
 
-			// Achievements
-			if (Configs.get('enableAchievements') && PACKETVER.value >= 20150513) {
-				loadLuaValue(
-					'System/achievement_list.lub',
-					'achievement_tbl',
-					function (json) {
-						if (json) {
-							Object.assign(AchievementTable, json);
-						}
-					},
-					onLoad()
-				);
-			}
-
 			// Cash Shop Banner - implemented early 2018
 			if (Configs.get('enableCashShop') && PACKETVER.value >= 20180000) {
 				loadCashShopBanner(DB.LUA_PATH + 'datainfo/tb_cashshop_banner.lub', null, onLoad());
@@ -765,6 +758,35 @@ class DB {
 			// this is not official, its a translation file
 			loadTownInfoFile('SystemEN/Towninfo.lub', null, onTownInfoEnd);
 		});
+
+		// Achievements — 不受 loadLua 门控（本项目 loadLua:false 走 txt 模式，
+		// 但成就 LUB 由 ops 后台生成投放在 overlay，必须独立加载；
+		// 详见 ro-platform docs/achievement-system.md）
+		if (Configs.get('enableAchievements') && PACKETVER.value >= 20150513) {
+			const onAchievementEnd = onLoad();
+			loadLuaValue(
+				'System/achievement_list.lub',
+				'achievement_tbl',
+				function (json) {
+					if (json) {
+						Object.assign(AchievementTable, json);
+					}
+				},
+				() => {
+					// 同一文件的第二个变量：多语言文案（zh 覆盖层，见 getAchievementInfo）
+					loadLuaValue(
+						'System/achievement_list.lub',
+						'achievement_tbl_i18n',
+						function (json) {
+							if (json) {
+								Object.assign(AchievementI18nTable, json);
+							}
+						},
+						onAchievementEnd
+					);
+				}
+			);
+		}
 
 		// Forging/Creation
 		loadTable(
@@ -895,6 +917,33 @@ class DB {
 
 	static getAchievementTable() {
 		return AchievementTable;
+	}
+
+	/**
+	 * 成就展示信息（按 Session.PlayerLang 应用多语言覆盖层，LangOverlay 同款模式）。
+	 * 基线为 LUB 内 achievement_tbl（英文 Name）；zh 覆盖来自 achievement_tbl_i18n。
+	 * 未命中语言覆盖或条目不存在时回退基线 / 返回 null。
+	 */
+	static getAchievementInfo(achId) {
+		const base = AchievementTable[achId];
+		if (!base) {
+			return null;
+		}
+		if (Session.PlayerLang !== 'zh') {
+			return base;
+		}
+		const zh = AchievementI18nTable.zh && AchievementI18nTable.zh[achId];
+		if (!zh) {
+			return base;
+		}
+		return {
+			...base,
+			title: zh.title !== undefined ? zh.title : base.title,
+			content: {
+				summary: (zh.content && zh.content.summary) || (base.content && base.content.summary) || '',
+				details: (zh.content && zh.content.details) || (base.content && base.content.details) || ''
+			}
+		};
 	}
 
 	static getTitleString(titleID) {

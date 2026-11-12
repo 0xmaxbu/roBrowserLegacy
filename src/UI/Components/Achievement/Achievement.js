@@ -195,7 +195,7 @@ class AchievementComponent extends GUIComponent {
 			const sessAch = Session.Achievement && Session.Achievement.list ? Session.Achievement.list : {};
 
 			Object.keys(allAch).forEach(achId => {
-				const info = allAch[achId];
+				const info = DB.getAchievementInfo(achId);
 				if (!info || info.major !== this.currentMajor) return;
 				if (this.currentMinor !== -1 && info.minor !== this.currentMinor) return;
 				total++;
@@ -298,7 +298,7 @@ class AchievementComponent extends GUIComponent {
 		});
 
 		Object.keys(allAch).forEach(achId => {
-			const info = allAch[achId];
+			const info = DB.getAchievementInfo(achId);
 			if (info && counts[info.major] !== undefined) {
 				counts[info.major].total++;
 				const s = sessAch[achId];
@@ -371,7 +371,7 @@ class AchievementComponent extends GUIComponent {
 
 			recentList.forEach(itemData => {
 				const { achId, s } = itemData;
-				const info = allAch[achId] || {};
+				const info = DB.getAchievementInfo(achId) || {};
 
 				const item = document.createElement('div');
 				item.className = 'ach-item ach-item-overview';
@@ -448,7 +448,7 @@ class AchievementComponent extends GUIComponent {
 
 		const list = [];
 		Object.keys(allAch).forEach(achId => {
-			const info = allAch[achId];
+			const info = DB.getAchievementInfo(achId);
 			if (!info || info.major !== this.currentMajor) return;
 			if (this.currentMinor !== -1 && info.minor !== this.currentMinor) return;
 
@@ -542,7 +542,7 @@ class AchievementComponent extends GUIComponent {
 		const allAch = DB.getAchievementTable();
 		const sessAch = Session.Achievement && Session.Achievement.list ? Session.Achievement.list : {};
 
-		const info = allAch[this.selectedAchId];
+		const info = DB.getAchievementInfo(this.selectedAchId);
 		const s = sessAch[this.selectedAchId];
 
 		// show/hide reward images based on reward type

@@ -507,10 +507,9 @@ function _adjustImageTransparency(img) {
  * Apply preferences once append to body
  */
 WorldMap.onAppend = function onAppend() {
-	// Apply preferences
-	if (!_preferences.show) {
-		this._host.style.display = 'none';
-	}
+	// 登录时不恢复上次的展开状态（偏好里 show:true 会卡住导致每次登录都弹全屏地图）；
+	// 世界地图只通过 ButtonBar/BasicInfo/MiniMap 的地图按钮打开
+	this._host.style.display = 'none';
 
 	// settings
 	this.settings = { episode: 98, add: [], remove: [] };
