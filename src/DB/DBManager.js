@@ -6929,8 +6929,10 @@ function loadLuaValue(file_path, variable_name, callback, onEnd) {
 				let result = null;
 
 				// Add key-value pairs to objects at any nesting level
+				// 显式传 userCharpage（langtype 240 → utf-8）：缺省时 decode 落到
+				// userCharset(windows-1252)，UTF-8 中文会成乱码（itemInfo 同款传参先例）
 				ctx.extractValue = value => {
-					result = JSON.parse(userStringDecoder.decode(value));
+					result = JSON.parse(userStringDecoder.decode(value, userCharpage));
 				};
 
 				// Create and execute a wrapper Lua code to extract the variable

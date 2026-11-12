@@ -291,10 +291,19 @@ class AchievementComponent extends GUIComponent {
 		const sessAch = Session.Achievement && Session.Achievement.list ? Session.Achievement.list : {};
 
 		// Pre-calculate per-major category and total completed achievements
+		// 类名用稳定键（不随本地化语言变）：Achievement.css 按英文名定位栅格
+		const GAUGE_CLASS = {
+			1: 'category-general',
+			2: 'category-adventure',
+			3: 'category-battle',
+			4: 'category-quest',
+			5: 'category-memorial',
+			6: 'category-feat'
+		};
 		const counts = {};
 		let totalCompleted = 0;
 		MAJOR_CATEGORIES.forEach(m => {
-			if (m.id !== 0) counts[m.id] = { total: 0, completed: 0, name: m.name };
+			if (m.id !== 0) counts[m.id] = { total: 0, completed: 0, name: m.name, cls: GAUGE_CLASS[m.id] ?? '' };
 		});
 
 		Object.keys(allAch).forEach(achId => {
@@ -329,7 +338,7 @@ class AchievementComponent extends GUIComponent {
 		// render category gauges
 		Object.values(counts).forEach(c => {
 			const gauge = document.createElement('div');
-			gauge.className = 'category-gauge category-' + c.name.toLowerCase();
+			gauge.className = 'category-gauge ' + c.cls;
 
 			const ratio = c.total > 0 ? (c.completed / c.total) * 100 : 0;
 
