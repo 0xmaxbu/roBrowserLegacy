@@ -111,8 +111,11 @@ let PetTalkTable = {};
 
 /**
  * @const {Object} CheckAttendanceTable Attendance config
+ * T-签2 多周期：Periods 由 InsertCheckAttendanceConfig/Reward 填充（每期一组），
+ * loadAttendanceFile 执行完 main() 后按 UTC 今天选期，摊平成单期 Config/Rewards
+ * （签到窗口组件消费的数据形状不变）。与服务端 pc_attendance_period 的运行时查表对称。
  */
-const CheckAttendanceTable = { Config: {}, Rewards: [] };
+const CheckAttendanceTable = { Config: {}, Rewards: [], Periods: [] };
 
 /**
  * @const {Array} buyingStoreItemList Table
@@ -4407,14 +4410,25 @@ function loadAttendanceFile(filename, callback, onEnd) {
 				const bytes = new Uint8Array(buffer);
 				// get context, a proxy. It will be used to interact with lua conveniently
 				const ctx = lua.ctx;
+				// T-签2：重入防护——重载文件时先清空旧数据，避免重复加载叠加周期
+				CheckAttendanceTable.Periods = [];
+				CheckAttendanceTable.Config = {};
+				CheckAttendanceTable.Rewards = [];
 				// create CheckAttendance required functions in context
+				// T-签2 多周期：每次 Config 调用开启新一期，其后的 Reward 归入该期
 				ctx.InsertCheckAttendanceConfig = (EvendOnOff, StartDate, EndDate) => {
-					CheckAttendanceTable.Config.StartDate = StartDate;
-					CheckAttendanceTable.Config.EndDate = EndDate;
+					CheckAttendanceTable.Periods.push({ StartDate: StartDate, EndDate: EndDate, Rewards: [] });
 					return 1;
 				};
 				ctx.InsertCheckAttendanceReward = (day, item_id, quantity) => {
-					CheckAttendanceTable.Rewards[day - 1] = { day: day, item_id: item_id, quantity: quantity };
+					const period = CheckAttendanceTable.Periods[CheckAttendanceTable.Periods.length - 1];
+					const reward = { day: day, item_id: item_id, quantity: quantity || 1 };
+					if (period) {
+						period.Rewards[day - 1] = reward;
+					} else {
+						// 兼容异常文件（无 Config 先出现 Reward）：退回旧单期形状
+						CheckAttendanceTable.Rewards[day - 1] = reward;
+					}
 				};
 				// mount file
 				lua.mountFile('CheckAttendance.lub', bytes);
@@ -4422,6 +4436,8 @@ function loadAttendanceFile(filename, callback, onEnd) {
 				await lua.doFile('CheckAttendance.lub');
 				// execute main lua function
 				lua.doStringSync('main()');
+				// T-签2：按 UTC 今天选当前期摊平（与 map-server 的时钟一致）
+				selectAttendancePeriod();
 			} catch (error) {
 				console.error('[loadAttendanceFile] Error: ', error);
 			} finally {
@@ -4435,6 +4451,33 @@ function loadAttendanceFile(filename, callback, onEnd) {
 			console.error('[loadAttendanceFile] Fetch failed: ', error);
 			onEnd();
 		});
+}
+
+/**
+ * T-签2 多周期选期：优先命中"Start <= UTC今天 <= End"的期；
+ * 无生效期则取最近的未来期（预览）；全过期取最后一期。
+ * 选中后摊平为窗口组件消费的单期形状（Config + Rewards[day-1]）。
+ */
+function selectAttendancePeriod() {
+	const periods = CheckAttendanceTable.Periods;
+	if (!periods || periods.length === 0) {
+		return;
+	}
+	const now = new Date();
+	const today = now.getUTCFullYear() * 10000 + (now.getUTCMonth() + 1) * 100 + now.getUTCDate();
+	let chosen = null;
+	for (const p of periods) {
+		if (p.StartDate <= today && today <= p.EndDate) {
+			chosen = p;
+			break;
+		}
+	}
+	if (!chosen) {
+		const future = periods.filter((p) => p.StartDate > today).sort((a, b) => a.StartDate - b.StartDate);
+		chosen = future[0] || periods.slice().sort((a, b) => b.EndDate - a.EndDate)[0];
+	}
+	CheckAttendanceTable.Config = { StartDate: chosen.StartDate, EndDate: chosen.EndDate };
+	CheckAttendanceTable.Rewards = chosen.Rewards;
 }
 
 /**
