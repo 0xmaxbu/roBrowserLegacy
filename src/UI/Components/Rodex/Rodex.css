@@ -83,9 +83,9 @@
 	display: table;
 }
 
-/* 2026-11-12：搜索栏按背景图 bg_rodex_list.bmp 实际绘制几何定位（逐像素实测）：
-   输入框凹陷 x13-132 / y65-82（米色 #FDE7DB）；搜索按钮位 x264-296；
-   复选框+标签排在凹陷右侧。禁止改回 flex 拉伸（会脱离背景绘制区域） */
+/* 2026-11-12：搜索栏按背景图位图几何定位（逐像素实测 + 官方客户端对照）：
+   米色条带 x13-132 是复选框区装饰底（非输入框凹陷），输入框官方位 x135-260、
+   按钮 x264-296；条带带体 y65-82（18px），各元素垂直居中于 cy=73.5 */
 #Rodex .body .searchbar {
 	float: left;
 	width: 100%;
@@ -97,13 +97,13 @@
 	width: 12px;
 	height: 12px;
 	top: 3px;
-	left: 140px;
+	left: 23px;
 	background-position: center;
 }
 #Rodex .body .searchbar .search-title-text {
 	position: absolute;
 	top: 2px;
-	left: 156px;
+	left: 38px;
 	font-size: 12px;
 	line-height: 14px;
 	white-space: nowrap;
@@ -113,13 +113,13 @@
 	width: 12px;
 	height: 12px;
 	top: 3px;
-	left: 198px;
+	left: 75px;
 	background-position: center;
 }
 #Rodex .body .searchbar .search-sender-text {
 	position: absolute;
 	top: 2px;
-	left: 214px;
+	left: 90px;
 	font-size: 12px;
 	line-height: 14px;
 	white-space: nowrap;
@@ -129,10 +129,10 @@
 }
 #Rodex .body .searchbar .search {
 	position: absolute;
-	width: 118px;
+	width: 125px;
 	height: 16px;
 	top: 1px;
-	left: 14px;
+	left: 135px;
 	border: 1px solid #b8a494;
 	background: #fff;
 	box-sizing: border-box;
