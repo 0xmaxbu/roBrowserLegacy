@@ -132,7 +132,11 @@ CheckAttendance.updateUI = function updateUI() {
 		const start = regex.exec(String(_CheckAttendanceInfo.Config.StartDate || ''));
 		const end = regex.exec(String(_CheckAttendanceInfo.Config.EndDate || ''));
 		const period_string = start && end
-			? `Event Period: From ${start[2]}/${start[3]} ~ Until ${end[2]}/${end[3]} (Month/Day) 24:00`
+			? DB.getMessage(6510, 'Event Period: From {0}/{1} ~ Until {2}/{3} (Month/Day) 24:00')
+				.replace('{0}', start[2])
+				.replace('{1}', start[3])
+				.replace('{2}', end[2])
+				.replace('{3}', end[3])
 			: '';
 		if (period_string) {
 			this.ui.find('.top-panel-period').html(period_string);
@@ -144,8 +148,8 @@ CheckAttendance.updateUI = function updateUI() {
 			current_day = attendance_count + 1;
 			const total_days_string =
 				attendance_count >= 20 || already_requested
-					? `${attendance_count} Day attendance success`
-					: `Click the item to claim day ${current_day} reward`;
+					? DB.getMessage(6511, '{0} Day attendance success').replace('{0}', attendance_count)
+					: DB.getMessage(6512, 'Click the item to claim day {0} reward').replace('{0}', current_day);
 
 			if (start && end) {
 				const end_date = new Date(`${end[1]}-${end[2]}-${end[3]}`);
@@ -172,15 +176,15 @@ CheckAttendance.updateUI = function updateUI() {
 			const checked = day <= attendance_count ? 'checked' : 'checked-hidden';
 			const slot_off = already_requested ? attendance_count - 1 : attendance_count;
 			const slot_complete_string = day > slot_off ? 'bt_slot_complete' : 'bt_slot_off';
+			// 2026-11-12 修复：data-background 值由 parseHTML 自动拼 DB.INTERFACE_PATH 前缀，
+			// 此处手动拼会造成双重前缀 404（item/<res>.bmp 全部图标缺失，实测日志坐实）。
 			const item_slot =
 				'<li id="attendance_day_' +
 				i +
 				'" class="attendance-item"' +
 				background +
 				'>' +
-				'<div class="item" data-background="' +
-				DB.INTERFACE_PATH +
-				'item/' +
+				'<div class="item" data-background="item/' +
 				item.identifiedResourceName +
 				'.bmp' +
 				'">' +
@@ -197,8 +201,8 @@ CheckAttendance.updateUI = function updateUI() {
 				'.tga"></div>' +
 				'</div>' +
 				'<div class="day">' +
-				day +
-				' Day</div>' +
+				DB.getMessage(6513, '{0} Day').replace('{0}', day) +
+				'</div>' +
 				'</li>';
 			this.ui.find('.days-list').append(item_slot);
 			if (!already_requested && day == current_day) {
@@ -239,7 +243,7 @@ function onClickAttendance(e) {
 	const completed_div = '<div class="completed" data-background="check_attendance/bt_slot_complete.tga"></div>';
 	CheckAttendance.ui.find('#' + id).append(completed_div);
 	const current_day = parseInt(_checkAttendanceData / 10) + 1;
-	const total_days_string = `${current_day} Day attendance success`;
+	const total_days_string = DB.getMessage(6511, '{0} Day attendance success').replace('{0}', current_day);
 	CheckAttendance.ui.find('.total-days').html(total_days_string);
 	const _pkt = new PACKET.CZ.REQ_CHECK_ATTENDANCE();
 	Network.sendPacket(_pkt);

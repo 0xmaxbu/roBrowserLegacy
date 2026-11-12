@@ -20,6 +20,44 @@ import EnchantGradeUI from 'UI/Components/EnchantGrade/EnchantGrade.js';
 import EnchantUI from 'UI/Components/Enchant/Enchant.js';
 
 /**
+ * @var {boolean} 玩家是否已入图（由全局生命周期事件 robrowser-mapentered 驱动，
+ * MapEngine 入场 UI 追加序列完成后派发）。
+ * 服务端入场推送的 UI_OPEN 可能先于地图渲染完成到达（签到 ZC_UI_OPEN(7) 在
+ * pc_sc_data_received 即发出），此时暂存，入图后统一开窗——对齐官方客户端
+ * "进图后才弹窗"的行为；游戏内主动触发（地图已进入）则即时打开。
+ */
+let _mapEntered = false;
+let _pendingAttendance = null;
+
+/**
+ * Open attendance window (shared by immediate & deferred paths)
+ */
+function openCheckAttendance(data) {
+	CheckAttendance.prepare();
+	CheckAttendance.setData(data);
+	CheckAttendance.cleanUI();
+	CheckAttendance.append();
+	CheckAttendance.ui.show();
+	CheckAttendance.ui.focus();
+}
+
+/**
+ * robrowser-mapentered 订阅：置位 + 冲刷待开队列
+ */
+function onMapEntered() {
+	_mapEntered = true;
+	const pending = _pendingAttendance;
+	_pendingAttendance = null;
+	if (pending) {
+		try {
+			openCheckAttendance(pending.data);
+		} catch (e) {
+			console.error('[UIOpen] deferred attendance open failed, skipped:', e);
+		}
+	}
+}
+
+/**
  * Received data and request to open a specific UI
  *
  * @param {object} pkt - PACKET.ZC.UI_OPEN
@@ -47,12 +85,13 @@ function onUIOpen(pkt) {
 		switch (pkt.ui_type) {
 			case 7:
 				if (Configs.get('enableCheckAttendance') && PACKETVER.value >= 20180307) {
-					CheckAttendance.prepare();
-					CheckAttendance.setData(pkt.data);
-					CheckAttendance.cleanUI();
-					CheckAttendance.append();
-					CheckAttendance.ui.show();
-					CheckAttendance.ui.focus();
+					// 2026-11-12：未入图时只存数据，视觉开窗延迟到 robrowser-mapentered
+					// （官方行为：进图后才弹窗；此前在加载画面上就弹）
+					if (_mapEntered) {
+						openCheckAttendance(pkt.data);
+					} else {
+						_pendingAttendance = pkt;
+					}
 				}
 				break;
 			case 8:
@@ -81,4 +120,8 @@ function onUIOpen(pkt) {
 export default function MainEngine() {
 	Network.hookPacket(PACKET.ZC.UI_OPEN, onUIOpen);
 	Network.hookPacket(PACKET.ZC.UI_OPEN_V3, onUIOpen);
+	// 重连 map 服务器（换线/选角重入）时复位：下次入场前的推送重新走延迟队列。
+	// addEventListener 同函数引用去重，重复 init 不会叠加订阅
+	_mapEntered = false;
+	window.addEventListener('robrowser-mapentered', onMapEntered);
 }

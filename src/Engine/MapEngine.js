@@ -785,6 +785,12 @@ function onMapChange(pkt) {
 		if (PACKETVER.value >= 20130320) {
 			Network.sendPacket(new PACKET.CZ.BLOCKING_PLAY_CANCEL());
 		}
+
+		// 全局生命周期事件：玩家已入图（会话实体生成 + 入场 UI 追加序列完成）。
+		// 机制对齐 main.js 的 'robrowser-ready'（window 原生事件）；每次换图/重入均会派发。
+		// 需要此语义的功能一律订阅本事件，禁止再造入口专用钩子
+		//（首个订阅方：MapEngine/UIOpen.js 签到弹窗延迟冲刷）。
+		window.dispatchEvent(new Event('robrowser-mapentered'));
 	};
 
 	MapRenderer.setMap(pkt.mapName);
