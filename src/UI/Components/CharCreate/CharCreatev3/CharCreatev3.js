@@ -84,34 +84,38 @@ const CAP = {
 const RACE_MARK = DB.INTERFACE_PATH + 'make_character/select_mark_cha_create.bmp';
 
 /**
- * @var {object} chargen info
+ * 惰性创建 model info：模块顶层 new Entity() 会因循环依赖在 Entity 初始化完成前执行而崩溃。
+ * _human/_doram/_model 各自持有独立 Entity，必须独立闭包变量。
  */
-const _human = {
-	entity: new Entity(),
-	ctx: null,
-	render: false,
-	tick: 0
-};
+function makeModelInfo() {
+	let _entity = null;
+	return {
+		get entity() {
+			if (!_entity) {
+				_entity = new Entity();
+			}
+			return _entity;
+		},
+		ctx: null,
+		render: false,
+		tick: 0
+	};
+}
 
 /**
  * @var {object} doram info
  */
-const _doram = {
-	entity: new Entity(),
-	ctx: null,
-	render: false,
-	tick: 0
-};
+const _human = makeModelInfo();
+
+/**
+ * @var {object} doram info
+ */
+const _doram = makeModelInfo();
 
 /**
  * @var {object} model info
  */
-const _model = {
-	entity: new Entity(),
-	ctx: null,
-	render: false,
-	tick: 0
-};
+const _model = makeModelInfo();
 
 /**
  * Initialize UI

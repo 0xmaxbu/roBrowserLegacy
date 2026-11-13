@@ -520,6 +520,7 @@ function createApiHTML() {
     <head>    
         <meta charset="UTF-8">    
         <title>roBrowserLegacy</title>    
+        <link rel="icon" type="image/png" href="./icon.png">    
         <style>    
             html, body {    
                 margin: 0; padding: 0; border: 0;    

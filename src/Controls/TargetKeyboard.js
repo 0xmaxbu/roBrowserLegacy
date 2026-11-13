@@ -31,13 +31,20 @@ import TargetManager from 'UI/TargetManager.js';
 // Broader TARGETABLE_TYPES (PET/HOM/MERC/ELEM) are click-selectable but not
 // combat targets — Ctrl+Tab is for selecting things to attack, so it excludes
 // friendlies and non-combat pets/companions.
-const TAB_TYPES = new Set([
-	Entity.TYPE_PC,
-	Entity.TYPE_DISGUISED,
-	Entity.TYPE_MOB,
-	Entity.TYPE_NPC_ABR,
-	Entity.TYPE_NPC_BIONIC
-]);
+// 惰性构建：模块顶层读 Entity.TYPE_* 会因循环依赖在 Entity 初始化完成前执行而崩溃。
+let _tabTypes = null;
+function getTabTypes() {
+	if (!_tabTypes) {
+		_tabTypes = new Set([
+			Entity.TYPE_PC,
+			Entity.TYPE_DISGUISED,
+			Entity.TYPE_MOB,
+			Entity.TYPE_NPC_ABR,
+			Entity.TYPE_NPC_BIONIC
+		]);
+	}
+	return _tabTypes;
+}
 
 let _installed = false;
 let _handler = null;
@@ -106,7 +113,7 @@ function cycleTarget(reverse) {
 	const candidates = [];
 	EntityManager.forEach(entity => {
 		if (entity === src) return;
-		if (!TAB_TYPES.has(entity.objecttype)) return;
+		if (!getTabTypes().has(entity.objecttype)) return;
 		// ACTION is a per-instance property (EntityAction mixin), read off
 		// the instance, not off the Entity class.
 		if (entity.action === entity.ACTION.DIE) return;

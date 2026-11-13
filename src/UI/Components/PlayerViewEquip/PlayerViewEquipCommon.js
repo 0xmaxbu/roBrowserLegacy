@@ -510,9 +510,14 @@ export function createPlayerViewEquip({ name, cssText, hasTabs, costumeRows, cos
 			delay: 0,
 			save: false
 		};
-		const show_character = new Entity();
+		// 惰性创建：本工厂被 V0/V1/V2 在模块顶层调用，此处若直接 new Entity()
+		// 会因 Entity ← EntityControl ← UI 组件循环依赖在初始化完成前执行而崩溃
+		let show_character = null;
 
 		return function renderChar() {
+			if (!show_character) {
+				show_character = new Entity();
+			}
 			show_character.set({
 				GID: charName + '_EQUIP',
 				objecttype: show_character.constructor.TYPE_PC,

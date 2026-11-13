@@ -47,9 +47,15 @@ let _result = false;
 let _ctx;
 
 /**
- * @var {Entity}
+ * @var {Entity}（惰性创建，避免模块顶层循环依赖崩溃）
  */
-const _entity = new Entity();
+let _entity = null;
+function getEntity() {
+	if (!_entity) {
+		_entity = new Entity();
+	}
+	return _entity;
+}
 
 /**
  * @var {number} start tick
@@ -173,7 +179,7 @@ const rendering = (() => {
 		_ctx.clearRect(0, 0, _ctx.canvas.width, _ctx.canvas.height);
 
 		for (let i = 0, count = animation.layers.length; i < count; ++i) {
-			_entity.renderLayer(animation.layers[i], _sprite, _sprite, 1.0, position, false);
+			getEntity().renderLayer(animation.layers[i], _sprite, _sprite, 1.0, position, false);
 		}
 	};
 })();

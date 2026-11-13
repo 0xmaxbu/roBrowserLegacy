@@ -30,9 +30,16 @@ let _accountSex = 0;
 
 /**
  * @var {object} chargen info
+ * entity 惰性创建：模块顶层 new Entity() 会因循环依赖在 Entity 初始化完成前执行而崩溃。
  */
+let _entity = null;
 const _chargen = {
-	entity: new Entity(),
+	get entity() {
+		if (!_entity) {
+			_entity = new Entity();
+		}
+		return _entity;
+	},
 	ctx: null,
 	render: false,
 	tick: 0

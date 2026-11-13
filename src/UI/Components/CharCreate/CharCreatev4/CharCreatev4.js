@@ -40,34 +40,38 @@ let _prevcolor = 0;
 let _curcolor = 0;
 
 /**
+ * 惰性创建 model info：模块顶层 new Entity() 会因循环依赖在 Entity 初始化完成前执行而崩溃。
+ * _chargen/_doram/_model 各自持有独立 Entity，必须独立闭包变量。
+ */
+function makeModelInfo() {
+	let _entity = null;
+	return {
+		get entity() {
+			if (!_entity) {
+				_entity = new Entity();
+			}
+			return _entity;
+		},
+		ctx: null,
+		render: false,
+		tick: 0
+	};
+}
+
+/**
  * @var {object} chargen info
  */
-const _chargen = {
-	entity: new Entity(),
-	ctx: null,
-	render: false,
-	tick: 0
-};
+const _chargen = makeModelInfo();
 
 /**
  * @var {object} doram info
  */
-const _doram = {
-	entity: new Entity(),
-	ctx: null,
-	render: false,
-	tick: 0
-};
+const _doram = makeModelInfo();
 
 /**
  * @var {object} model info
  */
-const _model = {
-	entity: new Entity(),
-	ctx: null,
-	render: false,
-	tick: 0
-};
+const _model = makeModelInfo();
 
 /**
  * Initialize UI

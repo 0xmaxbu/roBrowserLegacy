@@ -48,7 +48,16 @@ let _timeAtkAct, _timeAtkSpr;
 let _timerInterval = null;
 let _startTs = 0;
 
-const _layerEntity = new Entity();
+/**
+ * Entity 惰性创建：模块顶层 new Entity() 会因循环依赖在 Entity 初始化完成前执行而崩溃。
+ */
+let _layerEntity = null;
+function getLayerEntity() {
+	if (!_layerEntity) {
+		_layerEntity = new Entity();
+	}
+	return _layerEntity;
+}
 
 let _taHideTimer = null;
 
@@ -162,7 +171,7 @@ function drawActionToCanvas(ctx, act, spr, actionId, x, y, frameId) {
 	SpriteRenderer.bind2DContext(ctx, x, y);
 
 	for (let i = 0; i < layers.length; i++) {
-		_layerEntity.renderLayer(layers[i], spr, spr, 1.0, [0, 0], false);
+		getLayerEntity().renderLayer(layers[i], spr, spr, 1.0, [0, 0], false);
 	}
 }
 

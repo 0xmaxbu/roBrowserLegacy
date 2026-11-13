@@ -30,13 +30,21 @@ let Races = [];
 
 /**
  * @var {object} model
+ * entity 惰性创建：模块顶层 new Entity() 会因循环依赖（Entity → EntityControl →
+ * UI 组件 → MapEngine → 本组件）在 Entity 初始化完成前执行而崩溃。
  */
 const _model = {
-	entity: new Entity(),
+	get entity() {
+		if (!_entity) {
+			_entity = new Entity();
+		}
+		return _entity;
+	},
 	ctx: null,
 	render: false,
 	tick: 0
 };
+let _entity = null;
 
 /**
  * Helper to get the shadow root

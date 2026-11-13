@@ -41,7 +41,21 @@ ChangeCart.render = () => htmlText;
  * @var {object} data info
  */
 const _carts = {};
-const _layerEntity = new Entity();
+
+/**
+ * Entity 惰性创建
+ *
+ * 不能在模块顶层 new Entity()：Entity → EntityControl → UI 组件 → MapEngine → ChangeCart
+ * 存在循环依赖，打包后按入口不同初始化顺序不定，顶层实例化会在 Entity 模块
+ * 初始化完成前执行，导致 "TypeError: Entity is not a constructor"（GRFVIEWER 入口必崩）。
+ */
+let _layerEntity = null;
+function getLayerEntity() {
+	if (!_layerEntity) {
+		_layerEntity = new Entity();
+	}
+	return _layerEntity;
+}
 
 /**
  * Initialize UI
@@ -211,7 +225,7 @@ function drawActionToCanvas(ctx, act, spr, actionId, x, y) {
 	}
 	SpriteRenderer.bind2DContext(ctx, x, y);
 	for (let i = 0; i < layers.length; i++) {
-		_layerEntity.renderLayer(layers[i], spr, spr, 1.0, [0, 0], false);
+		getLayerEntity().renderLayer(layers[i], spr, spr, 1.0, [0, 0], false);
 	}
 }
 

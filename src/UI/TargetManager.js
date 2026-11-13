@@ -27,17 +27,25 @@ import Entity from 'Renderer/Entity/Entity.js';
 // D-14: targetable entity objecttypes (biological entities, friend or foe).
 // Used by downstream consumers (TargetPanel/TargetIndicator) for validation;
 // Tab-cycling uses its own combat subset (see TargetKeyboard.TAB_TYPES).
-const TARGETABLE_TYPES = new Set([
-	Entity.TYPE_PC,
-	Entity.TYPE_DISGUISED,
-	Entity.TYPE_MOB,
-	Entity.TYPE_PET,
-	Entity.TYPE_HOM,
-	Entity.TYPE_MERC,
-	Entity.TYPE_ELEM,
-	Entity.TYPE_NPC_ABR,
-	Entity.TYPE_NPC_BIONIC
-]);
+// 惰性构建：模块顶层读 Entity.TYPE_* 会因循环依赖（Entity → EntityControl →
+// UI 组件 → MapEngine → … → Entity）在 Entity 初始化完成前执行而崩溃。
+let _targetableTypes = null;
+function getTargetableTypes() {
+	if (!_targetableTypes) {
+		_targetableTypes = new Set([
+			Entity.TYPE_PC,
+			Entity.TYPE_DISGUISED,
+			Entity.TYPE_MOB,
+			Entity.TYPE_PET,
+			Entity.TYPE_HOM,
+			Entity.TYPE_MERC,
+			Entity.TYPE_ELEM,
+			Entity.TYPE_NPC_ABR,
+			Entity.TYPE_NPC_BIONIC
+		]);
+	}
+	return _targetableTypes;
+}
 
 class TargetManager {
 	static _target = null;
@@ -176,8 +184,11 @@ class TargetManager {
 }
 
 // Export the TARGETABLE_TYPES set for downstream consumers (TargetPanel,
-// TargetIndicator validation) — D-14 reference.
-TargetManager.TARGETABLE_TYPES = TARGETABLE_TYPES;
+// TargetIndicator validation) — D-14 reference.（惰性 getter，避免模块加载期读 Entity）
+Object.defineProperty(TargetManager, 'TARGETABLE_TYPES', {
+	get: getTargetableTypes,
+	enumerable: true
+});
 
 // Window bridge (Phase 11 precedent: window.hudOverlay / window.targetLock).
 // Allows any module (including BotAutoHunt) to access target state directly.

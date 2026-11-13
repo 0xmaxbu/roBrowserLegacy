@@ -62,9 +62,15 @@ let _action;
 let _sprite;
 
 /**
- * @var {Entity} Helper to render sprites
+ * @var {Entity} Helper to render sprites（惰性创建，避免模块顶层循环依赖崩溃）
  */
-const _entity = new Entity();
+let _entity = null;
+function getEntity() {
+	if (!_entity) {
+		_entity = new Entity();
+	}
+	return _entity;
+}
 
 /**
  * @var {Preference} structure to save
@@ -294,7 +300,7 @@ function refreshList(contentEl) {
 		SpriteRenderer.bind2DContext(ctx, 20 - layers[0].pos[0], 40 - layers[0].pos[1]);
 
 		for (let i = 0; i < count; ++i) {
-			_entity.renderLayer(layers[i], _sprite, _sprite, 1.0, pos, false);
+			getEntity().renderLayer(layers[i], _sprite, _sprite, 1.0, pos, false);
 		}
 
 		contentEl.appendChild(canvas);

@@ -30,8 +30,19 @@ const MapViewer = {};
 
 /**
  * @var {object} Entity to target
+ * 惰性创建：模块顶层 new Entity() 会因循环依赖在 Entity 初始化完成前执行而崩溃。
+ * 首次访问时同步接线 Session.Entity，保持原有语义。
  */
-MapViewer.spot = Session.Entity = new Entity();
+let _spot = null;
+Object.defineProperty(MapViewer, 'spot', {
+	get() {
+		if (!_spot) {
+			_spot = new Entity();
+			Session.Entity = _spot;
+		}
+		return _spot;
+	}
+});
 
 /**
  * @var {HTMLElement} <select>
