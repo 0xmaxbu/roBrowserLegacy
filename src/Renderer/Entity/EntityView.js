@@ -186,6 +186,10 @@ function UpdateBody(job) {
 	// Avoid fuck*ng errors with mounts !
 	// Sometimes the server send us the job of the mount sprite instead
 	// of the base sprite + effect to have the mount.
+	// NOTE: do NOT clear this.costume here — the all-riding costume is
+	// applied via updateAllRidingState (this.costume = mount id) and must
+	// survive subsequent UpdateBody(this._job) re-syncs while riding;
+	// unmounting clears it through updateAllRidingState (costume = 0).
 	for (baseJob in MountTable) {
 		if (MountTable[baseJob] === job) {
 			this.costume = job;
@@ -540,7 +544,14 @@ function UpdateBodyPalette(pal) {
 		return;
 	}
 
-	this.files.body.pal = DB.getBodyPalPath(this._job, this._bodypalette, this._sex);
+	// Mount/costume forms: the dye palette must follow the rendered body
+	// sprite id, not the base job. E.g. a novice riding a poring renders
+	// the PORING_NOVICE sprite but with this._job still pointing at the
+	// novice, so the novice dye palette (초보자_남_X) got applied to poring
+	// sprite indices, filling most cloth pixels with the palette's magenta
+	// padding color (255,0,255). The kRO data ships matching palettes for
+	// mount variants (몸/노비스포링_남_X.pal), so prefer the costume id.
+	this.files.body.pal = DB.getBodyPalPath(this.costume || this._job, this._bodypalette, this._sex);
 }
 
 /**

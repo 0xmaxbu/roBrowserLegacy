@@ -143,7 +143,23 @@ export default function Init() {
 			break;
 
 		case Entity.TYPE_MERC:
-			if (this._job == 6017) {
+			if (DB.isDoram(this._job)) {
+				// 多兰雇佣兵（召唤师/灵魂驯手/喵喵夏装 4309 等）：身体为玩家级 sprite，
+				// 动作表与玩家完全一致（13 组动作）
+				this.ACTION.IDLE = 0;
+				this.ACTION.WALK = 1;
+				this.ACTION.SIT = 2;
+				this.ACTION.PICKUP = 3;
+				this.ACTION.READYFIGHT = 4;
+				this.ACTION.ATTACK1 = 5;
+				this.ACTION.HURT = 6;
+				this.ACTION.FREEZE = 7;
+				this.ACTION.DIE = 8;
+				this.ACTION.FREEZE2 = 9;
+				this.ACTION.ATTACK2 = 10;
+				this.ACTION.ATTACK3 = 11;
+				this.ACTION.SKILL = 12;
+			} else if (this._job == 6017) {
 				// Bowman
 				this.ACTION.IDLE = 0;
 				this.ACTION.WALK = 1;

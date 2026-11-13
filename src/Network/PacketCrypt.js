@@ -568,9 +568,22 @@ function Process(view) {
 }
 
 /**
+ * Reset encryption state (called when the zone connection is closed)
+ *
+ * Without this, NetworkManager#close would throw
+ * "PacketCrypt.reset is not a function" and skip the remaining
+ * cleanup (ping timer / socket list).
+ */
+function Reset() {
+	_available = false;
+	_keys.fill(0);
+}
+
+/**
  * Export
  */
 export default {
 	init: Init,
-	process: Process
+	process: Process,
+	reset: Reset
 };

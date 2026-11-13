@@ -995,7 +995,13 @@ class DB {
 	}
 
 	static isDoram(jobid) {
-		return (jobid >= 4217 && jobid <= 4220) || jobid === 4308 || jobid === 4315;
+		return (
+			(jobid >= 4217 && jobid <= 4220) ||
+			jobid === 4308 ||
+			jobid === 4315 ||
+			// 喵喵雇佣兵外观（多兰夏装，服务端 mercenary_db Id 同号）
+			jobid === JobId.DORAM_MEOW_SUMMER
+		);
 	}
 
 	/**
@@ -1164,6 +1170,19 @@ class DB {
 			return null;
 		}
 
+		// 多兰（含喵喵雇佣兵外观）：身体调色板在 도람족/body/ 子目录
+		if (DB.isDoram(id)) {
+			return (
+				'data/palette/\xb5\xb5\xb6\xf7\xc1\xb7/body/' +
+				PaletteTable[id] +
+				'_' +
+				SexTable[sex] +
+				'_' +
+				pal +
+				'.pal'
+			);
+		}
+
 		return 'data/palette/\xb8\xf6/' + PaletteTable[id] + '_' + SexTable[sex] + '_' + pal + '.pal';
 	}
 
@@ -1210,7 +1229,7 @@ class DB {
 	 * @param {boolean} sex
 	 */
 	static getHeadPalPath(id, pal, job, sex) {
-		if (job === 4218 || job === 4220) {
+		if (DB.isDoram(job)) {
 			return (
 				'data/palette/\xb5\xb5\xb6\xf7\xc1\xb7/\xb8\xd3\xb8\xae/\xb8\xd3\xb8\xae' +
 				(HairIndexTable[sex + 2][id] || id) +

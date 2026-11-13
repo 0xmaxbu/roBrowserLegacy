@@ -311,6 +311,10 @@ export default {
 	HYPER_NOVICE: 4307,
 	SPIRIT_HANDLER: 4308,
 
+	// 喵喵雇佣兵外观（自定义，服务端 mercenary_db import 同步使用）
+	// 借用空闲职业号区间；客户端据此路由到多兰夏装 sprite/调色板
+	DORAM_MEOW_SUMMER: 4309,
+
 	SKY_EMPEROR2: 4316,
 
 	COSTUME_SECOND_JOB_START: 4331,

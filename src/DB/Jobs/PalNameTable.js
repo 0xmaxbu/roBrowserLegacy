@@ -109,6 +109,8 @@ PalNameTable[JobId.STAR_EMPEROR2] = JobNameTable[JobId.STAR_EMPEROR2];
 PalNameTable[JobId.SOUL_REAPER] = JobNameTable[JobId.SOUL_REAPER];
 PalNameTable[JobId.SOUL_REAPER2] = JobNameTable[JobId.SOUL_REAPER2];
 PalNameTable[JobId.DO_SUMMONER] = '\xb9\xa6\xc1\xb7'; // "miao"
+// 喵喵雇佣兵外观（夏装）身体调色板：data/palette/도람족/body/SUMMER_남_N.pal
+PalNameTable[JobId.DORAM_MEOW_SUMMER] = 'SUMMER';
 
 //MOUNTS                              	//MOUNTS
 PalNameTable[JobId.PORING_NOVICE] = JobNameTable[JobId.PORING_NOVICE];

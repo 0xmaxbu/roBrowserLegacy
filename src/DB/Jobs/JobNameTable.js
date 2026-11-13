@@ -180,6 +180,8 @@ JobNameTable[JobId.SOUL_REAPER2] = '\xc7\xd8\xc5\xc2\xbc\xd2\xbf\xef\xb8\xae\xc6
 JobNameTable[JobId.STAR_EMPEROR2] = '\xc7\xd8\xc5\xc2\xbc\xba\xc1\xa6'; // 해태소울리
 
 JobNameTable[JobId.DO_SUMMONER] = 'summoner';
+// 喵喵雇佣兵外观：多兰夏装（sprite 여름_남，GRF: data/sprite/도람족/몸통/남/여름_남）
+JobNameTable[JobId.DORAM_MEOW_SUMMER] = '\xbf\xa9\xb8\xa7'; // 여름
 
 JobNameTable[JobId.SHEEP_HPRIEST] = '\xc7\xcf\xc0\xcc\xc7\xc1\xb8\xae\xbd\xba\xc6\xae\xbe\xcb\xc6\xc4\xc4\xab';
 JobNameTable[JobId.OSTRICH_SNIPER] = '\xc5\xb8\xc1\xb6\xbd\xba\xb3\xaa\xc0\xcc\xc6\xdb';

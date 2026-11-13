@@ -64,6 +64,13 @@ class Life {
 		let height = 5;
 		const Entity = this.entity.constructor;
 
+		// Mercenaries never render an in-world HP/SP bar (Meow uses pet-like
+		// semantics: untargetable + no HP bar, see docs/mercenary-system.md).
+		if (this.entity.objecttype === Entity.TYPE_MERC) {
+			this.remove();
+			return;
+		}
+
 		// Don't display it, if negatives values.
 		if (this.hp < 0 || this.hp_max < 0) {
 			this.remove();
