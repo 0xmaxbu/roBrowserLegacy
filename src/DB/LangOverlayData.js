@@ -4,9 +4,15 @@
 // itemName/skillName/skillDescription/message：按需维护的子集，未命中 ID 回退原文
 import MAP_SIGN_NAME_OVERLAY_ZH from 'DB/Map/MapSignNameOverlay_zh.js';
 import MONSTER_NAME_TABLE_ZH from 'DB/Monsters/MonsterNameTable.js';
+import STATUS_INFO_OVERLAY_ZH from 'DB/Status/StatusInfoOverlay_zh.js';
 
 export const LANG_OVERLAY_DATA = {
     zh: {
+        // buff 状态图标悬停信息（key=SC/EFST 数值 ID，对应 StatusConst.js/StatusInfo.js 的键；
+        // WR-02：SC ID 与技能/物品 ID 数值重叠，独立表）
+        // 2026-11-13 全量化：StatusInfoOverlay_zh.js 326 条（StatusInfo.js 全部 descript 条目），
+        // 每条含 name/type（标题颜色分类）/time（%s 时间占位）/lines（描述行）
+        statusInfo: STATUS_INFO_OVERLAY_ZH,
         // 物品名（key=物品ID）
         itemName: { 501: '红色药水', 502: '橙色药水', 503: '黄色药水' },
         // 技能名（key=技能ID）

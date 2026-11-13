@@ -8,7 +8,14 @@
  * @author Vincent Thibault
  */
 
-import StatusTable from 'DB/Status/StatusInfo.js';
+import StatusTable, {
+	COLOR_TITLE_BUFF,
+	COLOR_TITLE_DEBUFF,
+	COLOR_TITLE_TOGGLE,
+	COLOR_SYSTEM,
+	COLOR_TIME
+} from 'DB/Status/StatusInfo.js';
+import LangOverlay from 'DB/LangOverlay.js';
 import DB from 'DB/DBManager.js';
 import Texture from 'Utils/Texture.js';
 import Client from 'Core/Client.js';
@@ -235,11 +242,35 @@ function createElement(index) {
 	_status[index].ctx = canvas.getContext('2d');
 
 	// Add description
-	if (StatusTable[index].descript) {
+	// Phase 14 多语言：zh 下 LangOverlay 命中 statusInfo（StatusInfoOverlay_zh.js 全量 326 条）时
+	// 生成中文描述，结构与 StatusTable.descript 同构（[文本, 颜色]，%s 为剩余时间占位行），
+	// 标题行颜色按数据的 type（buff/debuff/toggle/system）取 StatusInfo.js 同源颜色；
+	// 未命中回退原文。
+	const overlayInfo = LangOverlay.getStatusInfo(index);
+	let descript = StatusTable[index].descript;
+	if (overlayInfo) {
+		const typeColors = {
+			buff: COLOR_TITLE_BUFF,
+			debuff: COLOR_TITLE_DEBUFF,
+			toggle: COLOR_TITLE_TOGGLE,
+			system: COLOR_SYSTEM
+		};
+		descript = [];
+		if (overlayInfo.name) {
+			descript.push([overlayInfo.name, typeColors[overlayInfo.type] ?? COLOR_TITLE_BUFF]);
+		}
+		if (overlayInfo.time) {
+			descript.push(['%s', COLOR_TIME]);
+		}
+		for (const text of overlayInfo.lines) {
+			descript.push([text]);
+		}
+	}
+	if (descript) {
 		const info = document.createElement('div');
 		info.className = 'description';
 
-		const lines = StatusTable[index].descript;
+		const lines = descript;
 		const count = lines.length;
 
 		for (let i = 0; i < count; ++i) {

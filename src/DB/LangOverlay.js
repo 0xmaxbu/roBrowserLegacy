@@ -14,6 +14,8 @@ class LangOverlay {
     static getSkillDescription(id, fallback) { return this._get('skillDescription', id) ?? fallback; }
     static getMonsterName(id, fallback) { return this._get('monsterName', id) ?? fallback; }
     static getMessage(id, fallback) { return this._get('message', id) ?? fallback; }
+    // buff 状态图标悬停信息（name + lines 行数组），SC ID 空间独立（WR-02）
+    static getStatusInfo(id) { return this._get('statusInfo', id); }
     // 地图名称特效（MapName）：返回 {mainTitle, subTitle?} 对象或 null
     static getMapSignName(mapname, fallback) { return this._get('mapSignName', mapname) ?? fallback; }
 

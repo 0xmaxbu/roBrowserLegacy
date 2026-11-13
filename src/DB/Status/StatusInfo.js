@@ -10,12 +10,12 @@
 
 import SC from './StatusConst.js';
 
-// Hardcoded color
-const COLOR_TITLE_BUFF = 'rgb(155, 202, 155)';
-const COLOR_TITLE_DEBUFF = 'rgb(250, 100, 100)';
-const COLOR_TITLE_TOGGLE = 'rgb(190, 190, 250)';
-const COLOR_SYSTEM = 'rgb(255, 255,   0)';
-const COLOR_TIME = 'rgb(255, 176,  98)';
+// Hardcoded color（named export：StatusIcons.js 中文覆盖层渲染复用，保持单一事实源）
+export const COLOR_TITLE_BUFF = 'rgb(155, 202, 155)';
+export const COLOR_TITLE_DEBUFF = 'rgb(250, 100, 100)';
+export const COLOR_TITLE_TOGGLE = 'rgb(190, 190, 250)';
+export const COLOR_SYSTEM = 'rgb(255, 255,   0)';
+export const COLOR_TIME = 'rgb(255, 176,  98)';
 
 // TODO: find icon status: 40-49 | 60 | 63-64 | 66-67 | 70-86 | 88-89 | 64-621 | ???
 
