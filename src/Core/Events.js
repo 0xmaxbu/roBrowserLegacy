@@ -83,6 +83,11 @@ class Events {
 
 		// Execute time out events.
 		while (count > 0) {
+			// 防御：回调内可能清空事件队列（free/clearTimeout），剩余 count 变 stale，
+			// _events[0] 为 undefined 时读 .tick 会抛错并杀死渲染循环（2026-11-14 实测）。
+			if (!_events.length || !_events[0]) {
+				break;
+			}
 			if (_events[0].tick > tick) {
 				break;
 			}
