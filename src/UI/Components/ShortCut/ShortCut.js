@@ -803,12 +803,15 @@ function onDragStart(event, icon) {
 	// Extract image from css to get it when dragging the element
 	const img = new Image();
 	img.decoding = 'async';
-	img.src = icon
+	// 缺图标条目（iteminfo 无资源名）时 match() 返回 null，直接 [1] 会抛 TypeError（同 NpcStore 2026-12 修复）
+	const bgMatch = icon
 		.querySelector('.img')
-		.style.backgroundImage.match(/\(([^)]+)/)[1]
-		.replace(/"/g, '');
+		.style.backgroundImage.match(/\(([^)]+)/);
+	img.src = bgMatch ? bgMatch[1].replace(/"/g, '') : '';
 
-	event.dataTransfer.setDragImage(img, 12, 12);
+	if (img.src) {
+		event.dataTransfer.setDragImage(img, 12, 12);
+	}
 	event.dataTransfer.setData(
 		'Text',
 		JSON.stringify(

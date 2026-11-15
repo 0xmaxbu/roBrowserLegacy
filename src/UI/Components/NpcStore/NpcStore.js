@@ -1105,11 +1105,16 @@ function onDragStart(event) {
 				: OutputWindow
 	).className;
 	const img = new Image();
-	const url = this.firstChild.style.backgroundImage.match(/\(([^\)]+)/)[1].replace(/"/g, '');
+	// 缺图标物品（iteminfo 无资源名）时 backgroundImage 匹配不到括号，match() 返回 null，
+	// 直接 [1] 会抛 TypeError 中断拖拽/购买（2026-12 宠物商店高级宠物饲料问题）
+	const bgMatch = this.firstChild.style.backgroundImage.match(/\(([^\)]+)/);
+	const url = bgMatch ? bgMatch[1].replace(/"/g, '') : '';
 	img.decoding = 'async';
 	img.src = url;
 
-	event.originalEvent.dataTransfer.setDragImage(img, 12, 12);
+	if (url) {
+		event.originalEvent.dataTransfer.setDragImage(img, 12, 12);
+	}
 	event.originalEvent.dataTransfer.setData(
 		'Text',
 		JSON.stringify(
