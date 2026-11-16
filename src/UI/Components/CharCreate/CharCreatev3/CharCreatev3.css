@@ -63,6 +63,15 @@
 	left: 20px;
 }
 
+/* 运营策略：本服禁止创建多兰族（猫族）。UI 隐藏猫族选择块，
+   底部爪印框留空（与 kRO 参考样式一致）。
+   服务端双保险：char_conf.txt.template allowed_job_flag: 1（仅人类新手）。
+   注意：HTML 中 .doram 块保留（#canvas_doram 仍需存在，
+   CharCreatev3.js 初始化会取其 getContext，隐藏不影响 JS 运行）。 */
+#charcreate_v3 .race_select .doram {
+	display: none;
+}
+
 /* Style */
 #charcreate_v3 #style {
 	position: relative;
