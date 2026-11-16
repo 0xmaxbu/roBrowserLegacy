@@ -81,7 +81,7 @@ const CAP = {
 	}
 };
 
-const RACE_MARK = DB.INTERFACE_PATH + 'make_character/select_mark_cha_create.bmp';
+const RACE_MARK = DB.INTERFACE_PATH + 'make_character/select_mark_cha_create.bmp'; // 已废弃：纯品红透明键色图，不可用作 CSS 背景（见 updateCharacter TYPE.RACE 注释）
 
 /**
  * 惰性创建 model info：模块顶层 new Entity() 会因循环依赖在 Entity 初始化完成前执行而崩溃。
@@ -188,6 +188,7 @@ CharCreatev3.init = function init() {
 	});
 
 	this.ui.find('.button.close').click(cancel);
+	this.ui.find('.button.cancel').click(cancel);
 	this.ui.find('.button.make').click(create);
 
 	/* Msgstring Texts */
@@ -364,19 +365,10 @@ function updateCharacter(type, value) {
 		case TYPE.RACE:
 			_model.entity.job = value;
 			_model.entity.head = 1; // Need to reset head as well
-
-			if (_model.entity.job === RACE.HUMAN) {
-				Client.loadFile(RACE_MARK, function (dataURI) {
-					CharCreatev3.ui.find('.race_select .human label').css('backgroundImage', 'url(' + dataURI + ')');
-				});
-				CharCreatev3.ui.find('.race_select .doram label').css('backgroundImage', 'none');
-			} else {
-				CharCreatev3.ui.find('.race_select .human label').css('backgroundImage', 'none');
-				Client.loadFile(RACE_MARK, function (dataURI) {
-					CharCreatev3.ui.find('.race_select .doram label').css('backgroundImage', 'url(' + dataURI + ')');
-				});
-			}
-
+			// 种族卡不再设置背景图：img_human_off/on（make_character_ver2）
+			// 是 2023 kRO 新版卡图，烙有职业图标格子，会盖住 .jobs 文字；
+			// select_mark_cha_create.bmp 是纯品红透明键色图，作 CSS 背景会糊成粉色块。
+			// 边框/气泡/横线已由 bg_create_character.bmp 底图提供，无需额外背景。
 			break;
 
 		case TYPE.DIRECTION:

@@ -172,6 +172,19 @@
 	background-color: transparent;
 	border: 0;
 }
+
+/* 取消按钮——位于创建按钮左侧（与目标参考样式一致）。
+   使用根目录 btn_cancel*.bmp（本地中文数据，与选人页底栏同款中文图）。 */
+#charcreate_v3 .button.cancel {
+	position: absolute;
+	top: 280px;
+	left: 395px;
+	width: 42px;
+	height: 20px;
+	background-repeat: no-repeat;
+	background-color: transparent;
+	border: 0;
+}
 #charcreate_v3 .button.close {
 	position: absolute;
 	top: 3px;
