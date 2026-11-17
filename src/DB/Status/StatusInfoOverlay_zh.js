@@ -44,10 +44,10 @@ export const STATUS_INFO_OVERLAY_ZH = {
 	13: { name: '缓速术', type: 'debuff', time: 1, lines: ['降低移动速度', '降低攻击速度'] },
 	// 毒缓释（SLOWPOISON）
 	14: { name: '毒缓释', type: 'buff', time: 1, lines: ['暂时停止中毒伤害'] },
-	// 圣灵祈祷（IMPOSITIO）
-	15: { name: '圣灵祈祷', type: 'buff', time: 1, lines: ['提升武器攻击力'] },
-	// 牺牲祈福（SUFFRAGIUM）
-	16: { name: '牺牲祈福', type: 'buff', time: 1, lines: ['缩短咏唱时间'] },
+	// 天赐（IMPOSITIO）——原误标“圣灵祈祷”（圣灵祈祷是 SUFFRAGIUM 的中文译名）
+	15: { name: '天赐', type: 'buff', time: 1, lines: ['提升武器攻击力'] },
+	// 圣灵祈祷（SUFFRAGIUM）
+	16: { name: '圣灵祈祷', type: 'buff', time: 1, lines: ['缩短咏唱时间'] },
 	// 圣水祈福（ASPERSIO）
 	17: { name: '圣水祈福', type: 'buff', time: 1, lines: ['武器赋予圣属性'] },
 	// BENEDICTIO（BENEDICTIO）

@@ -66,6 +66,10 @@ function onOpenRoulette(pkt) {
 			Roulette.append();
 		}
 		Roulette.onOpen(pkt);
+		// 官方客户端开窗后会自动请求奖品列表（CZ 0xA1B → 服务端回 ZC 0xA1C），
+		// rAthena 只在收到 0xA1B 时才发 clif_roulette_info，不请求则转轮永远空白
+		const infoReq = new PACKET.CZ.REQ_ROULETTE_INFO();
+		Network.sendPacket(infoReq);
 	} else {
 		console.error('Failed to open roulette:', pkt.result);
 	}

@@ -67,6 +67,10 @@ Roulette.init = function init() {
 	});
 
 	this.ui.find('.btn-close').click(function () {
+		// Get Prize：有未领取奖品时先发 CZ 0xA21 领取（服务端发货后回 0xA22），再关窗
+		if (_rouletteInfo.idx !== undefined && _rouletteInfo.idx > -1) {
+			Roulette.requestReceiveItem(0);
+		}
 		Roulette.onClose();
 	});
 
@@ -87,6 +91,18 @@ Roulette.init = function init() {
  * @var {number} Timeout ID for server response
  */
 let _responseTimeout = null;
+
+/**
+ * 物品图标路径：走 iteminfo（identifiedResourceName → collection/，与 CashShop 同管线）；
+ * iteminfo 缺失时回退数字 id 路径。本项目 GRF 数据的 texture/item/ 无数字图标文件。
+ */
+function _getItemIconPath(itemId) {
+	const it = DB.getItemInfo(itemId);
+	const name = it && (it.identifiedResourceName || it.unidentifiedResourceName);
+	return name
+		? DB.INTERFACE_PATH + 'collection/' + name + '.bmp'
+		: DB.INTERFACE_PATH + 'item/' + itemId + '.bmp';
+}
 
 /**
  * Click on roulette icon
@@ -299,7 +315,7 @@ Roulette.generateWheelSlots = function generateWheelSlots() {
 			const itemId = items[i].itemId || items[i].item_id || items[i].ItemID;
 			if (itemId) {
 				Client.loadFile(
-					DB.INTERFACE_PATH + 'item/' + itemId + '.bmp',
+					_getItemIconPath(itemId),
 					function (_slot, data) {
 						const icon = jQuery('<div class="item-icon"></div>');
 						icon.css('backgroundImage', 'url(' + data + ')');
@@ -356,7 +372,7 @@ Roulette.showResult = function showResult(resultIndex) {
 		const itemId = item.itemId || item.item_id || item.ItemID;
 
 		if (itemId) {
-			Client.loadFile(DB.INTERFACE_PATH + 'item/' + itemId + '.bmp', function (data) {
+			Client.loadFile(_getItemIconPath(itemId), function (data) {
 				resultDisplay.css('backgroundImage', 'url(' + data + ')');
 			});
 		}
