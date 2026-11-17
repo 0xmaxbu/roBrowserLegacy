@@ -13,6 +13,7 @@ import Preferences from 'Core/Preferences.js';
 import KEYS from 'Controls/KeyEventHandler.js';
 import UIManager from 'UI/UIManager.js';
 import GUIComponent from 'UI/GUIComponent.js';
+import AccountRegister from 'UI/Components/AccountRegister/AccountRegister.js';
 import 'UI/Elements/Elements.js';
 
 export function createWinLogin({ name, htmlText, cssText }) {
@@ -186,26 +187,21 @@ export function createWinLogin({ name, htmlText, cssText }) {
 	}
 
 	function signup() {
-		const url = Configs.get('registrationweb');
-		if (url) {
-			UIManager.showPromptBox(
-				DB.getMessage(662),
-				'ok',
-				'cancel',
-				() => {
-					window.open(url);
-				},
-				null
-			);
-		} else {
-			UIManager.showPromptBox(
-				'No registration URL was provided.\nIf this server uses simplified registration, then input your new:\n - Username followed by _M for Male and _F for Female account (Eg: MyUser_M)\n - Password.',
-				'ok',
-				'cancel',
-				null,
-				null
-			);
-		}
+		// 游戏内注册窗（验证码邮箱验证，不走 _M/_F 后缀）。
+		// 打开注册窗时隐藏登录窗（登录窗 z-index 更高会遮住注册窗下半部），
+		// 关闭/注册成功后恢复登录窗。
+		// 注册成功后自动登录：回填帐号密码并复用登录逻辑。
+		const host = Component._host;
+		AccountRegister.onClose = function () {
+			host.style.display = '';
+		};
+		AccountRegister.onRegisterSuccess = function (user, pass) {
+			_inputUsername.value = user;
+			_inputPassword.value = pass;
+			connect();
+		};
+		host.style.display = 'none';
+		AccountRegister.append();
 	}
 
 	Component.onConnectionRequest = function onConnectionRequest() {};

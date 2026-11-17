@@ -233,7 +233,7 @@ CharCreatev3.onAppend = function onAppend() {
 	_doram.render = true;
 
 	_model.entity.set({
-		sex: GENDER.MALE,
+		sex: _accountSex, // 性别继承账号（注册时选定）
 		job: RACE.HUMAN,
 		head: 1,
 		headpalette: 0,
@@ -343,6 +343,11 @@ function cancel() {
 function updateCharacter(type, value) {
 	switch (type) {
 		case TYPE.GENDER:
+			// 性别锁定为账号性别：RO 角色性别继承账号（注册时选定），
+			// 服务端会拒绝不匹配的建角性别
+			if (value !== _accountSex) {
+				return;
+			}
 			_model.entity.sex = value;
 
 			if (_model.entity.sex == GENDER.MALE) {
@@ -401,7 +406,7 @@ function updateCharacter(type, value) {
 
 		case TYPE.DEFAULT:
 			updateCharacter(TYPE.RACE, RACE.HUMAN);
-			updateCharacter(TYPE.GENDER, GENDER.MALE);
+			updateCharacter(TYPE.GENDER, _accountSex); // 性别锁定为账号性别
 			_model.entity.headpalette = 0;
 			break;
 	}
