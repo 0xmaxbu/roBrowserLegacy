@@ -3649,6 +3649,11 @@ export default {
 	10079: '4_F_FRUIT',
 	10080: '4_SCR_MT_ROBOTS',
 	10081: '4_MACHINE_DEVICE',
+	// 扭蛋机派生色板（docs/plan/gacha-sprite-palette.md）：自建 viewId，
+	// 精灵文件由 tools/gen-gacha-sprites.py 生成，overlay 层投放
+	19996: 'gacha_pet',
+	19997: 'gacha_costume',
+	19998: 'gacha_headgear',
 	10082: '4_GC109',
 	10083: '4_SYS_MSG',
 	10084: '4_M_TATIO',
