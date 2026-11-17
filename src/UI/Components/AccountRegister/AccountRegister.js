@@ -80,11 +80,15 @@ AccountRegister.init = function init() {
 	};
 
 	this.ui.css({
-		top: Math.max(16, Math.floor((Renderer.height - 300) / 2)),
+		top: Math.max(16, Math.floor((Renderer.height - 250) / 2)),
 		left: Math.floor((Renderer.width - 340) / 2)
 	});
 
-	this.draggable();
+	// 仅标题栏可拖（游戏内窗口行为）
+	this.draggable(this.ui.find('.titlebar'));
+
+	// 标题栏关闭钮（sys_close 位图，data-* 由 parseHTML 处理）
+	this.ui.find('.titlebar .close').on('click', () => closeWindow());
 
 	// 性别选择（单选）
 	this.ui.find('.sexbtn').on('click', function () {
@@ -104,11 +108,12 @@ AccountRegister.init = function init() {
 		if (get('password').val() !== get('password2').val()) return msg('两次输入的密码不一致');
 
 		msg('正在发送验证码…');
-		sendBtn.prop('disabled', true);
+		sendBtn.prop('disabled', true).addClass('disabled');
 		post('send', { username: username, email: email }, res => {
 			if (!res.ok) {
 				msg(res.err || '发送失败');
-				sendBtn.prop('disabled', false);
+				sendBtn.prop('disabled', false).removeClass('disabled');
+				ui.find('.cdtext').text('');
 				if (res.retryAfter) startCountdown(res.retryAfter);
 				return;
 			}
@@ -152,26 +157,29 @@ AccountRegister.init = function init() {
 
 /**
  * 重发倒计时
+ * 按钮是位图（btn_ok），无文字层：禁用态用变灰滤镜 + 右侧秒数小字表达
  */
 function startCountdown(seconds) {
 	const btn = AccountRegister.ui.find('.send');
 	_seconds = seconds;
-	btn.prop('disabled', true);
+	btn.prop('disabled', true).addClass('disabled');
 	if (_timer) clearInterval(_timer);
 	_timer = setInterval(() => updateCountdown(btn), 1000);
 	updateCountdown(btn);
 }
 
 function updateCountdown(btn) {
+	const cdtext = AccountRegister.ui.find('.cdtext');
 	if (_seconds <= 0) {
-		btn.prop('disabled', false).text('发送验证码');
+		btn.prop('disabled', false).removeClass('disabled');
+		cdtext.text('');
 		if (_timer) {
 			clearInterval(_timer);
 			_timer = null;
 		}
 		return;
 	}
-	btn.text('重新发送(' + _seconds + 's)');
+	cdtext.text(_seconds + 's');
 	_seconds--;
 }
 

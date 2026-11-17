@@ -1,39 +1,74 @@
 <div id="AccountRegister">
-	<div class="titlebar">注册新账号</div>
+	<div class="titlebar" data-background="basic_interface/titlebar_mid.bmp">
+		<span class="text">注册新账号</span>
+		<button
+			class="close"
+			type="button"
+			data-background="basic_interface/sys_close_off.bmp"
+			data-hover="basic_interface/sys_close_on.bmp"
+		></button>
+	</div>
 	<div class="form">
 		<div class="row">
 			<label>帐 号</label>
-			<input name="username" maxlength="23" autocomplete="off" spellcheck="false" />
+			<input name="username" maxlength="23" autocomplete="off" spellcheck="false" data-background="login_interface/name-edit.bmp" />
 		</div>
 		<div class="row">
 			<label>邮 箱</label>
-			<input name="email" maxlength="39" autocomplete="off" spellcheck="false" />
+			<input name="email" maxlength="39" autocomplete="off" spellcheck="false" data-background="login_interface/name-edit.bmp" />
 		</div>
 		<div class="row">
 			<label>密 码</label>
-			<input name="password" type="password" maxlength="23" />
+			<input name="password" type="password" maxlength="23" data-background="login_interface/name-edit.bmp" />
 		</div>
 		<div class="row">
 			<label>确认密码</label>
-			<input name="password2" type="password" maxlength="23" />
+			<input name="password2" type="password" maxlength="23" data-background="login_interface/name-edit.bmp" />
 		</div>
 		<div class="row">
 			<label>性 别</label>
 			<div class="sex">
-				<button class="sexbtn male active" type="button">男 性</button>
-				<button class="sexbtn female" type="button">女 性</button>
+				<button
+					class="sexbtn male active"
+					type="button"
+					data-background="login_interface/checkbox_off.bmp"
+					data-active="login_interface/checkbox_on.bmp"
+				></button><span>男</span>
+				<button
+					class="sexbtn female"
+					type="button"
+					data-background="login_interface/checkbox_off.bmp"
+					data-active="login_interface/checkbox_on.bmp"
+				></button><span>女</span>
 			</div>
 		</div>
 		<div class="row">
 			<label>验证码</label>
-			<input name="code" maxlength="6" autocomplete="off" spellcheck="false" />
-			<button class="send" type="button">发送验证码</button>
+			<input name="code" maxlength="6" autocomplete="off" spellcheck="false" data-background="login_interface/name-edit.bmp" />
+			<button
+				class="send"
+				type="button"
+				data-background="login_interface/btn_ok.bmp"
+			></button>
+			<span class="cdtext"></span>
 		</div>
 	</div>
 	<div class="msg"></div>
 	<div class="btns">
-		<button class="register" type="button">注 册</button>
-		<button class="cancel" type="button">取 消</button>
+		<button
+			class="register"
+			type="button"
+			data-background="login_interface/btn_request.bmp"
+			data-hover="login_interface/btn_request_a.bmp"
+			data-down="login_interface/btn_request_b.bmp"
+		></button>
+		<button
+			class="cancel"
+			type="button"
+			data-background="login_interface/btn_exit.bmp"
+			data-hover="login_interface/btn_exit_a.bmp"
+			data-down="login_interface/btn_exit_b.bmp"
+		></button>
 	</div>
 	<div class="hint">帐号仅限字母和数字（4-23 位），一个邮箱只能注册一个账号</div>
 </div>
