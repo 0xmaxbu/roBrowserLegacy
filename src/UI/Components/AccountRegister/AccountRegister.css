@@ -1,10 +1,11 @@
 /** AccountRegister — 游戏内账号注册窗（复用登录框样式 + 游戏内窗口 footer 条） */
 
-/* 窗口 280 宽 = 登录框同宽；1px 外框色取自 win_login.bmp 窗口边缘 rgb(194,194,194) */
+/* 窗口 280 宽 = 登录框同宽；1px 外框色取自 win_login.bmp 窗口边缘 rgb(194,194,194)；
+   上下间距对齐登录框节奏：标题栏底到表单 13px，表单底经消息区到 footer */
 #AccountRegister {
 	position: absolute;
 	width: 280px;
-	height: 266px;
+	height: 272px;
 	box-sizing: border-box;
 	border: 1px solid rgb(194, 194, 194);
 	background-color: #fff;
@@ -23,10 +24,20 @@
 	background-color: white;
 }
 
+#AccountRegister .titlebar .dot {
+	position: absolute;
+	left: 4px;
+	top: 3px;
+	width: 12px;
+	height: 12px;
+	background-repeat: no-repeat;
+	user-select: none;
+}
+
 #AccountRegister .titlebar .text {
 	position: absolute;
 	top: 2px;
-	left: 5px;
+	left: 20px;
 	font-size: 11px;
 	font-weight: bold;
 	text-shadow: 1px 1px white;
@@ -49,7 +60,7 @@
 
 #AccountRegister .form {
 	position: absolute;
-	top: 22px;
+	top: 30px;
 	left: 0;
 	right: 0;
 }
@@ -179,7 +190,7 @@
 	position: absolute;
 	left: 12px;
 	right: 12px;
-	top: 216px;
+	top: 224px;
 	min-height: 14px;
 	line-height: 14px;
 	color: #c0392b;
