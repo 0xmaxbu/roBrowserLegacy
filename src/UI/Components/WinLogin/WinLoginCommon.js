@@ -70,6 +70,58 @@ export function createWinLogin({ name, htmlText, cssText }) {
 			}
 		);
 
+		// 显式加载按钮三态背景。GUIComponent 的 data-* 处理依赖异步加载的重模块
+		// （_loadHeavyDeps 不被 prepare 等待），快速路径下 _DB/_Client 未就绪时
+		// 会被空守卫静默跳过且无重试，导致登录窗按钮无图透明；save 复选框因
+		// 上方显式加载而幸免。此处对全部 data-background 按钮套用同一机制
+		// （直接使用本模块已导入的 Client，确定性不依赖异步依赖）。
+		const buttonRoot = this._shadow || this._host;
+		buttonRoot.querySelectorAll('button[data-background]').forEach(btn => {
+			const base = btn.dataset.background;
+			if (!base) return;
+			const hover = btn.dataset.hover;
+			const down = btn.dataset.down;
+			const state = { hover: false, down: false };
+			const cache = {};
+			const load = (file, cb) => {
+				if (cache[file]) return cb(cache[file]);
+				Client.loadFile(DB.INTERFACE_PATH + file, url => {
+					cache[file] = url;
+					cb(url);
+				});
+			};
+			const apply = () => {
+				const file = state.down && down ? down : state.hover && hover ? hover : base;
+				load(file, url => {
+					btn.style.backgroundImage = 'url(' + url + ')';
+				});
+			};
+			load(base, url => {
+				btn.style.backgroundImage = 'url(' + url + ')';
+			});
+			if (hover) {
+				btn.addEventListener('mouseover', () => {
+					state.hover = true;
+					apply();
+				});
+				btn.addEventListener('mouseout', () => {
+					state.hover = false;
+					state.down = false;
+					apply();
+				});
+			}
+			if (down) {
+				btn.addEventListener('mousedown', () => {
+					state.down = true;
+					apply();
+				});
+				btn.addEventListener('mouseup', () => {
+					state.down = false;
+					apply();
+				});
+			}
+		});
+
 		if (_preferences.ID.length) {
 			_inputPassword.focus();
 		} else {

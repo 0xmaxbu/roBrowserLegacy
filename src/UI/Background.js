@@ -198,6 +198,11 @@ class Background {
 		if (PACKETVER.value >= 20221207) {
 			return 't_login.jpg';
 		}
+		// 本项目 PACKETVER 固定 20191223，运营选择老版经典登录背景：
+		// bgi_temp.bmp（640x480 经典宣传画），替代 2018+ 的 t_배경* 12 格拼贴。
+		if (PACKETVER.value >= 20191223) {
+			return 'bgi_temp.bmp';
+		}
 		if (PACKETVER.value >= 20181114) {
 			return [
 				't_\xB9\xE8\xB0\xE61-1.bmp',
