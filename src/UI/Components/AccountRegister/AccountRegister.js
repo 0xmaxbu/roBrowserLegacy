@@ -5,8 +5,14 @@
  *
  * 流程：填帐号/邮箱/密码/确认密码/性别 -> 获取验证码（60s 重发冷却，
  * 每 IP 每小时 5 次，服务端限制）-> 填验证码 -> 注册。
- * 提交走 remote-client api/register.php（HTTP POST，直写 login 表），
- * 不经 rAthena 登录协议。注册成功回调 onRegisterSuccess(username, password)
+ *
+ * 通信（ADR-0004 玩家 HTTP 端点单一 seam，同源相对路径，不经登录协议）：
+ *   - /api/register/send   → nginx 反代 remote-client 邮件 adapter
+ *     （占用只读检查 + 验证码签发/限频；对 login 表只读，永不写入）
+ *   - /api/register/submit → nginx 反代 web-server register_controller
+ *     （验码 + 账号创建唯一写者；密码 user_salt+MD5 落库）
+ * submit 错误返回错误码（ticket 惯例），中文文案本地映射。
+ * 注册成功回调 onRegisterSuccess(username, password)
  * 由 WinLoginCommon 接管实现自动登录。
  *
  * This file is part of ROBrowser, (http://www.robrowser.com/).
@@ -14,7 +20,6 @@
 
 import Renderer from 'Renderer/Renderer.js';
 import KEYS from 'Controls/KeyEventHandler.js';
-import Configs from 'Core/Configs.js';
 import UIManager from 'UI/UIManager.js';
 import UIComponent from 'UI/UIComponent.js';
 import htmlText from './AccountRegister.html?raw';
@@ -49,21 +54,46 @@ function closeWindow() {
 }
 
 /**
- * api/register.php 端点（与资源服务同源）
+ * submit 错误码 → 中文文案（web-server register_controller 返回的 error code）
  */
-function apiURL() {
-	const base = (Configs.get('remoteClient') || '').replace(/\/+$/, '');
-	return base + '/api/register.php';
-}
+const ERR_TEXT = {
+	bad_username:     '帐号须为 4-23 位字母或数字',
+	bad_email:        '邮箱格式不正确',
+	bad_password:     '密码须为 6-23 位',
+	password_mismatch: '两次输入的密码不一致',
+	bad_sex:          '请选择性别',
+	bad_code:         '验证码须为 6 位数字',
+	no_code:          '请先获取验证码',
+	code_expired:     '验证码已过期，请重新获取',
+	code_locked:      '验证码错误次数过多，请重新获取',
+	code_wrong:       '验证码错误',
+	username_taken:   '该帐号已被注册',
+	email_taken:      '该邮箱已被注册',
+	register_failed:  '注册失败（帐号可能刚被注册），请更换帐号重试'
+};
 
-function post(action, data, cb) {
-	fetch(apiURL(), {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-		body: new URLSearchParams(Object.assign({ action: action }, data)).toString()
-	})
-		.then(res => res.json())
-		.then(res => cb(res))
+/**
+ * 同源 POST（ADR-0004：路径即接口，后端选择是 nginx 内部细节）
+ * 统一 multipart（FormData，与 SupportCenter/web-server 全部 controller 同约定；
+ * cpp-httplib 仅从 multipart parts 取字段，PHP $_POST 两种都解析）
+ * send（PHP）响应 {ok, err}；submit（C++）2xx + {ok:true} 或 4xx + {error:code}
+ */
+function postForm(path, data, cb) {
+	const fd = new FormData();
+	for (const [k, v] of Object.entries(data)) fd.append(k, v);
+	fetch(path, { method: 'POST', body: fd })
+		.then(res => res.json().then(body => ({ status: res.status, body })))
+		.then(({ status, body }) => {
+			if (status >= 200 && status < 300 && body.ok !== false) {
+				cb({ ok: true, data: body });
+			} else {
+				cb({
+					ok: false,
+					err: (body.error && ERR_TEXT[body.error]) || body.err || '操作失败，请稍后再试',
+					retryAfter: body.retryAfter
+				});
+			}
+		})
 		.catch(() => cb({ ok: false, err: '网络错误，请稍后再试' }));
 }
 
@@ -110,7 +140,7 @@ AccountRegister.init = function init() {
 
 		msg('正在发送验证码…');
 		sendBtn.prop('disabled', true).addClass('disabled');
-		post('send', { username: username, email: email }, res => {
+		postForm('/api/register/send', { username: username, email: email }, res => {
 			if (!res.ok) {
 				msg(res.err || '发送失败');
 				sendBtn.prop('disabled', false).removeClass('disabled');
@@ -143,8 +173,8 @@ AccountRegister.init = function init() {
 		if (!/^\d{6}$/.test(code)) return msg('验证码须为 6 位数字');
 
 		msg('正在提交…');
-		post(
-			'submit',
+		postForm(
+			'/api/register/submit',
 			{ username: username, email: email, password: password, password2: password2, sex: sex, code: code },
 			res => {
 				if (!res.ok) return msg(res.err || '注册失败');
