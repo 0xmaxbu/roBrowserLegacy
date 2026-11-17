@@ -5,6 +5,7 @@
 import MAP_SIGN_NAME_OVERLAY_ZH from 'DB/Map/MapSignNameOverlay_zh.js';
 import MONSTER_NAME_TABLE_ZH from 'DB/Monsters/MonsterNameTable.js';
 import STATUS_INFO_OVERLAY_ZH from 'DB/Status/StatusInfoOverlay_zh.js';
+import ITEM_RANDOM_OPTION_OVERLAY_ZH from 'DB/Items/ItemRandomOptionTable_zh.js';
 
 export const LANG_OVERLAY_DATA = {
     zh: {
@@ -13,6 +14,9 @@ export const LANG_OVERLAY_DATA = {
         // 2026-11-13 全量化：StatusInfoOverlay_zh.js 326 条（StatusInfo.js 全部 descript 条目），
         // 每条含 name/type（标题颜色分类）/time（%s 时间占位）/lines（描述行）
         statusInfo: STATUS_INFO_OVERLAY_ZH,
+        // 装备随机词条显示模板（key=词条ID，对应 ItemRandomOptionTable.js / enumvar.lub ID 空间）
+        // 译名基准：台服官方（ROZ/樂園）显示文本逐条简体化；ID 86/173/174 上游无文本，回退英文占位
+        optionName: ITEM_RANDOM_OPTION_OVERLAY_ZH,
         // 物品名（key=物品ID）
         itemName: { 501: '红色药水', 502: '橙色药水', 503: '黄色药水' },
         // 技能名（key=技能ID）
@@ -247,6 +251,7 @@ export const LANG_OVERLAY_DATA = {
             6500: '当前没有签到活动。',
             6501: '剩余机会：0',
             6502: '结果：',
+            6503: '未知词条属性',
 
             // 6510-6519: 签到窗口（CheckAttendance UI，2026-11-12，详见 docs/localization-architecture.md §14.6）
             6510: '活动期间：{0}月{1}日 ~ {2}月{3}日 24:00',

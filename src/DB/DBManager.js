@@ -272,6 +272,17 @@ const userStringDecoder = TextEncoding;
 /**
  * DB NameSpace
  */
+// 喵喵宠物精灵名表（pet 职业号 → data/sprite/펫/ 下文件名，与 server pet_db import 同号）
+const MEOW_PET_TABLE = {
+	21602: 'meow_white',
+	21603: 'meow_blue',
+	21604: 'meow_tabby',
+	21605: 'meow_black',
+	21606: 'meow_gray',
+	21607: 'meow_cow',
+	21608: 'meow_orange'
+};
+
 class DB {
 	/**
 	 * @type {Object} file alias list
@@ -717,6 +728,23 @@ class DB {
 				onLoad()
 			);
 
+			// 头饰外观表：kRO accname.lub 离线解码的 txt 回退（2026-11-16）。
+			// loadLua:false 时 HatTable 原本只能由 datainfo/accname.lub 填充（在 loadLua
+			// 门控内，永不加载）→ 所有头饰/时装头饰装备后无外观。本表为唯一 HatTable
+			// 来源，键 = View ID，值 = 精灵名（CP949，与 accname.lub 解码结果一致）。
+			// 文件经 remote-client overlay 层投放（tools 外部生成，见
+			// dev-logs/2026-11-16-gacha-restyle-palette.md §渲染修复）。
+			loadTable(
+				'data/accessorytable.txt',
+				'#',
+				2,
+				function (_index, key, val) {
+					HatTable[key] = val;
+				},
+				onLoad(),
+				true
+			);
+
 			// Skill
 			loadTable(
 				'data/skilldesctable.txt',
@@ -1050,6 +1078,12 @@ class DB {
 		// Not visible sprite
 		if (id === 111 || id === 139 || id == 2337) {
 			return null;
+		}
+
+		// 喵喵宠物（自定义蛋宠物 21602-21608，mob id 区段 20020-31999）：预合成单文件精灵，
+		// 宠物渲染不走头部/身体分层，毛色已烘焙进精灵（data/sprite/펫/meow_*.spr/.act）
+		if (MEOW_PET_TABLE[id]) {
+			return 'data/sprite/\xc6\xea/' + MEOW_PET_TABLE[id];
 		}
 
 		// PC
@@ -2393,9 +2427,11 @@ class DB {
 	 */
 	static getOptionName(id) {
 		if (!(id in RandomOption)) {
-			return 'UNKNOWN RANDOM OPTION';
+			// 词条 ID 无效（双侧表均未收录）时的错误提示也走 i18n（msgstringtable 自定义段 6503）
+			return this.getMessage(6503, 'UNKNOWN RANDOM OPTION');
 		}
-		return RandomOption[id];
+		// zh 语言走覆盖层（台服官方译名简体化），未收录/其它语言回退英文原表
+		return LangOverlay.getOptionName(id, RandomOption[id]);
 	}
 	/**
 	 * Get a message from msgstringtable

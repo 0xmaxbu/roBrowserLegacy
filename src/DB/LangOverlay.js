@@ -10,6 +10,8 @@ class LangOverlay {
         return (id in table) ? table[id] : null;
     }
     static getItemName(id, fallback) { return this._get('itemName', id) ?? fallback; }
+    // 装备随机词条显示模板（%d/%模版，同 ItemRandomOptionTable 渲染规则）
+    static getOptionName(id, fallback) { return this._get('optionName', id) ?? fallback; }
     static getSkillName(id, fallback) { return this._get('skillName', id) ?? fallback; }
     static getSkillDescription(id, fallback) { return this._get('skillDescription', id) ?? fallback; }
     static getMonsterName(id, fallback) { return this._get('monsterName', id) ?? fallback; }
