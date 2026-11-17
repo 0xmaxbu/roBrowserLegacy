@@ -96,16 +96,17 @@ AccountRegister.init = function init() {
 		this.classList.add('active');
 	});
 
-	// 发送验证码（60s 冷却由服务端+客户端双重限制）
+	// 发送验证码：验证码发往邮箱，优先校验邮箱（是否输入/格式），其次帐号（服务端发码需要）；
+	// 不校验密码——用户可先发码后填密码
 	this.ui.find('.send').on('click', () => {
 		const sendBtn = ui.find('.send');
 		if (sendBtn.prop('disabled')) return;
-		const username = get('username').val().trim();
 		const email = get('email').val().trim();
-		if (!USERNAME_RE.test(username)) return msg('帐号须为 4-23 位字母或数字');
+		const username = get('username').val().trim();
+		if (!email) return msg('请输入邮箱');
 		if (!EMAIL_RE.test(email)) return msg('邮箱格式不正确');
-		if (!/^.{6,23}$/.test(get('password').val())) return msg('密码须为 6-23 位');
-		if (get('password').val() !== get('password2').val()) return msg('两次输入的密码不一致');
+		if (!username) return msg('请输入帐号');
+		if (!USERNAME_RE.test(username)) return msg('帐号须为 4-23 位字母或数字');
 
 		msg('正在发送验证码…');
 		sendBtn.prop('disabled', true).addClass('disabled');
@@ -121,7 +122,7 @@ AccountRegister.init = function init() {
 		});
 	});
 
-	// 注册提交
+	// 注册提交：本地初步验证（空值 → 格式 → 一致性 → 验证码），全部通过才发请求
 	this.ui.find('.register').on('click', () => {
 		const username = get('username').val().trim();
 		const email = get('email').val().trim();
@@ -130,11 +131,16 @@ AccountRegister.init = function init() {
 		const code = get('code').val().trim();
 		const sex = ui.find('.sexbtn.female').hasClass('active') ? 'F' : 'M';
 
+		if (!username) return msg('请输入帐号');
 		if (!USERNAME_RE.test(username)) return msg('帐号须为 4-23 位字母或数字');
+		if (!email) return msg('请输入邮箱');
 		if (!EMAIL_RE.test(email)) return msg('邮箱格式不正确');
+		if (!password) return msg('请输入密码');
 		if (!/^.{6,23}$/.test(password)) return msg('密码须为 6-23 位');
+		if (!password2) return msg('请再次输入密码');
 		if (password !== password2) return msg('两次输入的密码不一致');
-		if (!/^\d{6}$/.test(code)) return msg('请输入 6 位验证码');
+		if (!code) return msg('请输入验证码');
+		if (!/^\d{6}$/.test(code)) return msg('验证码须为 6 位数字');
 
 		msg('正在提交…');
 		post(
