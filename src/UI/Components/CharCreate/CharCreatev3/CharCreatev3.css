@@ -162,10 +162,12 @@
 	top: 208px;
 }
 
+/* 创建/取消按钮——窗口右下角底条上，与 kRO 老版样式一致：
+   取消贴右下角，创建角色在取消左侧。 */
 #charcreate_v3 .button.make {
 	position: absolute;
-	top: 280px;
-	left: 445px;
+	bottom: 4px;
+	right: 50px;
 	width: 68px;
 	height: 20px;
 	background-repeat: no-repeat;
@@ -177,8 +179,8 @@
    使用根目录 btn_cancel*.bmp（本地中文数据，与选人页底栏同款中文图）。 */
 #charcreate_v3 .button.cancel {
 	position: absolute;
-	top: 280px;
-	left: 395px;
+	bottom: 4px;
+	right: 4px;
 	width: 42px;
 	height: 20px;
 	background-repeat: no-repeat;
