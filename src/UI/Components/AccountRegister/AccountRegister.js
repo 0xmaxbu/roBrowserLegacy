@@ -80,7 +80,7 @@ AccountRegister.init = function init() {
 	};
 
 	this.ui.css({
-		top: Math.max(16, Math.floor((Renderer.height - 268) / 2)),
+		top: Math.max(16, Math.floor((Renderer.height - 266) / 2)),
 		left: Math.floor((Renderer.width - 280) / 2)
 	});
 

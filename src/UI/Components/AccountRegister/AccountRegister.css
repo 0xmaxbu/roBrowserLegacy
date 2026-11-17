@@ -1,12 +1,14 @@
-/** AccountRegister — 游戏内账号注册窗（复用登录框样式：尺寸/输入框/行距/字色均对齐 win_login） */
+/** AccountRegister — 游戏内账号注册窗（复用登录框样式 + 游戏内窗口 footer 条） */
 
-/* 窗口宽度 = 登录框（win_login.bmp）同款 280px */
+/* 窗口 280 宽 = 登录框同宽；1px 外框色取自 win_login.bmp 窗口边缘 rgb(194,194,194) */
 #AccountRegister {
 	position: absolute;
 	width: 280px;
-	height: 268px;
+	height: 266px;
+	box-sizing: border-box;
+	border: 1px solid rgb(194, 194, 194);
 	background-color: #fff;
-	font-size: 11px;
+	font-size: 12px;
 	color: #333;
 }
 
@@ -47,12 +49,13 @@
 
 #AccountRegister .form {
 	position: absolute;
-	top: 25px;
+	top: 22px;
 	left: 0;
 	right: 0;
 }
 
-/* 行距对齐登录框：输入框高 18 + 间隙 14 = 顶距 32px（登录框 user top29 / pass top61） */
+/* 行距：普通行顶距 32px（框 18 + 间隙 14，对齐登录框）；
+   带字段提示的行 36px（提示紧贴自己的输入框下方，不与下一行混淆） */
 #AccountRegister .row {
 	position: relative;
 	height: 18px;
@@ -60,7 +63,11 @@
 	line-height: 18px;
 }
 
-/* label：登录框位图字色（取色 rgb(90,111,153)），右对齐紧贴输入框 */
+#AccountRegister .row.hinted {
+	margin-bottom: 18px;
+}
+
+/* label：登录框位图字色（取色 rgb(90,111,153)），12px 粗体，右对齐贴输入框 */
 #AccountRegister label {
 	position: absolute;
 	left: 0;
@@ -85,6 +92,17 @@
 	box-sizing: border-box;
 	font-size: 11px;
 	color: #333;
+}
+
+/* 字段提示：紧贴对应输入框正下方（10px 灰字） */
+#AccountRegister .note {
+	position: absolute;
+	left: 91px;
+	top: 19px;
+	font-size: 10px;
+	color: #999;
+	white-space: nowrap;
+	user-select: none;
 }
 
 /* 性别：游戏内复选框位图（checkbox_off/on 12x12，active 类自动换图） */
@@ -113,18 +131,41 @@
 	color: #333;
 }
 
-/* 发送验证码：btn_ok 位图（"确认"图，与登录窗按钮同尺寸 42x20），紧随验证码框 */
+/* 验证码："获取"按钮内嵌输入框右端（样式上集成进 input） */
+#AccountRegister .codewrap {
+	position: absolute;
+	left: 91px;
+	top: 0;
+	width: 127px;
+	height: 18px;
+}
+
+#AccountRegister .codewrap input {
+	left: 0;
+	width: 100%;
+	padding-right: 48px;
+}
+
 #AccountRegister .send {
 	position: absolute;
-	left: 226px;
-	top: -1px;
-	width: 42px;
-	height: 20px;
-	border: none;
-	background-color: transparent;
-	background-repeat: no-repeat;
+	right: 2px;
+	top: 2px;
+	width: 44px;
+	height: 14px;
+	line-height: 12px;
+	box-sizing: border-box;
+	border: 1px solid #b8b8b8;
+	border-radius: 2px;
+	background: linear-gradient(#ffffff, #e8e8e8);
+	color: #444;
+	font-size: 10px;
+	font-family: inherit;
 	padding: 0;
 	cursor: pointer;
+}
+
+#AccountRegister .send:hover {
+	background: linear-gradient(#f6f6f6, #dcdcdc);
 }
 
 #AccountRegister .send.disabled {
@@ -133,11 +174,12 @@
 	cursor: default;
 }
 
+/* 消息（错误红/成功绿）：footer 上方 */
 #AccountRegister .msg {
 	position: absolute;
 	left: 12px;
 	right: 12px;
-	top: 207px;
+	top: 216px;
 	min-height: 14px;
 	line-height: 14px;
 	color: #c0392b;
@@ -151,33 +193,26 @@
 	color: #2e7d32;
 }
 
-/* 按钮：登录窗同款 42x20 三态位图（"加入" / "结束"），居中 */
-#AccountRegister .btns {
+/* footer：游戏内窗口按钮条（btnbar_mid2 平铺，CartItems 同款），加入/结束置于条上 */
+#AccountRegister .footer {
 	position: absolute;
 	left: 0;
 	right: 0;
-	top: 227px;
-	height: 20px;
+	bottom: 0;
+	height: 27px;
+	background-repeat: repeat-x;
+	background-color: transparent;
 	text-align: center;
 }
 
-#AccountRegister .btns button {
+#AccountRegister .footer button {
 	width: 42px;
 	height: 20px;
 	border: none;
 	background-color: transparent;
 	background-repeat: no-repeat;
-	margin: 0 3px;
+	margin: 3px 3px 0;
 	padding: 0;
 	cursor: pointer;
-}
-
-#AccountRegister .hint {
-	position: absolute;
-	left: 0;
-	right: 0;
-	top: 252px;
-	text-align: center;
-	color: #999;
-	font-size: 10px;
+	display: inline-block;
 }
