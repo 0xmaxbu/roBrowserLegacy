@@ -80,8 +80,8 @@ AccountRegister.init = function init() {
 	};
 
 	this.ui.css({
-		top: Math.max(16, Math.floor((Renderer.height - 250) / 2)),
-		left: Math.floor((Renderer.width - 340) / 2)
+		top: Math.max(16, Math.floor((Renderer.height - 268) / 2)),
+		left: Math.floor((Renderer.width - 280) / 2)
 	});
 
 	// 仅标题栏可拖（游戏内窗口行为）
@@ -113,7 +113,6 @@ AccountRegister.init = function init() {
 			if (!res.ok) {
 				msg(res.err || '发送失败');
 				sendBtn.prop('disabled', false).removeClass('disabled');
-				ui.find('.cdtext').text('');
 				if (res.retryAfter) startCountdown(res.retryAfter);
 				return;
 			}
@@ -157,7 +156,7 @@ AccountRegister.init = function init() {
 
 /**
  * 重发倒计时
- * 按钮是位图（btn_ok），无文字层：禁用态用变灰滤镜 + 右侧秒数小字表达
+ * 按钮是位图（btn_ok），无文字层：禁用态用灰阶滤镜表达，冷却结束恢复
  */
 function startCountdown(seconds) {
 	const btn = AccountRegister.ui.find('.send');
@@ -169,17 +168,14 @@ function startCountdown(seconds) {
 }
 
 function updateCountdown(btn) {
-	const cdtext = AccountRegister.ui.find('.cdtext');
 	if (_seconds <= 0) {
 		btn.prop('disabled', false).removeClass('disabled');
-		cdtext.text('');
 		if (_timer) {
 			clearInterval(_timer);
 			_timer = null;
 		}
 		return;
 	}
-	cdtext.text(_seconds + 's');
 	_seconds--;
 }
 
