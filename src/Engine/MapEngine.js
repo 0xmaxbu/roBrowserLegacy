@@ -236,12 +236,10 @@ class MapEngine {
 		if (MapEngine.needsUIVerUpdate || !_isInitialised) {
 		if (PACKETVER.value < 20200520) {
 			BasicInfo.selectUIVersion();
-			// CR-02: respect useNewUI=false — force V4 fallback so the panel
-			// matches the suppressed companion panels (ButtonBar/PartyPanel/
-			// TargetPanel/TargetKeyboard are gated at line 741). Without this,
-			// useNewUI:false shows V6 BasicInfo alone without its companions.
+			// CR-02 (2026-11-18 PREVIEW): 默认老版改为 V1（20090601），随分发表 20191223→V1 一同切换；
+			// 定案后此行与 BasicInfo.js 分发表一并归档（useNewUI=true 的 V6 路径预览期暂不可达）。
 			if (GraphicsSettings.useNewUI === false) {
-				BasicInfo.selectSpecificUIVersion(20180124);
+				BasicInfo.selectSpecificUIVersion(20090601);
 			}
 		}
 			MiniMap.selectUIVersion();
