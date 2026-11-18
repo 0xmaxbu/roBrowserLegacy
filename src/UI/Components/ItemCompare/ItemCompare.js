@@ -156,10 +156,11 @@ ItemCompare.setItem = function setItem(item) {
 		for (let i = 1; i <= 5; i++) {
 			if (item.Options[i].index > 0) {
 				const randomOptionName = DB.getOptionName(item.Options[i].index);
+				const optionValue = DB.getOptionValueDisplay(item.Options[i].index, item.Options[i].value);
 				const optionList =
 					'<div class="optionlist">' +
 					'<div class="border">' +
-					randomOptionName.replace('\%d', item.Options[i].value).replace('\%\%', '%') +
+					randomOptionName.replace('\%d', optionValue).replace('\%\%', '%') +
 					'</div>' +
 					'</div>';
 				optionContainer.append(optionList);

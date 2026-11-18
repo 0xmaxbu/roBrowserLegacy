@@ -202,5 +202,22 @@ export default {
 	189: '对大型怪物的魔法伤害增加 %d%%', // RDMOPT_MDAMAGE_SIZE_LARGE_TARGET
 	190: '从小型怪物受到的魔法伤害减少 %d%%', // RDMOPT_MDAMAGE_SIZE_SMALL_USER
 	191: '从中型怪物受到的魔法伤害减少 %d%%', // RDMOPT_MDAMAGE_SIZE_MIDIUM_USER
-	192: '从大型怪物受到的魔法伤害减少 %d%%' // RDMOPT_MDAMAGE_SIZE_LARGE_USER
+	192: '从大型怪物受到的魔法伤害减少 %d%%', // RDMOPT_MDAMAGE_SIZE_LARGE_USER
+	// Prontera 词条系统：千分比精度变体（值单位 0.1%，显示时 ÷10 保留一位小数，见 DBManager.getOptionValueDisplay）
+	1000: 'MHP +%d%%', // RDMOPT_VAR_MAXHPPERCENT_PM
+	1001: 'MSP +%d%%', // RDMOPT_VAR_MAXSPPERCENT_PM
+	1002: 'ATK +%d%%', // RDMOPT_VAR_ATKPERCENT_PM
+	1003: 'MATK +%d%%', // RDMOPT_VAR_MAGICATKPERCENT_PM
+	1004: '攻击速度增加(攻击后延迟减少 %d%% )', // RDMOPT_VAR_PLUSASPDPERCENT_PM
+	1005: '变动咏唱减少 %d%%', // RDMOPT_DEC_SPELL_CAST_TIME_PM
+	1006: '技能后延迟减少 %d%%', // RDMOPT_DEC_SPELL_DELAY_TIME_PM
+	1007: 'SP消耗量减少 %d%%', // RDMOPT_DEC_SP_CONSUMPTION_PM
+	1008: '治愈量增加 %d%%', // RDMOPT_HEAL_VALUE_PM
+	1009: '受到治愈量增加 %d%%', // RDMOPT_HEAL_MODIFY_PERCENT_PM
+	1010: '必杀攻击力伤害增加 %d%%', // RDMOPT_DAMAGE_CRI_TARGET_PM
+	1011: '受到必杀攻击力伤害减少 %d%%', // RDMOPT_DAMAGE_CRI_USER_PM
+	1012: '远距离物理伤害增加 %d%%', // RDMOPT_RANGE_ATTACK_DAMAGE_TARGET_PM
+	1013: '对小型怪物的物理伤害增加 %d%%', // RDMOPT_DAMAGE_SIZE_SMALL_TARGET_PM
+	1014: '对中型怪物的物理伤害增加 %d%%', // RDMOPT_DAMAGE_SIZE_MIDIUM_TARGET_PM
+	1015: '对大型怪物的物理伤害增加 %d%%' // RDMOPT_DAMAGE_SIZE_LARGE_TARGET_PM
 };

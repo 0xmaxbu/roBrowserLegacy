@@ -2433,6 +2433,17 @@ class DB {
 		// zh 语言走覆盖层（台服官方译名简体化），未收录/其它语言回退英文原表
 		return LangOverlay.getOptionName(id, RandomOption[id]);
 	}
+
+	/**
+	 * Prontera 词条系统：千分比精度词条（值单位 0.1%）的显示值换算。
+	 * 值 15 → 显示 "1.5"；普通词条原值返回。
+	 */
+	static getOptionValueDisplay(id, value) {
+		if (id >= 1000 && id <= 1015) {
+			return (value / 10).toFixed(1);
+		}
+		return value;
+	}
 	/**
 	 * Get a message from msgstringtable
 	 *

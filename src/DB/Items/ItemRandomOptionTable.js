@@ -200,5 +200,22 @@ export default {
 	189: 'MATK against Large size monster +%d%%', // "RDMOPT_MDAMAGE_SIZE_LARGE_TARGET",
 	190: 'MDEF against Small size monster +%d%%', // "RDMOPT_MDAMAGE_SIZE_SMALL_USER",
 	191: 'MDEF against Medium size monster +%d%%', // "RDMOPT_MDAMAGE_SIZE_MIDIUM_USER",
-	192: 'MDEF against Large size monster +%d%%' // "RDMOPT_MDAMAGE_SIZE_LARGE_USER",
+	192: 'MDEF against Large size monster +%d%%', // "RDMOPT_MDAMAGE_SIZE_LARGE_USER",
+	// Prontera 词条系统：千分比精度变体（值单位 0.1%，显示时 ÷10 保留一位小数，见 DBManager.getOptionValueDisplay）
+	1000: 'MaxHP +%d%%', // RDMOPT_VAR_MAXHPPERCENT_PM
+	1001: 'MaxSP +%d%%', // RDMOPT_VAR_MAXSPPERCENT_PM
+	1002: 'ATK +%d%%', // RDMOPT_VAR_ATKPERCENT_PM
+	1003: 'MATK +%d%%', // RDMOPT_VAR_MAGICATKPERCENT_PM
+	1004: 'Delay after attack -%d%%', // RDMOPT_VAR_PLUSASPDPERCENT_PM
+	1005: 'Variable cast time -%d%%', // RDMOPT_DEC_SPELL_CAST_TIME_PM
+	1006: 'After cast delay -%d%%', // RDMOPT_DEC_SPELL_DELAY_TIME_PM
+	1007: 'Reduces SP cost by %d%%', // RDMOPT_DEC_SP_CONSUMPTION_PM
+	1008: 'Healing skills +%d%%', // RDMOPT_HEAL_VALUE_PM
+	1009: 'Restoration gained from Healing skills +%d%%', // RDMOPT_HEAL_MODIFY_PERCENT_PM
+	1010: 'Critical attack +%d%%', // RDMOPT_DAMAGE_CRI_TARGET_PM
+	1011: 'Critical damage -%d%%', // RDMOPT_DAMAGE_CRI_USER_PM
+	1012: 'Long range physical attack +%d%%', // RDMOPT_RANGE_ATTACK_DAMAGE_TARGET_PM
+	1013: 'ATK against Small size monster +%d%%', // RDMOPT_DAMAGE_SIZE_SMALL_TARGET_PM
+	1014: 'ATK against Medium size monster +%d%%', // RDMOPT_DAMAGE_SIZE_MIDIUM_TARGET_PM
+	1015: 'ATK against Large size monster +%d%%' // RDMOPT_DAMAGE_SIZE_LARGE_TARGET_PM
 };
