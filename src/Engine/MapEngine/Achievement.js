@@ -74,21 +74,27 @@ function onAchievementUpdate(pkt) {
 
 		Session.Achievement.list[ach.ach_id] = ach;
 
-		if (isNewCompletion && ach.info && ach.info.title) {
-			Announce.append();
-			Announce.set(`${DB.getMessage(2681).replace('%s', ach.info.title)}`, '#FFFFFF', {
-				width: '100%',
-				height: 50,
-				fontSize: 20,
-				life: 10000
-			});
+		if (isNewCompletion) {
+			// 达成弹窗标题按当前语言取（zh 命中 achievement_tbl_i18n 覆盖层）。
+			// ach.info 是英文基表快照，直接用会导致弹窗标题恒为英文（面板不受影响，
+			// 面板自身展示走 getAchievementInfo）。
+			const displayInfo = DB.getAchievementInfo(ach.ach_id);
+			if (displayInfo && displayInfo.title) {
+				Announce.append();
+				Announce.set(`${DB.getMessage(2681).replace('%s', displayInfo.title)}`, '#FFFFFF', {
+					width: '100%',
+					height: 50,
+					fontSize: 20,
+					life: 10000
+				});
 
-			const EF_Init_Par = {
-				effectId: EffectConst.EF_ACH_COMPLETE,
-				ownerAID: Session.AID
-			};
+				const EF_Init_Par = {
+					effectId: EffectConst.EF_ACH_COMPLETE,
+					ownerAID: Session.AID
+				};
 
-			EffectManager.spam(EF_Init_Par);
+				EffectManager.spam(EF_Init_Par);
+			}
 		}
 	});
 
