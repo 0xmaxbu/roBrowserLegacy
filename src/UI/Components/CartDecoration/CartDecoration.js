@@ -20,6 +20,7 @@ import Client from 'Core/Client.js';
 import DB from 'DB/DBManager.js';
 import htmlText from './CartDecoration.html?raw';
 import cssText from './CartDecoration.css?raw';
+import whenDrawn from 'UI/WhenDrawn.js';
 
 /**
  * Create Component
@@ -62,7 +63,7 @@ const CART_TYPES = [10, 11, 12];
  * Initialize UI
  */
 CartDecoration.init = function init() {
-	const root = this._shadow || this._host;
+	const root = this.getRoot();
 
 	this._host.style.top = (Renderer.height - 100) / 2.0 + 'px';
 	this._host.style.left = (Renderer.width - 255) / 2.0 + 'px';
@@ -81,7 +82,9 @@ CartDecoration.init = function init() {
 		});
 	});
 
-	preloadCartData();
+	// The carts are drawn only in this window: fetch them when it is first
+	// drawn, not on entering the map (UI/WhenDrawn.js).
+	whenDrawn(this._host, preloadCartData);
 };
 
 /**
@@ -118,14 +121,14 @@ function onCartSelected(type) {
  */
 CartDecoration.onAppend = function onAppend() {
 	this._host.style.display = 'none';
-	preloadCartData();
+	whenDrawn(this._host, preloadCartData);
 };
 
 /**
  * @param {object} pkt - parsed ZC_SELECTCART packet
  */
 CartDecoration.onSelectCart = function onSelectCart(pkt) {
-	const root = CartDecoration._shadow || CartDecoration._host;
+	const root = CartDecoration.getRoot();
 	_identity = pkt.identity;
 
 	root.querySelectorAll('.cart').forEach(el => {
@@ -188,7 +191,7 @@ function drawActionToCanvas(ctx, act, spr, actionId, x, y) {
  * Render loop
  */
 function render() {
-	const root = CartDecoration._shadow || CartDecoration._host;
+	const root = CartDecoration.getRoot();
 	const canvases = root.querySelectorAll('.canvas');
 
 	canvases.forEach(el => {

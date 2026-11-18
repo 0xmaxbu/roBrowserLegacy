@@ -133,25 +133,6 @@ function onMenuAppear(pkt) {
 function onInputAppear(pkt) {
 	const type = pkt instanceof PACKET.ZC.OPEN_EDITDLGSTR ? 'text' : 'number';
 	const id = pkt.NAID;
-
-	InputBox.onAppend = function OnAppend() {
-		InputBox.setType(type, true);
-		this.ui.find('input').select();
-		this.ui.find('input').focus();
-
-		this.ui.find('input').keydown(function (e) {
-			const enterKey = 13;
-			if (e.keyCode !== enterKey) {
-				return;
-			}
-
-			const text = InputBox.ui.find('input').val();
-			if (text.length > 0) {
-				InputBox.onSubmitRequest(text);
-			}
-		});
-	};
-
 	InputBox.onSubmitRequest = function OnSubmitRequest(data) {
 		InputBox.remove();
 		let _pkt;
@@ -174,6 +155,7 @@ function onInputAppear(pkt) {
 	};
 
 	InputBox.append();
+	InputBox.setType(type, true);
 }
 
 /**
@@ -312,17 +294,17 @@ function onMinimapMarker(pkt) {
 	switch (pkt.type) {
 		// Add a mark for 15 seconds
 		case 0:
-			MiniMap.getUI().addNpcMark(pkt.id, pkt.xPos, pkt.yPos, pkt.color, 15000);
+			MiniMap.addNpcMark(pkt.id, pkt.xPos, pkt.yPos, pkt.color, 15000);
 			break;
 
 		// Add a mark
 		case 1:
-			MiniMap.getUI().addNpcMark(pkt.id, pkt.xPos, pkt.yPos, pkt.color, Infinity);
+			MiniMap.addNpcMark(pkt.id, pkt.xPos, pkt.yPos, pkt.color, Infinity);
 			break;
 
 		// Remove a mark
 		case 2:
-			MiniMap.getUI().removeNpcMark(pkt.id);
+			MiniMap.removeNpcMark(pkt.id);
 			break;
 	}
 }

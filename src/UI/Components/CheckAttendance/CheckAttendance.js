@@ -12,18 +12,20 @@ import DB from 'DB/DBManager.js';
 import Preferences from 'Core/Preferences.js';
 import Renderer from 'Renderer/Renderer.js';
 import UIManager from 'UI/UIManager.js';
-import UIComponent from 'UI/UIComponent.js';
+import GUIComponent from 'UI/GUIComponent.js';
 import Network from 'Network/NetworkManager.js';
 import PACKET from 'Network/PacketStructure.js';
 import htmlText from './CheckAttendance.html?raw';
 import cssText from './CheckAttendance.css?raw';
-import jQuery from 'Utils/jquery.js';
 import ChatBox from 'UI/Components/ChatBox/ChatBox.js';
+import 'UI/Elements/Elements.js';
 
 /**
  * Create Component
  */
-const CheckAttendance = new UIComponent('CheckAttendance', htmlText, cssText);
+const CheckAttendance = new GUIComponent('CheckAttendance', cssText);
+
+CheckAttendance.render = () => htmlText;
 
 /**
  * @var {object} _checkAttendanceData
@@ -51,28 +53,35 @@ const _preferences = Preferences.get(
  * Initialize the component (event listener, etc.)
  */
 CheckAttendance.init = function init() {
-	// Avoid drag drop problems
 	_CheckAttendanceInfo = DB.getCheckAttendanceInfo();
-	this.ui.find('.base').mousedown(function (event) {
-		event.stopImmediatePropagation();
-		return false;
+	const root = this.getRoot();
+
+	const baseEl = root.querySelector('.base');
+	if (baseEl) {
+		baseEl.addEventListener('mousedown', event => {
+			event.stopImmediatePropagation();
+			event.preventDefault();
+		});
+	}
+
+	root.querySelector('.close-container-btn').addEventListener('click', () => {
+		CheckAttendance._host.style.display = 'none';
 	});
 
-	this.ui.find('.close-container-btn').click(CheckAttendance.onClose);
-	this.draggable(this.ui.find('.titlebar'));
+	this.draggable(root.querySelector('.titlebar'));
 };
 
 /**
  * Once append to the DOM, start to position the UI
  */
 CheckAttendance.onAppend = function onAppend() {
-	this.ui.css({
-		top: Math.min(Math.max(0, _preferences.y), Renderer.height - this.ui.height()),
-		left: Math.min(Math.max(0, _preferences.x), Renderer.width - this.ui.width())
+	Object.assign(this._host.style, {
+		top: `${Math.min(Math.max(0, _preferences.y), Renderer.height - this._host.getBoundingClientRect().height)}px`,
+		left: `${Math.min(Math.max(0, _preferences.x), Renderer.width - this._host.getBoundingClientRect().width)}px`
 	});
 
 	if (!_preferences.show) {
-		this.ui.hide();
+		this._host.style.display = 'none';
 	}
 
 	if (_checkAttendanceData >= 0 && _CheckAttendanceInfo.Config) {
@@ -86,12 +95,14 @@ CheckAttendance.onAppend = function onAppend() {
 /**
  * Window Shortcuts
  */
-CheckAttendance.onShortCut = function onShurtCut(key) {
+CheckAttendance.onShortCut = function onShortCut(key) {
 	switch (key.cmd) {
 		case 'TOGGLE':
-			this.ui.toggle();
-			if (this.ui.is(':visible')) {
+			if (this._host.style.display === 'none') {
+				this._host.style.display = '';
 				this.focus();
+			} else {
+				this._host.style.display = 'none';
 			}
 			break;
 	}
@@ -101,8 +112,8 @@ CheckAttendance.onShortCut = function onShurtCut(key) {
  * Show/Hide UI
  */
 CheckAttendance.toggle = function toggle() {
-	if (this.ui.is(':visible')) {
-		this.ui.hide();
+	if (this._host.style.display !== 'none') {
+		this._host.style.display = 'none';
 	} else {
 		const _pkt = new PACKET.CZ.UI_OPEN();
 		_pkt.UIType = 5;
@@ -121,14 +132,16 @@ CheckAttendance.setData = function setData(data) {
  * Update CheckAttendance UI
  */
 CheckAttendance.updateUI = function updateUI() {
+	const root = this.getRoot();
 	let already_requested = 0;
 	let attendance_count = 0;
 	let current_day = 1;
+
 	if (_CheckAttendanceInfo.Config) {
 		const regex = /(\d{4})(\d{2})(\d{2})/;
 		// 2026-11-11 防御：StartDate/EndDate 缺失或格式异常（如 lub 未加载/桥接值
 		// 非预期）时 exec 返回 null，直接取 start[2] 会炸掉窗口渲染——降级为
-		// 跳过日期文案与剩余天数，奖励格照常渲染。
+		// 跳过日期文案与剩余天数，奖励格照常渲染。（fork 逻辑 + 上游 DOM）
 		const start = regex.exec(String(_CheckAttendanceInfo.Config.StartDate || ''));
 		const end = regex.exec(String(_CheckAttendanceInfo.Config.EndDate || ''));
 		const period_string = start && end
@@ -138,8 +151,9 @@ CheckAttendance.updateUI = function updateUI() {
 				.replace('{2}', end[2])
 				.replace('{3}', end[3])
 			: '';
-		if (period_string) {
-			this.ui.find('.top-panel-period').html(period_string);
+		const periodEl = root.querySelector('.top-panel-period');
+		if (periodEl && period_string) {
+			periodEl.innerHTML = period_string;
 		}
 
 		if (_checkAttendanceData >= 0) {
@@ -155,13 +169,24 @@ CheckAttendance.updateUI = function updateUI() {
 				const end_date = new Date(`${end[1]}-${end[2]}-${end[3]}`);
 				const now_date = new Date();
 				const remaining_days = Math.round(Math.abs((end_date.getTime() - now_date.getTime()) / (1000 * 3600 * 24)));
-				this.ui.find('.total-days').html(total_days_string);
-				this.ui.find('.remaining-day-text').html(remaining_days);
+				const totalDaysEl = root.querySelector('.total-days');
+				if (totalDaysEl) {
+					totalDaysEl.innerHTML = total_days_string;
+				}
+				const remainingEl = root.querySelector('.remaining-day-text');
+				if (remainingEl) {
+					remainingEl.textContent = remaining_days;
+				}
 			}
 		}
 	}
 
 	if (_CheckAttendanceInfo.Rewards) {
+		const daysList = root.querySelector('.days-list');
+		// onAppend runs this on every map change: rebuild the list, don't add 20 more days each time
+		if (daysList) {
+			daysList.innerHTML = '';
+		}
 		for (let i = 0; i < 20; i++) {
 			const item = DB.getItemInfo(_CheckAttendanceInfo.Rewards[i].item_id);
 			// 2026-11-11 防御：客户端物品表缺失该 id 时跳过该格，不允许 TypeError 炸掉窗口渲染
@@ -171,7 +196,7 @@ CheckAttendance.updateUI = function updateUI() {
 			const day = i + 1;
 			const background =
 				!already_requested && day == current_day
-					? 'data-background="check_attendance/bt_slot_a.bmp" data-down="check_attendance/bt_slot_press.bmp"'
+					? `data-background="check_attendance/bt_slot_a.bmp" data-down="check_attendance/bt_slot_press.bmp"`
 					: '';
 			const checked = day <= attendance_count ? 'checked' : 'checked-hidden';
 			const slot_off = already_requested ? attendance_count - 1 : attendance_count;
@@ -179,72 +204,95 @@ CheckAttendance.updateUI = function updateUI() {
 			// 2026-11-12 修复：data-background 值由 parseHTML 自动拼 DB.INTERFACE_PATH 前缀，
 			// 此处手动拼会造成双重前缀 404（item/<res>.bmp 全部图标缺失，实测日志坐实）。
 			const item_slot =
-				'<li id="attendance_day_' +
-				i +
-				'" class="attendance-item"' +
-				background +
-				'>' +
-				'<div class="item" data-background="item/' +
-				item.identifiedResourceName +
-				'.bmp' +
-				'">' +
-				'<span class="item-quantity">' +
-				_CheckAttendanceInfo.Rewards[i].quantity +
-				'</span>' +
-				'<span class="name">' +
-				item.identifiedDisplayName +
-				'</span>' +
-				'<div class="' +
-				checked +
-				'" data-background="check_attendance/' +
-				slot_complete_string +
-				'.tga"></div>' +
+				`<li id="attendance_day_${i}" class="attendance-item" ${background}>` +
+				`<div class="item" data-background="item/${item.identifiedResourceName}.bmp">` +
+				`<span class="item-quantity">${_CheckAttendanceInfo.Rewards[i].quantity}</span>` +
+				`<span class="name">${item.identifiedDisplayName}</span>` +
+				`<div class="${checked}" data-background="check_attendance/${slot_complete_string}.tga"></div>` +
 				'</div>' +
-				'<div class="day">' +
-				DB.getMessage(6513, '{0} Day').replace('{0}', day) +
-				'</div>' +
+				// i18n: msgstringtable 6513（fork 移植）
+				`<div class="day">${DB.getMessage(6513, '{0} Day').replace('{0}', day)}</div>` +
 				'</li>';
-			this.ui.find('.days-list').append(item_slot);
+			if (daysList) {
+				daysList.insertAdjacentHTML('beforeend', item_slot);
+			}
 			if (!already_requested && day == current_day) {
-				this.ui.find('#' + 'attendance_day_' + i).on('click', onClickAttendance);
-				this.ui.find('#' + 'attendance_day_' + i).addClass('event_add_cursor');
+				const dayEl = root.querySelector(`#attendance_day_${i}`);
+				if (dayEl) {
+					dayEl.addEventListener('click', onClickAttendance);
+					dayEl.classList.add('event_add_cursor');
+				}
 			}
 		}
-	}
 
-	this.ui.each(this.parseHTML).find('*').each(this.parseHTML);
+		const dataAttrSelector = '[data-background],[data-hover],[data-down],[data-active],[data-text],[data-preload]';
+		if (daysList) {
+			daysList.querySelectorAll(dataAttrSelector).forEach(node => {
+				GUIComponent.processDataAttrs(node);
+			});
+		}
+	}
 };
 
 /**
  * Clean CheckAttendance UI
  */
 CheckAttendance.cleanUI = function cleanUI() {
-	CheckAttendance.ui.find('.top-panel-period').html('');
-	CheckAttendance.ui.find('.days-list').empty('');
-	CheckAttendance.ui.find('.total-days').html('');
-	CheckAttendance.ui.find('.remaining-days-text').html('');
+	const root = CheckAttendance.getRoot();
+	const periodEl = root.querySelector('.top-panel-period');
+	if (periodEl) {
+		periodEl.innerHTML = '';
+	}
+	const daysListEl = root.querySelector('.days-list');
+	if (daysListEl) {
+		daysListEl.innerHTML = '';
+	}
+	const totalDaysEl = root.querySelector('.total-days');
+	if (totalDaysEl) {
+		totalDaysEl.innerHTML = '';
+	}
+	const remainingEl = root.querySelector('.remaining-day-text');
+	if (remainingEl) {
+		remainingEl.innerHTML = '';
+	}
 };
 
 /**
  * Close the window
  */
 CheckAttendance.onClose = function onClose() {
-	CheckAttendance.ui.hide();
+	CheckAttendance._host.style.display = 'none';
 };
 
 /**
  * Request Attendance Item
  */
 function onClickAttendance(e) {
-	// send reward request
-	const toggle_element = jQuery(e.currentTarget);
-	const id = toggle_element.attr('id');
-	CheckAttendance.ui.find('#' + id + ' .checked-hidden').attr('class', 'checked');
-	const completed_div = '<div class="completed" data-background="check_attendance/bt_slot_complete.tga"></div>';
-	CheckAttendance.ui.find('#' + id).append(completed_div);
+	const root = CheckAttendance.getRoot();
+	const el = e.currentTarget;
+	const id = el.id;
+	// one claim per day: a second click would send the request and advance the count again
+	el.removeEventListener('click', onClickAttendance);
+	el.classList.remove('event_add_cursor');
+	const checkedHidden = root.querySelector(`#${id} .checked-hidden`);
+	if (checkedHidden) {
+		checkedHidden.className = 'checked';
+	}
+	const completedDiv = document.createElement('div');
+	completedDiv.className = 'completed';
+	completedDiv.dataset.background = 'check_attendance/bt_slot_complete.tga';
+	el.appendChild(completedDiv);
+	GUIComponent.processDataAttrs(completedDiv);
+
 	const current_day = parseInt(_checkAttendanceData / 10) + 1;
+	// keep the claim when updateUI rebuilds the list on a map change; the next server data overwrites it
+	// （上游 #1584 修复）+ i18n: msgstringtable 6511（fork 移植）
+	_checkAttendanceData = current_day * 10 + 1;
 	const total_days_string = DB.getMessage(6511, '{0} Day attendance success').replace('{0}', current_day);
-	CheckAttendance.ui.find('.total-days').html(total_days_string);
+	const totalDaysEl = root.querySelector('.total-days');
+	if (totalDaysEl) {
+		totalDaysEl.innerHTML = total_days_string;
+	}
 	const _pkt = new PACKET.CZ.REQ_CHECK_ATTENDANCE();
 	Network.sendPacket(_pkt);
 }

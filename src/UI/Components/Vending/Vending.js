@@ -75,10 +75,6 @@ let _slots = 0;
  */
 let _type;
 
-function _getRoot() {
-	return Vending._shadow || Vending._host;
-}
-
 function escapeHtml(text) {
 	const div = document.createElement('div');
 	div.appendChild(document.createTextNode(text));
@@ -98,7 +94,7 @@ function isItemStackable(item) {
 Vending.captureKeyEvents = true;
 
 Vending.init = function init() {
-	const root = _getRoot();
+	const root = Vending.getRoot();
 
 	const sellBtn = root.querySelector('.btn.sell');
 	if (sellBtn) {
@@ -230,7 +226,7 @@ Vending.init = function init() {
 };
 
 Vending.onAppend = function onAppend() {
-	const root = _getRoot();
+	const root = Vending.getRoot();
 	const inputWin = root.querySelector('.InputWindow');
 	const outputWin = root.querySelector('.OutputWindow');
 	const inputContent = inputWin.querySelector('.content');
@@ -249,7 +245,7 @@ Vending.onAppend = function onAppend() {
 };
 
 Vending.setType = function setType(type) {
-	const root = _getRoot();
+	const root = Vending.getRoot();
 
 	const winBuyEls = root.querySelectorAll('.WinBuy');
 	const winSellEls = root.querySelectorAll('.WinSell');
@@ -272,8 +268,7 @@ Vending.setType = function setType(type) {
 				el.style.display = '';
 			});
 			root.querySelector('.zenySpan').textContent = prettyZeny(Session.zeny);
-			root.querySelector('.weightSpan').textContent =
-				`${BasicInfo.getUI().weight}/${BasicInfo.getUI().weight_max}`;
+			root.querySelector('.weightSpan').textContent = `${BasicInfo.weight}/${BasicInfo.weight_max}`;
 			root.querySelector('.limitZeny').value = '0';
 			break;
 	}
@@ -289,7 +284,7 @@ function resize(content, height) {
 Vending.onRemove = function onRemove() {
 	VendingModelMessage.onRemove();
 
-	const root = _getRoot();
+	const root = Vending.getRoot();
 	const inputWin = root.querySelector('.InputWindow');
 	const outputWin = root.querySelector('.OutputWindow');
 
@@ -316,10 +311,7 @@ Vending.onRemove = function onRemove() {
 };
 
 Vending.onKeyDown = function onKeyDown(event) {
-	const shadow = this._shadow || this._host;
-	const focused = shadow.activeElement;
-
-	if (focused && focused.tagName && focused.tagName.match(/input|select|textarea/i)) {
+	if (this.isEditableFocused()) {
 		if (event.which === KEYS.ESCAPE || event.key === 'Escape') {
 			this.remove();
 			event.stopImmediatePropagation();
@@ -337,7 +329,7 @@ Vending.onKeyDown = function onKeyDown(event) {
 };
 
 Vending.setList = function setList(items) {
-	const root = _getRoot();
+	const root = Vending.getRoot();
 
 	root.querySelectorAll('.content').forEach(el => {
 		el.innerHTML = '';
@@ -453,7 +445,7 @@ function addItem(content, item, isinput) {
 		itemObj = container;
 
 		if (_type === Vending.Type.BUYING_STORE) {
-			const root = _getRoot();
+			const root = Vending.getRoot();
 			const limitInput = root.querySelector('.limitZeny');
 			let limit = parseInt(limitInput.value, 10);
 			limit += item.count * item.price;
@@ -520,7 +512,8 @@ const transferItem = (() => {
 })();
 
 function requestMoveItem(index, fromContent, toContent, isAdding) {
-	let count, item_price;
+	let count;
+	const item_price = 0;
 
 	const item = isAdding ? _input[index] : _output[index];
 
@@ -598,7 +591,7 @@ function onDrop(event) {
 		return;
 	}
 
-	const root = _getRoot();
+	const root = Vending.getRoot();
 	const fromContent = root.querySelector(`.${data.container} .content`);
 	const toContent = this.querySelector('.content');
 
@@ -631,7 +624,7 @@ function onItemSelected() {
 		return;
 	}
 
-	const root = _getRoot();
+	const root = Vending.getRoot();
 	const inputWin = root.querySelector('.InputWindow');
 
 	let from, to;
@@ -652,7 +645,7 @@ function onItemSelected() {
 }
 
 function onItemFocus() {
-	const root = _getRoot();
+	const root = Vending.getRoot();
 	root.querySelectorAll('.item.selected').forEach(el => el.classList.remove('selected'));
 	this.classList.add('selected');
 }
@@ -674,7 +667,7 @@ function onScroll(event) {
 }
 
 function onDragStart(event) {
-	const root = _getRoot();
+	const root = Vending.getRoot();
 	const inputWin = root.querySelector('.InputWindow');
 	const outputWin = root.querySelector('.OutputWindow');
 
@@ -704,7 +697,7 @@ function onDragStart(event) {
 }
 
 function onResizeInput() {
-	const root = _getRoot();
+	const root = Vending.getRoot();
 	const inputWin = root.querySelector('.InputWindow');
 	const content = inputWin.querySelector('.container .content');
 	const top = inputWin.offsetTop;
@@ -744,7 +737,7 @@ Vending.onVendingSkill = function onVendingSkill(pkt) {
 	_slots = pkt.itemcount;
 	this.setList(CartItems.list);
 
-	const root = _getRoot();
+	const root = Vending.getRoot();
 	root.querySelector('.add_shop').style.height = `${32 * _slots}px`;
 	root.querySelector('.shopname').value = '';
 	this._host.style.display = '';
@@ -760,15 +753,15 @@ Vending.onBuyingSkill = function onBuyingSkill(pkt) {
 
 	_slots = pkt.itemcount;
 	const buyable = [];
-	for (const key in Inventory.getUI().list) {
-		const item = Inventory.getUI().list[key];
+	for (const key in Inventory.list) {
+		const item = Inventory.list[key];
 		if (isItemStackable(item) && DB.isBuyable(item.ITID)) {
 			buyable.push(item);
 		}
 	}
 	this.setList(buyable);
 
-	const root = _getRoot();
+	const root = Vending.getRoot();
 	root.querySelector('.add_shop').style.height = `${32 * _slots}px`;
 	root.querySelector('.shopname').value = '';
 	this._host.style.display = '';
@@ -786,7 +779,7 @@ Vending.onSubmit = function onSubmit() {
 	const output = [];
 	const count = _output.length;
 
-	const root = _getRoot();
+	const root = Vending.getRoot();
 	const shopname = root.querySelector('.shopname').value;
 
 	let limitZeny;
@@ -856,14 +849,13 @@ function onItemOver() {
 	}
 
 	const idx = parseInt(this.getAttribute('data-index'), 10);
-	const item =
-		_type === Vending.Type.VENDING_STORE ? CartItems.getItemByIndex(idx) : Inventory.getUI().getItemByIndex(idx);
+	const item = _type === Vending.Type.VENDING_STORE ? CartItems.getItemByIndex(idx) : Inventory.getItemByIndex(idx);
 
 	if (!item) {
 		return;
 	}
 
-	const root = _getRoot();
+	const root = Vending.getRoot();
 	const overlay = root.querySelector('.overlay');
 
 	overlay.style.display = '';
@@ -873,7 +865,7 @@ function onItemOver() {
 }
 
 function onItemOut() {
-	const root = _getRoot();
+	const root = Vending.getRoot();
 	const overlay = root.querySelector('.overlay');
 	if (overlay) {
 		overlay.style.display = 'none';

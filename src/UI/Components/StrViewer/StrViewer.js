@@ -54,13 +54,6 @@ const Viewer = new GUIComponent('StrViewer', cssText);
 Viewer.render = () => htmlText;
 
 /**
- * Helper to get shadow root
- */
-function _getRoot() {
-	return Viewer._shadow || Viewer._host;
-}
-
-/**
  * Initialize Component
  */
 Viewer.init = function init() {
@@ -77,14 +70,16 @@ Viewer.init = function init() {
 	EffectManager.init(Renderer.getContext());
 	Client.init([]);
 
-	const root = _getRoot();
+	const root = Viewer.getRoot();
 
-	if (!Configs.get('API')) {
+	if (!Configs.get('api')) {
 		initDropDown(root.querySelector('select'));
 	} else {
 		const hash = decodeURIComponent(location.hash);
 		location.hash = hash;
-		loadEffect(hash.substr(1));
+		if (hash.length > 1) {
+			loadEffect(hash.substr(1));
+		}
 	}
 };
 
@@ -127,7 +122,7 @@ function initDropDown(select) {
 			loadEffect(select.value);
 		}
 
-		const root = _getRoot();
+		const root = Viewer.getRoot();
 		root.querySelector('.head').style.display = 'block';
 		select.focus();
 	});

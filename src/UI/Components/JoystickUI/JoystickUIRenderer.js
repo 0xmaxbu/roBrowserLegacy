@@ -11,7 +11,6 @@
 import ShortCut from 'UI/Components/ShortCut/ShortCut.js';
 import InventoryUI from 'UI/Components/Inventory/Inventory.js';
 import SetManager from './JoystickSetManager.js';
-import jQuery from 'Utils/jquery.js';
 import DB from 'DB/DBManager.js';
 import Client from 'Core/Client.js';
 import ControlsSettings from 'Preferences/Controls.js';
@@ -21,14 +20,25 @@ import JoystickInputService from './JoystickInputService.js';
 import SkillInfo from 'DB/Skills/SkillInfo.js';
 
 let ui = null;
-let setIndicator = null;
+
+/**
+ * Get internal shadow root
+ * @returns {ShadowRoot|HTMLElement}
+ */
+function _getShadow() {
+	if (!ui) return null;
+	const host = ui[0];
+	return host.shadowRoot || host;
+}
+
+let _mouseMoveHandler = null;
 
 function setupUIHide() {
 	let lastMouseX = 0;
 	let lastMouseY = 0;
 
-	function onMouseMove(event) {
-		if (!ui || !ui.is(':visible')) {
+	_mouseMoveHandler = event => {
+		if (!ui || !_isVisible()) {
 			return;
 		}
 
@@ -41,44 +51,55 @@ function setupUIHide() {
 		}
 		lastMouseX = event.clientX;
 		lastMouseY = event.clientY;
-	}
+	};
 
-	jQuery(document).on('mousemove.joystick', onMouseMove);
+	document.addEventListener('mousemove', _mouseMoveHandler);
+}
+
+function _isVisible() {
+	if (!ui) return false;
+	const host = ui[0];
+	if (!host) return false;
+	return host.style.display !== 'none';
 }
 
 function attach(root) {
 	ui = root;
-	setIndicator = ui.find('.set-indicator');
 	setupUIHide();
 }
 
 function updateJoystickSlot(joystickSlotIndex, shortcutIndex) {
 	const item = ShortCut.getList()[shortcutIndex];
+	const shadow = _getShadow();
+	if (!shadow) return;
 
-	const $slot = ui.find('.slot').eq(joystickSlotIndex);
-	const $icon = $slot.find('.icon');
-	const $img = $icon.find('.img');
-	const $amount = $icon.find('.amount');
+	const slots = shadow.querySelectorAll('.slot');
+	const slot = slots[joystickSlotIndex];
+	if (!slot) return;
+
+	const icon = slot.querySelector('.icon');
+	const img = icon.querySelector('.img');
+	const amount = icon.querySelector('.amount');
 
 	if (!item || item.ID === 0) {
-		$icon.hide();
-		$img.css('backgroundImage', 'none');
-		$amount.text('');
+		icon.style.display = 'none';
+		img.style.backgroundImage = 'none';
+		amount.textContent = '';
 		return;
 	}
 
-	$icon.show();
+	icon.style.display = 'block';
 
 	if (item.isSkill && item.count) {
 		const skillInfo = SkillInfo[item.ID];
 		if (skillInfo) {
-			Client.loadFile(DB.INTERFACE_PATH + 'item/' + skillInfo.Name + '.bmp', function (url) {
-				$img.css('backgroundImage', 'url(' + url + ')');
-				$amount.text(item.count);
+			Client.loadFile(`${DB.INTERFACE_PATH}item/${skillInfo.Name}.bmp`, url => {
+				img.style.backgroundImage = `url(${url})`;
+				amount.textContent = item.count;
 			});
 		}
 	} else {
-		const inventoryItem = InventoryUI.getUI().getItemById(item.ID);
+		const inventoryItem = InventoryUI.getItemById(item.ID);
 		if (inventoryItem) {
 			const itemInfo = DB.getItemInfo(item.ID);
 			const fileName = inventoryItem.IsIdentified
@@ -93,9 +114,9 @@ function updateJoystickSlot(joystickSlotIndex, shortcutIndex) {
 			) {
 				count = 1;
 			}
-			Client.loadFile(DB.INTERFACE_PATH + 'item/' + fileName + '.bmp', function (url) {
-				$img.css('backgroundImage', 'url(' + url + ')');
-				$amount.text(count);
+			Client.loadFile(`${DB.INTERFACE_PATH}item/${fileName}.bmp`, url => {
+				img.style.backgroundImage = `url(${url})`;
+				amount.textContent = count;
 			});
 		}
 	}
@@ -141,52 +162,62 @@ function sync() {
 }
 
 function updateSetIndicator() {
-	if (!setIndicator) {
-		return;
+	const shadow = _getShadow();
+	if (!shadow) return;
+
+	shadow.querySelectorAll('.set-btn').forEach(el => el.classList.remove('active'));
+
+	const currentSet = SetManager.getCurrentSet();
+	const activeBtn = shadow.querySelector(`.set-btn:nth-child(${currentSet})`);
+	if (activeBtn) {
+		activeBtn.classList.add('active');
 	}
-	ui.find('.set-btn').removeClass('active');
-	ui.find('.set-btn:nth-child(' + SetManager.getCurrentSet() + ')').addClass('active');
 }
 
 function updateVisuals(buttons) {
-	if (!ui) {
-		return;
-	}
-	const containers = ui.find('.group-container');
+	const shadow = _getShadow();
+	if (!shadow) return;
 
-	containers.removeClass('active');
+	shadow.querySelectorAll('.group-container').forEach(el => el.classList.remove('active'));
 
 	const activeGroup = JoystickShortcutMapper.getGroup(buttons);
-
 	if (activeGroup !== '') {
-		ui.find('[data-group="' + activeGroup + '"]').addClass('active');
+		const active = shadow.querySelector(`[data-group="${activeGroup}"]`);
+		if (active) {
+			active.classList.add('active');
+		}
 	}
 }
 
 function show() {
-	if (ui && !ui.is(':visible')) {
+	if (ui && !_isVisible()) {
 		ui.show();
 	}
 }
 
 function hide() {
-	if (ui && ui.is(':visible')) {
+	if (ui && _isVisible()) {
 		ui.hide();
 	}
 }
 
 function dispose() {
 	hide();
-	jQuery(document).off('mousemove.joystick');
+	if (_mouseMoveHandler) {
+		document.removeEventListener('mousemove', _mouseMoveHandler);
+		_mouseMoveHandler = null;
+	}
+	ui = null;
 }
+
 export default {
-	attach: attach,
-	dispose: dispose,
-	sync: sync,
-	updateById: updateById,
-	updateByIndex: updateByIndex,
-	updateSetIndicator: updateSetIndicator,
-	updateVisuals: updateVisuals,
-	show: show,
-	hide: hide
+	attach,
+	dispose,
+	sync,
+	updateById,
+	updateByIndex,
+	updateSetIndicator,
+	updateVisuals,
+	show,
+	hide
 };

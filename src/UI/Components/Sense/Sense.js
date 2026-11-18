@@ -47,13 +47,6 @@ const _model = {
 let _entity = null;
 
 /**
- * Helper to get the shadow root
- */
-function _getRoot() {
-	return Sense._shadow || Sense._host;
-}
-
-/**
  * Initialize popup
  */
 Sense.init = function init() {
@@ -61,7 +54,7 @@ Sense.init = function init() {
 	this._host.style.left = `${(Renderer.width - 280) / 2.0}px`;
 	this._host.style.zIndex = '100';
 
-	const root = _getRoot();
+	const root = this.getRoot();
 
 	const closeBtn = root.querySelector('.close');
 	if (closeBtn) {
@@ -128,7 +121,7 @@ function _setElementClass(el, value, label) {
  * @param {object} pkt
  */
 Sense.setWindow = function setWindow(pkt) {
-	const root = _getRoot();
+	const root = this.getRoot();
 
 	// TITLE
 	root.querySelector('.header .title').textContent = DB.getMessage(406);

@@ -74,7 +74,7 @@ GraphicsOption.render = () => htmlText;
  * Initialize UI
  */
 GraphicsOption.init = function init() {
-	const root = this._shadow || this._host;
+	const root = this.getRoot();
 
 	const baseBtn = root.querySelector('.base');
 	if (baseBtn) {
@@ -144,6 +144,10 @@ GraphicsOption.init = function init() {
 	if (restoreBtn) {
 		restoreBtn.addEventListener('click', onRestoreLayout);
 	}
+	// See-through occluders
+	bindChange('.occluderFade', onUpdateOccluderFade);
+	bindChange('.occluderFadeOpacity', onUpdateOccluderFadeOpacity);
+	bindChange('.occluderFadeRadius', onUpdateOccluderFadeRadius);
 
 	this.draggable('.titlebar');
 };
@@ -155,7 +159,7 @@ GraphicsOption.onAppend = function onAppend() {
 	this._host.style.top = `${_preferences.y}px`;
 	this._host.style.left = `${_preferences.x}px`;
 
-	const root = this._shadow || this._host;
+	const root = this.getRoot();
 
 	root.querySelector('.details').value = GraphicsSettings.quality;
 	root.querySelector('.screensize').value = GraphicsSettings.screensize;
@@ -187,6 +191,11 @@ GraphicsOption.onAppend = function onAppend() {
 	root.querySelector('.view-area').value = GraphicsSettings.viewArea;
 	root.querySelector('.new-ui').checked = GraphicsSettings.useNewUI;
 	root.querySelector('.lock-layout').checked = GraphicsSettings.lockLayout;
+
+	// See-through occluders
+	root.querySelector('.occluderFade').value = GraphicsSettings.occluderFade;
+	root.querySelector('.occluderFadeOpacity').value = GraphicsSettings.occluderFadeOpacity;
+	root.querySelector('.occluderFadeRadius').value = GraphicsSettings.occluderFadeRadius;
 };
 
 /**
@@ -259,12 +268,6 @@ function onTogglePixelPerfect() {
 			}
 		}
 		reloadSprites();
-	} else {
-		ChatBox.addText(
-			'[System] Pixel Perfect is disabled. Reload the page (F5) to apply the changes.',
-			ChatBox.TYPE.INFO,
-			ChatBox.FILTER.PUBLIC_LOG
-		);
 	}
 }
 
@@ -397,7 +400,7 @@ function onUpdateScreenSize() {
 function onTabSwitch(event) {
 	const btn = event.currentTarget;
 	const tabName = btn.dataset.tab;
-	const root = GraphicsOption._shadow || GraphicsOption._host;
+	const root = GraphicsOption.getRoot();
 
 	root.querySelectorAll('.tab-button').forEach(b => {
 		b.classList.remove('selected');
@@ -482,6 +485,30 @@ async function onRestoreLayout() {
 	);
 }
 
+/**
+ * Select how geometry blocking the view of the player is faded
+ */
+function onUpdateOccluderFade() {
+	GraphicsSettings.occluderFade = this.value;
+	GraphicsSettings.save();
+}
+
+/**
+ * Remaining opacity of faded geometry
+ */
+function onUpdateOccluderFadeOpacity() {
+	GraphicsSettings.occluderFadeOpacity = parseFloat(this.value);
+	GraphicsSettings.save();
+}
+
+/**
+ * Size (cells) of the faded area around the line of sight
+ */
+function onUpdateOccluderFadeRadius() {
+	GraphicsSettings.occluderFadeRadius = parseFloat(this.value);
+	GraphicsSettings.save();
+}
+
 function onResetToDefaults() {
 	const defaultSettings = GraphicsSettings.defaults;
 
@@ -491,6 +518,13 @@ function onResetToDefaults() {
 		}
 	});
 	GraphicsSettings.save();
+
+	//Reload Sprites
+	const gl = Renderer.getContext();
+	const sprFiles = MemoryManager.search(/\.spr$/i);
+	for (let i = 0; i < sprFiles.length; i++) {
+		MemoryManager.remove(gl, sprFiles[i]);
+	}
 
 	GraphicsOption.onAppend();
 }

@@ -14,13 +14,24 @@ import PACKETVER from './PacketVerManager.js';
 import Struct from 'Utils/Struct.js';
 import Configs from 'Core/Configs.js';
 
-const NAME_LENGTH = 24; // Must be equal to same name var in mmo.h
+const NAME_LENGTH = 24; // Must be equal to same name var in mmo.h, -1 reads the rest of the packet
 const MAP_NAME_LENGTH = 11 + 1;
 const MAP_NAME_LENGTH_EXT = MAP_NAME_LENGTH + 4;
 const PACKET = {};
 const RENEWAL = Configs.get('renewal') || false;
 const CLASSIC = !RENEWAL; // For ease of reading checks
 const UNUSED_PACKET = PACKET;
+
+/**
+ * Reads the trailing name field of a variable length packet, honoring NAME_LENGTH.
+ *
+ * @param {object} fp - BinaryReader
+ * @param {number} end - packet end offset
+ * @returns {string}
+ */
+function readTrailingName(fp, end) {
+	return fp.readString(NAME_LENGTH === -1 ? end - fp.tell() : NAME_LENGTH);
+}
 
 PACKET.CA = {};
 PACKET.AC = {}; // Login
@@ -1335,6 +1346,22 @@ PACKET.CZ.REQ_JOIN_GUILD.prototype.build = function () {
 	pkt_buf.writeULong(this.AID);
 	pkt_buf.writeULong(this.MyAID);
 	pkt_buf.writeULong(this.MyGID);
+	return pkt_buf;
+};
+
+// 0x916
+// Requires PACKETVER >= 20120131 (length table defines 0x916 only from that
+// date). Sent by /guildinvite via Guild.requestPlayerInvitationByName, which
+// guards the version and reports an error on older clients.
+PACKET.CZ.REQ_JOIN_GUILD2 = function PACKET_CZ_REQ_JOIN_GUILD2() {
+	this.name = '';
+};
+PACKET.CZ.REQ_JOIN_GUILD2.prototype.build = function () {
+	const pkt_len = 2 + 24;
+	const pkt_buf = new BinaryWriter(pkt_len);
+
+	pkt_buf.writeShort(0x916);
+	pkt_buf.writeString(this.name, 24);
 	return pkt_buf;
 };
 
@@ -4220,11 +4247,12 @@ PACKET.CZ.SE_PC_BUY_CASHITEM_LIST.prototype.build = function () {
 };
 
 //0x0849
+// <item id>.L <result>.W <cash points>.L <kafra points>.L
 PACKET.ZC.SE_PC_BUY_CASHITEM_RESULT = function PACKET_ZC_SE_PC_BUY_CASHITEM_RESULT(fp, end) {
-	this.kafraPoints = fp.readUShort();
-	this.itemId = fp.readShort();
-	this.result = fp.readShort();
-	this.cashPoints = fp.readUShort();
+	this.itemId = fp.readULong();
+	this.result = fp.readUShort();
+	this.cashPoints = fp.readULong();
+	this.kafraPoints = fp.readULong();
 };
 PACKET.ZC.SE_PC_BUY_CASHITEM_RESULT.size = 16;
 
@@ -6144,7 +6172,7 @@ PACKET.ZC.GUILD_INFO.size = 110;
 PACKET.ZC.GUILD_EMBLEM_IMG = function PACKET_ZC_GUILD_EMBLEM_IMG(fp, end) {
 	this.GDID = fp.readLong();
 	this.emblemVersion = fp.readLong();
-	this.img = new Uint8Array(fp.buffer, fp.offset, end - fp.offset);
+	this.img = new Uint8Array(fp.view.buffer, fp.view.byteOffset + fp.offset, end - fp.offset);
 };
 PACKET.ZC.GUILD_EMBLEM_IMG.size = -1;
 
@@ -6340,6 +6368,22 @@ PACKET.ZC.UPDATE_GDID = function PACKET_ZC_UPDATE_GDID(fp, end) {
 	this.GName = fp.readString(NAME_LENGTH);
 };
 PACKET.ZC.UPDATE_GDID.size = 43;
+
+// 0x2f7
+PACKET.ZC.UPDATE_GDID2 = function PACKET_ZC_UPDATE_GDID2(fp, end) {
+	if (end - fp.tell() < 45) {
+		return;
+	}
+
+	this.GDID = fp.readULong();
+	this.emblemVersion = fp.readLong();
+	this.right = fp.readLong();
+	this.isMaster = fp.readUChar();
+	this.InterSID = fp.readLong();
+	this.GName = fp.readString(NAME_LENGTH);
+	this.masterGID = fp.readULong();
+};
+PACKET.ZC.UPDATE_GDID2.size = 47;
 
 // 0x16d
 PACKET.ZC.UPDATE_CHARSTAT = function PACKET_ZC_UPDATE_CHARSTAT(fp, end) {
@@ -6756,7 +6800,7 @@ PACKET.ZC.SHOW_IMAGE2.size = 67;
 PACKET.ZC.CHANGE_GUILD = function PACKET_ZC_CHANGE_GUILD(fp, end) {
 	this.AID = fp.readULong();
 	this.GDID = fp.readULong();
-	this.emblemVersion = fp.readShort();
+	this.emblemVersion = fp.readUShort();
 };
 PACKET.ZC.CHANGE_GUILD.size = 12;
 
@@ -6977,7 +7021,7 @@ PACKET.ZC.NOTIFY_MAPPROPERTY2.size = 4;
 PACKET.ZC.SPRITE_CHANGE2 = function PACKET_ZC_SPRITE_CHANGE2(fp, end) {
 	this.GID = fp.readULong();
 	this.type = fp.readUChar();
-	if (PACKETVER.value >= 20180704) {
+	if (PACKETVER.value >= 20181121) {
 		this.value = fp.readULong();
 		this.value2 = fp.readULong();
 	} else {
@@ -6985,7 +7029,7 @@ PACKET.ZC.SPRITE_CHANGE2 = function PACKET_ZC_SPRITE_CHANGE2(fp, end) {
 		this.value2 = fp.readShort();
 	}
 };
-PACKET.ZC.SPRITE_CHANGE2.size = PACKETVER.value >= 20180704 ? 15 : 11;
+PACKET.ZC.SPRITE_CHANGE2.size = PACKETVER.value >= 20181121 ? 15 : 11;
 
 // 0x1d8
 PACKET.ZC.NOTIFY_STANDENTRY2 = function PACKET_ZC_NOTIFY_STANDENTRY2(fp, end) {
@@ -8177,22 +8221,25 @@ PACKET.ZC.PC_CASH_POINT_ITEMLIST = function PACKET_ZC_PC_CASH_POINT_ITEMLIST(fp,
 	this.KafraPoint = fp.readULong();
 	this.CashPoint = fp.readULong();
 	this.itemList = (function () {
-		const div = PACKETVER.value >= 20181121 ? 13 : 11;
+		// base: price(4) + discountprice(4) + type(1) + ITID(2|4)
+		// ext:  base + viewSprite(2) + location(4) + unused(1)
+		const base = PACKETVER.value >= 20181121 ? 13 : 11;
+		const ext = base + 7;
 		const itemListLen = end - fp.tell();
-		const itemLen = itemListLen % 20 === 0 ? 20 : itemListLen % 18 == 0 ? 18 : div;
-		const count = ((end - fp.tell()) / itemLen) | 0;
-		const out = new Array(count);
-		for (let i = 0; i < count; ++i) {
-			out[i] = {};
-			out[i].price = fp.readLong();
-			out[i].discountprice = fp.readLong();
-			out[i].type = fp.readUChar();
-			out[i].ITID = PACKETVER.value >= 20181121 ? fp.readULong() : fp.readUShort();
-			if (itemLen >= 18) {
-				out[i].viewSprite = fp.readUShort();
-				out[i].location = fp.readLong();
-				out[i].unused = fp.readUChar();
+		const itemLen = itemListLen % base !== 0 && itemListLen % ext === 0 ? ext : base;
+		const out = [];
+		while (fp.tell() + itemLen <= end) {
+			const item = {};
+			item.price = fp.readLong();
+			item.discountprice = fp.readLong();
+			item.type = fp.readUChar();
+			item.ITID = PACKETVER.value >= 20181121 ? fp.readULong() : fp.readUShort();
+			if (itemLen === ext) {
+				item.viewSprite = fp.readUShort();
+				item.location = fp.readLong();
+				item.unused = fp.readUChar();
 			}
+			out.push(item);
 		}
 		return out;
 	})();
@@ -10154,6 +10201,11 @@ PACKET.ZC.NOTIFY_MOVEENTRY6 = function PACKET_ZC_NOTIFY_MOVEENTRY6(fp, end) {
 	this.job = fp.readShort();
 	this.head = fp.readShort();
 	this.weapon = fp.readLong();
+	if (PACKETVER.value >= 20181121) {
+		this.shield = fp.readLong();
+	} else {
+		this.shield = 0;
+	}
 	this.accessory = fp.readShort();
 	this.moveStartTime = fp.readULong();
 	this.accessory2 = fp.readShort();
@@ -10173,7 +10225,7 @@ PACKET.ZC.NOTIFY_MOVEENTRY6 = function PACKET_ZC_NOTIFY_MOVEENTRY6(fp, end) {
 	this.ySize = fp.readUChar();
 	this.clevel = fp.readShort();
 	this.font = fp.readShort();
-	this.name = fp.readString(NAME_LENGTH);
+	this.name = readTrailingName(fp, end);
 };
 PACKET.ZC.NOTIFY_MOVEENTRY6.size = -1;
 
@@ -10188,6 +10240,11 @@ PACKET.ZC.NOTIFY_STANDENTRY6 = function PACKET_ZC_NOTIFY_STANDENTRY6(fp, end) {
 	this.job = fp.readShort();
 	this.head = fp.readShort();
 	this.weapon = fp.readLong();
+	if (PACKETVER.value >= 20181121) {
+		this.shield = fp.readLong();
+	} else {
+		this.shield = 0;
+	}
 	this.accessory = fp.readShort();
 	this.accessory2 = fp.readShort();
 	this.accessory3 = fp.readShort();
@@ -10221,6 +10278,11 @@ PACKET.ZC.NOTIFY_NEWENTRY6 = function PACKET_ZC_NOTIFY_NEWENTRY6(fp, end) {
 	this.job = fp.readShort();
 	this.head = fp.readShort();
 	this.weapon = fp.readLong();
+	if (PACKETVER.value >= 20181121) {
+		this.shield = fp.readLong();
+	} else {
+		this.shield = 0;
+	}
 	this.accessory = fp.readShort();
 	this.accessory2 = fp.readShort();
 	this.accessory3 = fp.readShort();
@@ -12697,6 +12759,8 @@ PACKET.ZC.NOTIFY_MOVEENTRY11 = function PACKET_ZC_NOTIFY_MOVEENTRY11(fp, end) {
 	this.weapon = fp.readULong();
 	if (PACKETVER.value >= 20181121) {
 		this.shield = fp.readULong();
+	} else {
+		this.shield = 0;
 	}
 	this.accessory = fp.readUShort();
 	this.moveStartTime = fp.readULong();
@@ -12739,6 +12803,8 @@ PACKET.ZC.NOTIFY_NEWENTRY11 = function PACKET_ZC_NOTIFY_NEWENTRY11(fp, end) {
 	this.weapon = fp.readLong();
 	if (PACKETVER.value >= 20181121) {
 		this.shield = fp.readLong();
+	} else {
+		this.shield = 0;
 	}
 	this.accessory = fp.readShort();
 	this.accessory2 = fp.readShort();
@@ -12780,6 +12846,8 @@ PACKET.ZC.NOTIFY_STANDENTRY11 = function PACKET_ZC_NOTIFY_STANDENTRY11(fp, end) 
 	this.weapon = fp.readLong();
 	if (PACKETVER.value >= 20181121) {
 		this.shield = fp.readLong();
+	} else {
+		this.shield = 0;
 	}
 	this.accessory = fp.readShort();
 	this.accessory2 = fp.readShort();
@@ -13347,6 +13415,33 @@ PACKET.ZC.GROUP_LIST2 = function PACKET_ZC_GROUP_LIST2(fp, end) {
 };
 PACKET.ZC.GROUP_LIST2.size = -1;
 
+// 0xa49
+PACKET.CZ.PRIVATE_AIRSHIP_REQUEST = function PACKET_CZ_PRIVATE_AIRSHIP_REQUEST() {
+	this.mapName = '';
+	this.ItemID = 0;
+};
+PACKET.CZ.PRIVATE_AIRSHIP_REQUEST.prototype.build = function () {
+	const pkt_itemIdSize = PACKETVER.value >= 20181121 ? 4 : 2;
+	const pkt_len = 2 + 16 + pkt_itemIdSize;
+	const pkt_buf = new BinaryWriter(pkt_len);
+
+	pkt_buf.writeShort(0xa49);
+	pkt_buf.writeString(this.mapName, 16);
+	if (PACKETVER.value >= 20181121) {
+		pkt_buf.writeULong(this.ItemID);
+	} else {
+		pkt_buf.writeUShort(this.ItemID);
+	}
+
+	return pkt_buf;
+};
+
+// 0xa4a
+PACKET.ZC.PRIVATE_AIRSHIP_RESPONSE = function PACKET_ZC_PRIVATE_AIRSHIP_RESPONSE(fp, end) {
+	this.result = fp.readULong();
+};
+PACKET.ZC.PRIVATE_AIRSHIP_RESPONSE.size = 6;
+
 // 0xa4e
 PACKET.ZC.RANDOM_COMBINE_ITEM_UI_OPEN = function PACKET_ZC_RANDOM_COMBINE_ITEM_UI_OPEN(fp, end) {
 	this.itemId = PACKETVER.value >= 20181121 ? fp.readLong() : fp.readShort();
@@ -13488,6 +13583,23 @@ PACKET.CZ.CLOSE_UI_ENCHANT.prototype.build = function () {
 	return pkt_buf;
 };
 
+// 0xa82
+// The reason comes FIRST here and second in 0xa83 below. The two packets are
+// otherwise identical, which is exactly why the order has to be read off the
+// wire rather than assumed to match its neighbour.
+PACKET.ZC.ACK_BAN_GUILD_DELNAME = function PACKET_ZC_ACK_BAN_GUILD_DELNAME(fp, end) {
+	this.reasonDesc = fp.readString(40);
+	this.GID = fp.readULong();
+};
+PACKET.ZC.ACK_BAN_GUILD_DELNAME.size = 46;
+
+// 0xa83
+PACKET.ZC.ACK_LEAVE_GUILD_DELNAME = function PACKET_ZC_ACK_LEAVE_GUILD_DELNAME(fp, end) {
+	this.GID = fp.readULong();
+	this.reasonDesc = fp.readString(40);
+};
+PACKET.ZC.ACK_LEAVE_GUILD_DELNAME.size = 46;
+
 // 0xa84
 PACKET.ZC.GUILD_INFO3 = function PACKET_ZC_GUILD_INFO3(fp, end) {
 	this.GDID = fp.readLong();
@@ -13508,6 +13620,22 @@ PACKET.ZC.GUILD_INFO3 = function PACKET_ZC_GUILD_INFO3(fp, end) {
 	this.masterName = this.masterAID; // TODO char_id to name
 };
 PACKET.ZC.GUILD_INFO3.size = 114 - 20; // - <master name>.24B + <master char id>.L
+
+// 0xa87
+PACKET.ZC.BAN_LIST2 = function PACKET_ZC_BAN_LIST2(fp, end) {
+	this.banList = (function () {
+		const count = ((end - fp.tell()) / 44) | 0;
+		const out = new Array(count);
+		for (let i = 0; i < count; ++i) {
+			out[i] = {};
+			out[i].GID = fp.readULong();
+			out[i].reason = fp.readString(40);
+			out[i].charname = ''; // todo char_id to char_name
+		}
+		return out;
+	})();
+};
+PACKET.ZC.BAN_LIST2.size = -1;
 
 // 0xa89
 PACKET.ZC.STORE_ASSISTANT_ENTRY = function PACKET_ZC_STORE_ASSISTANT_ENTRY(fp, end) {
@@ -14490,6 +14618,18 @@ PACKET.ZC.GUILD_AGIT_INFO = function PACKET_ZC_GUILD_AGIT_INFO(fp, end) {
 };
 PACKET.ZC.GUILD_AGIT_INFO.size = -1;
 
+// 0xb2a
+PACKET.ZC.ADD_SKILL2 = function PACKET_ZC_ADD_SKILL2(fp, end) {
+	this.data = {};
+	this.data.SKID = fp.readUShort();
+	this.data.type = fp.readLong();
+	this.data.level = fp.readShort();
+	this.data.spcost = fp.readShort();
+	this.data.attackRange = fp.readShort();
+	this.data.upgradable = fp.readUChar();
+};
+PACKET.ZC.ADD_SKILL2.size = 15;
+
 // 0xb2f
 PACKET.ZC.PROPERTY_HOMUN3 = function PACKET_ZC_PROPERTY_HOMUN3(fp, end) {
 	this.szName = fp.readString(NAME_LENGTH); // <name>.24B
@@ -14518,6 +14658,19 @@ PACKET.ZC.PROPERTY_HOMUN3 = function PACKET_ZC_PROPERTY_HOMUN3(fp, end) {
 };
 PACKET.ZC.PROPERTY_HOMUN3.size = 73;
 
+// 0xb31
+PACKET.ZC.ADD_SKILL3 = function PACKET_ZC_ADD_SKILL3(fp, end) {
+	this.data = {};
+	this.data.SKID = fp.readUShort();
+	this.data.type = fp.readLong();
+	this.data.level = fp.readShort();
+	this.data.spcost = fp.readShort();
+	this.data.attackRange = fp.readShort();
+	this.data.upgradable = fp.readUChar();
+	this.data.level2 = fp.readShort();
+};
+PACKET.ZC.ADD_SKILL3.size = 17;
+
 // 0xb32
 PACKET.ZC.SKILLINFO_LIST2 = function PACKET_ZC_SKILLINFO_LIST2(fp, end) {
 	this.skillList = (function () {
@@ -14537,6 +14690,18 @@ PACKET.ZC.SKILLINFO_LIST2 = function PACKET_ZC_SKILLINFO_LIST2(fp, end) {
 	})();
 };
 PACKET.ZC.SKILLINFO_LIST2.size = -1;
+
+// 0xb33
+PACKET.ZC.SKILLINFO_UPDATE3 = function PACKET_ZC_SKILLINFO_UPDATE3(fp, end) {
+	this.SKID = fp.readShort();
+	this.type = fp.readLong();
+	this.level = fp.readShort();
+	this.spcost = fp.readShort();
+	this.attackRange = fp.readShort();
+	this.upgradable = fp.readChar();
+	this.level2 = fp.readShort();
+};
+PACKET.ZC.SKILLINFO_UPDATE3.size = 17;
 
 //0xb37
 PACKET.ZC.EQUIPWIN_MICROSCOPE_V7 = function PACKET_ZC_EQUIPWIN_MICROSCOPE_V7(fp, end) {
@@ -14851,6 +15016,50 @@ PACKET.ZC.ADD_ITEM_TO_CART4 = function PACKET_ZC_ADD_ITEM_TO_CART4(fp, end) {
 };
 PACKET.ZC.ADD_ITEM_TO_CART4.size = 58;
 
+// 0xb46
+PACKET.CZ.REQ_ADD_NEW_EMBLEM = function PACKET_CZ_REQ_ADD_NEW_EMBLEM() {
+	this.GDID = 0;
+	this.version = 0;
+};
+PACKET.CZ.REQ_ADD_NEW_EMBLEM.prototype.build = function () {
+	const pkt_len = 2 + 4 + 4;
+	const pkt_buf = new BinaryWriter(pkt_len);
+
+	pkt_buf.writeShort(0xb46);
+	pkt_buf.writeULong(this.GDID);
+	pkt_buf.writeULong(this.version);
+
+	return pkt_buf;
+};
+PACKET.CZ.REQ_ADD_NEW_EMBLEM.size = 10;
+
+// 0xb1f, and 0xb47 after it - same field order, and both reorder the fields the
+// 0x1b4 generation sent while widening the version from a short to a long.
+// They need one structure each: registering takes the id on the structure
+// itself, so a shared one keeps only the opcode it was registered under last
+// and the other never reaches its handler.
+PACKET.ZC.CHANGE_GUILD2 = function PACKET_ZC_CHANGE_GUILD2(fp, end) {
+	this.GDID = fp.readULong();
+	this.emblemVersion = fp.readULong();
+
+	// Ten bytes from 20190306 and fourteen from 20190619: the account id was
+	// appended to the two leading fields, not slotted in among them. Read off the
+	// framed length rather than the version, which is what framed it in the first
+	// place.
+	if (end - fp.tell() >= 4) {
+		this.AID = fp.readULong();
+	}
+};
+PACKET.ZC.CHANGE_GUILD2.size = PACKETVER.value >= 20190619 ? 14 : 10;
+
+// 0xb47
+PACKET.ZC.CHANGE_GUILD3 = function PACKET_ZC_CHANGE_GUILD3(fp, end) {
+	this.GDID = fp.readULong();
+	this.emblemVersion = fp.readULong();
+	this.AID = fp.readULong();
+};
+PACKET.ZC.CHANGE_GUILD3.size = 14;
+
 // 0xb4e
 PACKET.ZC.NPC_MARKET_PURCHASE_RESULT2 = function PACKET_ZC_NPC_MARKET_PURCHASE_RESULT2(fp, end) {
 	this.result = fp.readUShort();
@@ -15132,6 +15341,23 @@ PACKET.ZC.GUILD_INFO4 = function PACKET_ZC_GUILD_INFO4(fp, end) {
 	this.masterName = fp.readString(NAME_LENGTH);
 };
 PACKET.ZC.GUILD_INFO4.size = 118; // - <master name>.24B + <master char id>.L
+
+// 0xb7c
+PACKET.ZC.BAN_LIST3 = function PACKET_ZC_BAN_LIST3(fp, end) {
+	this.banList = (function () {
+		const count = ((end - fp.tell()) / 68) | 0;
+		const out = new Array(count);
+		for (let i = 0; i < count; ++i) {
+			out[i] = {};
+			out[i].GID = fp.readULong();
+			// The name comes after the reason here, not before it as in 0x163.
+			out[i].reason = fp.readString(40);
+			out[i].charname = fp.readString(NAME_LENGTH);
+		}
+		return out;
+	})();
+};
+PACKET.ZC.BAN_LIST3.size = -1;
 
 // 0xb7d
 PACKET.ZC.MEMBERMGR_INFO3 = function PACKET_ZC_MEMBERMGR_INFO3(fp, end) {

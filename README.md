@@ -4,7 +4,7 @@ This is a continuation of [roBrowser](https://www.robrowser.com/) expanded with 
 
 If you wish to discuss anything related to this project, or you want to join, contact us on [Discord](https://discord.gg/8JdHwM4Kqm) or in the [GIT Discussions](https://github.com/MrAntares/roBrowserLegacy/discussions)
 
-For info on how to setup the client read the contents of our [Getting Started doc](https://github.com/MrAntares/roBrowserLegacy/blob/master/doc/README.md). For the original branche's docs please visit the https://www.robrowser.com/ site.
+For info on how to setup the client read the contents of our [Getting Started doc](https://github.com/MrAntares/roBrowserLegacy/blob/master/docs/README.md). For the original branche's docs please visit the https://www.robrowser.com/ site.
 
 ## DEMO
 
@@ -34,7 +34,7 @@ npm run build:all     # Build all applications to dist/Web/
 
 ## Guide
 
-Checkout the [getting started guide](doc/README.md)
+Checkout the [getting started guide](docs/README.md)
 
 ## Wiki
 
@@ -58,6 +58,7 @@ Remote Client serves game assets to roBrowser via http by extracting them from t
 Other implementations may arise and when they do we will list them here:
 
 - [roBrowserLegacy-RemoteClient-JS](https://github.com/FranciscoWallison/roBrowserLegacy-RemoteClient-JS)
+- [roBrowserLegacy-RemoteClient-Rust](https://github.com/Flux159/roBrowserLegacy-RemoteClient-Rust)
 
 ## WebSocket Proxy
 
@@ -69,7 +70,7 @@ For available plugins and information on how to install them please visit the [r
 
 ## Contributing
 
-See [CONTRIBUTING](./doc/CONTRIBUTING.md)
+See [CONTRIBUTING](./docs/CONTRIBUTING.md)
 
 All credits to the original owners/creators and the new ones.
 <a href="https://github.com/MrAntares/roBrowserLegacy/graphs/contributors">
@@ -81,6 +82,12 @@ All credits to the original owners/creators and the new ones.
 - Join us on [Discord](https://discord.gg/8JdHwM4Kqm)
 - Or in the [GIT Discussions](https://github.com/MrAntares/roBrowserLegacy/discussions)
 
-## Star history
+## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=MrAntares/roBrowserLegacy&type=Date)](https://star-history.com/#MrAntares/roBrowserLegacy&Date)
+<a href="https://www.star-history.com/?repos=MrAntares%2FroBrowserLegacy&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=MrAntares/roBrowserLegacy&type=date&theme=dark&legend=top-left&sealed_token=n-LYAsHxuqeB0pWAcr0VyUok1yv6L_vgDU_o45SAzDD0v8KE-9l9Mqlcr0dcnX606Bg9Yf_Coue-KXc4lhBj_dwAIAVmxloWaG5KiVlETd2asCYPRWu9-RzCKESTbAwZOolsyYjnA-IS6njNlSjYzTJfSDLMmT742KWezS2E7iECIz-sCoDor0QaRlep" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=MrAntares/roBrowserLegacy&type=date&legend=top-left&sealed_token=n-LYAsHxuqeB0pWAcr0VyUok1yv6L_vgDU_o45SAzDD0v8KE-9l9Mqlcr0dcnX606Bg9Yf_Coue-KXc4lhBj_dwAIAVmxloWaG5KiVlETd2asCYPRWu9-RzCKESTbAwZOolsyYjnA-IS6njNlSjYzTJfSDLMmT742KWezS2E7iECIz-sCoDor0QaRlep" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=MrAntares/roBrowserLegacy&type=date&legend=top-left&sealed_token=n-LYAsHxuqeB0pWAcr0VyUok1yv6L_vgDU_o45SAzDD0v8KE-9l9Mqlcr0dcnX606Bg9Yf_Coue-KXc4lhBj_dwAIAVmxloWaG5KiVlETd2asCYPRWu9-RzCKESTbAwZOolsyYjnA-IS6njNlSjYzTJfSDLMmT742KWezS2E7iECIz-sCoDor0QaRlep" />
+ </picture>
+</a>

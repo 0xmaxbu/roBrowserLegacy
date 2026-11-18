@@ -9,7 +9,6 @@
  */
 
 import DB from 'DB/DBManager.js';
-import jQuery from 'Utils/jquery.js';
 import Renderer from 'Renderer/Renderer.js';
 import Client from 'Core/Client.js';
 import Events from 'Core/Events.js';
@@ -20,7 +19,8 @@ import Cursor from 'UI/CursorManager.js';
 import BattleMode from 'Controls/BattleMode.js';
 import History from './History.js';
 import UIManager from 'UI/UIManager.js';
-import UIComponent from 'UI/UIComponent.js';
+import GUIComponent from 'UI/GUIComponent.js';
+import 'UI/Elements/Elements.js';
 import ContextMenu from 'UI/Components/ContextMenu/ContextMenu.js';
 import htmlText from './ChatBox.html?raw';
 import cssText from './ChatBox.css?raw';
@@ -89,7 +89,24 @@ const _preferences = Preferences.get(
 /**
  * Create Basic Info component
  */
-const ChatBox = new UIComponent('ChatBox', htmlText, cssText);
+const ChatBox = new GUIComponent('ChatBox', cssText);
+
+/**
+ * Helper: query inside shadow root
+ */
+function _root() {
+	return ChatBox._shadow || ChatBox._host;
+}
+
+/**
+ * Render HTML
+ */
+ChatBox.render = () => htmlText;
+
+/**
+ * Has input fields, protect key events
+ */
+ChatBox.captureKeyEvents = true;
 
 /**
  * Constants
@@ -103,7 +120,7 @@ ChatBox.TYPE = {
 	ANNOUNCE: 1 << 5,
 	ERROR: 1 << 6,
 	INFO: 1 << 7,
-	BLUE: 1 << 8, // TODO: find a better name
+	BLUE: 1 << 8,
 	ADMIN: 1 << 9,
 	MAIL: 1 << 10,
 	CLAN: 1 << 11
@@ -132,7 +149,6 @@ ChatBox.FILTER = {
 	QUEST: 19,
 	BATTLEFIELD: 20,
 	CLAN: 21
-	//CALL:			22, // Display Call messages
 };
 
 /**
@@ -142,11 +158,11 @@ ChatBox.sendTo = ChatBox.TYPE.PUBLIC;
 
 /**
  * Storage to cache the private messages
- * Ugly system used by official client, can lead to errors
  */
 ChatBox.PrivateMessageStorage = {
 	nick: '',
-	msg: ''
+	msg: '',
+	blockNicks: []
 };
 
 ChatBox.lastTabID = -1;
@@ -159,202 +175,248 @@ ChatBox.tabs = [];
  * Initialize UI
  */
 ChatBox.init = function init() {
+	const root = _root();
+
 	if (!ContextMenu.__loaded) ContextMenu.prepare();
 	_heightIndex = _preferences.height - 1;
 	ChatBox.updateHeight();
 	ChatBox.applyFontScale();
 
-	this.ui.css({
-		top: Math.min(Math.max(0, _preferences.y - this.ui.height()), Renderer.height - this.ui.height()),
-		left: Math.min(Math.max(0, _preferences.x), Renderer.width - this.ui.width())
-	});
+	this._host.style.top = `${Math.min(Math.max(0, _preferences.y - (this._host.offsetHeight || 0)), Renderer.height - (this._host.offsetHeight || 0))}px`;
+	this._host.style.left = `${Math.min(Math.max(0, _preferences.x), Renderer.width - (this._host.offsetWidth || 0))}px`;
 
 	this.magnet.TOP = _preferences.magnet_top;
 	this.magnet.BOTTOM = _preferences.magnet_bottom;
 	this.magnet.LEFT = _preferences.magnet_left;
 	this.magnet.RIGHT = _preferences.magnet_right;
 
-	this.draggable(this.ui.find('.input'));
-	this.draggable(this.ui.find('.battlemode'));
+	this.draggable('.input');
+	this.draggable('.battlemode');
 
-	// Sorry for this un-documented code (see UIComponent for more informations)
 	// Keep chat log area click-through for walking; only block over interactive UI parts.
-	// Note: tabs are created dynamically; their hover-block is handled via delegated events below.
-	this.__mouseStopBlock = this.ui.find('.input, .chat-function, .battlemode, .event_add_cursor');
+	// For GUIComponent, set up manual mouse intersection blocking on interactive elements.
+	const interactiveSelector = '.input, .chat-function, .battlemode, .event_add_cursor';
+	const interactiveEls = root.querySelectorAll(interactiveSelector);
+	interactiveEls.forEach(el => {
+		let _intersect;
+		let _enter = 0;
+		el.addEventListener('mouseenter', () => {
+			if (_enter === 0) {
+				_intersect = Mouse.intersect;
+				_enter++;
+				if (_intersect) {
+					Mouse.intersect = false;
+					Cursor.setType(Cursor.ACTION.DEFAULT);
+					EntityManager.setOverEntity(null);
+				}
+			}
+		});
+		el.addEventListener('mouseleave', () => {
+			if (_enter > 0) {
+				_enter--;
+				if (_enter === 0 && _intersect) {
+					Mouse.intersect = true;
+					EntityManager.setOverEntity(null);
+				}
+			}
+		});
+	});
 
-	// Setting chatbox scrollbar
+	// Setting chatbox scrollbar (inject into shadow style)
 	Client.loadFiles(
 		[DB.INTERFACE_PATH + 'basic_interface/dialscr_down.bmp', DB.INTERFACE_PATH + 'basic_interface/dialscr_up.bmp'],
-		function (down, up) {
-			jQuery('style:first').append(
-				[
-					'#chatbox .content::-webkit-scrollbar { width: 10px; height: 10px;}',
-					'#chatbox .content::-webkit-scrollbar-button:vertical:start:increment,',
-					'#chatbox .content::-webkit-scrollbar-button:vertical:end:decrement { display: none;}',
-					'#chatbox .content::-webkit-scrollbar-corner:vertical { display:none;}',
-					'#chatbox .content::-webkit-scrollbar-resizer:vertical { display:none;}',
-					'#chatbox .content::-webkit-scrollbar-button:start:decrement,',
-					'#chatbox .content::-webkit-scrollbar-button:end:increment { display: block; border:none;}',
-					'#chatbox .content::-webkit-scrollbar-button:vertical:increment { background: url(' +
-						down +
-						') no-repeat; height:10px;}',
-					'#chatbox .content::-webkit-scrollbar-button:vertical:decrement { background: url(' +
-						up +
-						') no-repeat; height:10px;}',
-					'#chatbox .content::-webkit-scrollbar-track-piece:vertical { background:black; border:none;}',
-					'#chatbox .content::-webkit-scrollbar-thumb:vertical { background:grey; -webkit-border-image:none; border-color:transparent;border-width: 0px 0; }'
-				].join('\n')
-			);
+		(down, up) => {
+			const scrollbarCSS = [
+				'#chatbox .content::-webkit-scrollbar { width: 10px; height: 10px;}',
+				'#chatbox .content::-webkit-scrollbar-button:vertical:start:increment,',
+				'#chatbox .content::-webkit-scrollbar-button:vertical:end:decrement { display: none;}',
+				'#chatbox .content::-webkit-scrollbar-corner:vertical { display:none;}',
+				'#chatbox .content::-webkit-scrollbar-resizer:vertical { display:none;}',
+				'#chatbox .content::-webkit-scrollbar-button:start:decrement,',
+				'#chatbox .content::-webkit-scrollbar-button:end:increment { display: block; border:none;}',
+				`#chatbox .content::-webkit-scrollbar-button:vertical:increment { background: url(${down}) no-repeat; height:10px;}`,
+				`#chatbox .content::-webkit-scrollbar-button:vertical:decrement { background: url(${up}) no-repeat; height:10px;}`,
+				'#chatbox .content::-webkit-scrollbar-track-piece:vertical { background:black; border:none;}',
+				'#chatbox .content::-webkit-scrollbar-thumb:vertical { background:grey; -webkit-border-image:none; border-color:transparent;border-width: 0px 0; }'
+			].join('\n');
+
+			const style = document.createElement('style');
+			style.textContent = scrollbarCSS;
+			if (ChatBox._shadow) {
+				ChatBox._shadow.appendChild(style);
+			}
 		}
 	);
 
 	// Input selection
-	this.ui.find('.input input').mousedown(function (event) {
-		this.select();
-		event.stopImmediatePropagation();
-		return false;
-	});
+	const usernameInput = root.querySelector('.input input');
+	if (usernameInput) {
+		usernameInput.addEventListener('mousedown', function (event) {
+			this.select();
+			event.stopImmediatePropagation();
+			event.preventDefault();
+		});
+	}
 
-	if (Configs.get('restoreChatFocus', false)) {
-		this.ui.find('.input-chatbox').blur(
-			function () {
-				Events.setTimeout(
-					function () {
-						const active = document.activeElement;
-						const movedInsideChatbox = active && jQuery(active).closest('#chatbox').length;
-						const isTextInput = active && active.tagName && active.tagName.match(/input|select|textarea/i);
-						if (!movedInsideChatbox && !isTextInput) {
-							this.ui.find('.input-chatbox').focus();
-						}
-					}.bind(this),
-					1000
-				);
-			}.bind(this)
-		);
+	const inputChatbox = root.querySelector('.input-chatbox');
+
+	if (Configs.get('restoreChatFocus', false) && inputChatbox) {
+		inputChatbox.addEventListener('blur', () => {
+			// Escape is an explicit request to leave the chat, don't pull focus back
+			if (inputChatbox.dataset.escapeBlur) {
+				delete inputChatbox.dataset.escapeBlur;
+				return;
+			}
+			Events.setTimeout(() => {
+				const active = KEYS.getDeepActiveElement();
+				const movedInsideChatbox = active && root.querySelector('#chatbox').contains(active);
+				const isTextInput = active && active.tagName && active.tagName.match(/input|select|textarea/i);
+				if (!movedInsideChatbox && !isTextInput) {
+					inputChatbox.focus();
+				}
+			}, 1000);
+		});
 	}
 
 	// Move caret to end of text
-	this.ui.find('.input-chatbox').on('click focus', function () {
-		const element = this;
-		const range = document.createRange();
-		const selection = window.getSelection();
+	if (inputChatbox) {
+		inputChatbox.addEventListener('click', function () {
+			setCaretToEnd(this);
+		});
 
-		range.selectNodeContents(element);
-		range.collapse(false);
-		selection.addRange(range);
-	});
+		inputChatbox.addEventListener('focus', function () {
+			setCaretToEnd(this);
+		});
 
-	this.ui.find('.input-chatbox')[0].maxLength = MAX_LENGTH;
+		inputChatbox.maxLength = MAX_LENGTH;
 
-	this.ui.find('.input-chatbox').on('input', function (event) {
-		const currentText = extractChatMessage(jQuery(this));
-		if (currentText.length >= MAX_LENGTH) {
-			// cap message to maximun lenght
-			event.preventDefault();
-			return false;
-		}
-	});
-
-	this.ui.find('.input-chatbox').on('keydown', function (event) {
-		const currentText = extractChatMessage(jQuery(this));
-		// Block texting after reach max_lenght
-		if (currentText.length >= MAX_LENGTH) {
-			const allowedKeys = [
-				'ArrowLeft',
-				'ArrowUp',
-				'ArrowRight',
-				'ArrowDown',
-				'Backspace',
-				'Delete',
-				'Enter',
-				'Insert'
-			];
-
-			if (allowedKeys.includes(event.key)) {
-				return true;
+		inputChatbox.addEventListener('input', event => {
+			const currentText = extractChatMessage(inputChatbox);
+			if (currentText.length >= MAX_LENGTH) {
+				event.preventDefault();
 			}
+		});
 
-			if (event.ctrlKey || event.altKey) {
-				return true;
+		inputChatbox.addEventListener('keydown', event => {
+			const currentText = extractChatMessage(inputChatbox);
+			if (currentText.length >= MAX_LENGTH) {
+				const allowedKeys = [
+					'ArrowLeft',
+					'ArrowUp',
+					'ArrowRight',
+					'ArrowDown',
+					'Backspace',
+					'Delete',
+					'Enter',
+					'Insert'
+				];
+
+				if (allowedKeys.includes(event.key)) {
+					return true;
+				}
+
+				if (event.ctrlKey || event.altKey) {
+					return true;
+				}
+				event.preventDefault();
+				return false;
 			}
-			event.preventDefault();
-			return false;
-		}
-	});
+		});
 
-	this.ui.find('.input-chatbox').on(
-		'paste',
-		function (event) {
-			// Contenteditable ignores maxLength; enforce plain-text paste + length limit.
+		inputChatbox.addEventListener('paste', event => {
 			event.preventDefault();
 
-			const clipboard = (event.originalEvent || event).clipboardData;
+			const clipboard = (event.originalEvent || event).clipboardData || event.clipboardData;
 			let pastedText = clipboard ? clipboard.getData('text/plain') : '';
 			if (!pastedText) {
-				return false;
+				return;
 			}
 
-			pastedText = pastedText.replace(/\u00A0/g, ' ');
+			// The input is one line: a pasted line break becomes a space.
+			pastedText = pastedText.replace(/\u00A0/g, ' ').replace(/\r\n?|\n/g, ' ');
 
-			const currentText = extractChatMessage(this.ui.find('.input-chatbox'));
+			const currentText = extractChatMessage(inputChatbox);
 			const remaining = MAX_LENGTH - currentText.length;
 			if (remaining <= 0) {
-				return false;
+				return;
 			}
 
 			const toInsert = pastedText.substr(0, remaining);
 
-			// Insert at caret if possible; fallback to append.
 			if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
 				document.execCommand('insertText', false, toInsert);
 			} else {
 				const node = document.createTextNode(toInsert);
-				this.ui.find('.input-chatbox')[0].appendChild(node);
+				inputChatbox.appendChild(node);
 			}
+		});
+	}
 
-			return false;
-		}.bind(this)
-	);
-
-	this.ui.find('.input .username').blur(
-		function () {
-			Events.setTimeout(
-				function () {
-					const active = document.activeElement;
-					const movedInsideChatbox = active && jQuery(active).closest('#chatbox').length;
-					const isTextInput = active && active.tagName && active.tagName.match(/input|select|textarea/i);
-					const isChatMessage = active === this.ui.find('.input-chatbox')[0];
-					if (!movedInsideChatbox && !isTextInput && !isChatMessage) {
-						this.ui.find('.input .username').focus();
-					}
-				}.bind(this),
-				1000
-			);
-		}.bind(this)
-	);
+	const nickBox = root.querySelector('.input .username');
+	if (nickBox) {
+		nickBox.addEventListener('blur', () => {
+			Events.setTimeout(() => {
+				const active = KEYS.getDeepActiveElement();
+				const movedInsideChatbox = active && root.querySelector('#chatbox').contains(active);
+				const isTextInput = active && active.tagName && active.tagName.match(/input|select|textarea/i);
+				const isChatMessage = active === inputChatbox;
+				if (!movedInsideChatbox && !isTextInput && !isChatMessage) {
+					nickBox.focus();
+				}
+			}, 1000);
+		});
+	}
 
 	// Validate information dragged into text field
-	this.ui.find('input[type=text]').on('drop', onDropText).on('dragover', stopPropagation);
+	root.querySelectorAll('input[type=text]').forEach(input => {
+		input.addEventListener('drop', onDropText);
+		input.addEventListener('dragover', stopPropagation);
+	});
 
-	// Button change name
-	this.ui
-		.find('.header input')
-		.dblclick(function () {
-			this.type = 'text';
-			this.select();
-		})
-		.blur(function () {
-			this.type = 'button';
-		});
+	// Double-click renames a tab: Enter keeps the new name, anything else drops it
+	// See docs/reference/chat/tabs.md
+	const header = root.querySelector('table.header');
+	header.addEventListener('dblclick', event => {
+		const tab = event.target.closest('table.header tr td.tab');
+		const input = tab && tab.querySelector('input');
+		if (input) {
+			input.readOnly = false;
+			input.focus();
+			input.select();
+		}
+	});
+	header.addEventListener('keydown', event => {
+		const input = event.target.closest('table.header tr td.tab input');
+		if (!input || input.readOnly) {
+			return;
+		}
+		if (event.key === 'Enter') {
+			event.stopPropagation();
+			const name = input.value.trim();
+			if (name) {
+				ChatBox.tabs[input.closest('td.tab').dataset.tab].name = name;
+				input.blur();
+			}
+		} else if (event.key === 'Escape') {
+			event.stopPropagation();
+			input.blur();
+		}
+	});
+	header.addEventListener('focusout', event => {
+		const input = event.target.closest('table.header tr td.tab input');
+		if (input) {
+			input.readOnly = true;
+			input.value = ChatBox.tabs[input.closest('td.tab').dataset.tab].name;
+			ChatBoxSettings.updateTab(ChatBox.activeTab, input.value);
+		}
+	});
 
 	// Private message selection
-	this.ui
-		.find('.input .list')
-		.click(function () {
+	const listBtn = root.querySelector('.input .list');
+	if (listBtn) {
+		listBtn.addEventListener('click', function () {
 			const names = _historyNickName.list;
 			const count = names.length;
-			const pos = jQuery(this).offset();
-			const ui = ContextMenu.ui.find('.menu');
 
 			if (!count) {
 				ChatBox.addText(DB.getMessage(192), ChatBox.TYPE.ERROR, ChatBox.FILTER.PUBLIC_LOG);
@@ -369,25 +431,32 @@ ChatBox.init = function init() {
 			}
 
 			ContextMenu.addElement('', onPrivateMessageUserSelection(''));
+
+			const pos = this.getBoundingClientRect();
+			const ui = ContextMenu.ui.find('.menu');
 			ui.css({
 				top: pos.top - ui.height() - 5,
 				left: pos.left - ui.width() - 5
 			});
-		})
-		.mousedown(function (event) {
-			event.stopImmediatePropagation();
-			return false;
 		});
+		listBtn.addEventListener('mousedown', event => {
+			event.stopImmediatePropagation();
+			event.preventDefault();
+		});
+	}
 
-	this.ui.find('.draggable').mousedown(function (event) {
-		event.stopPropagation();
-	});
+	const draggableEl = root.querySelector('.draggable');
+	if (draggableEl) {
+		draggableEl.addEventListener('mousedown', event => {
+			event.stopPropagation();
+		});
+	}
 
 	// Send message to...
-	this.ui
-		.find('.input .filter')
-		.click(function () {
-			const pos = jQuery(this).offset();
+	const filterBtn = root.querySelector('.input .filter');
+	if (filterBtn) {
+		filterBtn.addEventListener('click', function () {
+			const pos = this.getBoundingClientRect();
 			const ui = ContextMenu.ui.find('.menu');
 
 			ContextMenu.remove();
@@ -402,132 +471,194 @@ ChatBox.init = function init() {
 				top: pos.top - ui.height() - 5,
 				left: pos.left - ui.width() + 25
 			});
-		})
-		.mousedown(function (event) {
-			event.stopImmediatePropagation();
-			return false;
 		});
+		filterBtn.addEventListener('mousedown', event => {
+			event.stopImmediatePropagation();
+			event.preventDefault();
+		});
+	}
 
 	// Change size
-	this.ui.find('.input .size').click(function (event) {
-		ChatBox.updateHeight(true);
-		event.stopImmediatePropagation();
-		return false;
-	});
+	const sizeBtn = root.querySelector('.input .size');
+	if (sizeBtn) {
+		sizeBtn.addEventListener('click', event => {
+			ChatBox.updateHeight(true);
+			event.stopImmediatePropagation();
+			event.preventDefault();
+		});
+	}
 
 	// Scroll feature should block at each line
-	this.ui.find('.content').on('mousewheel DOMMouseScroll', onScroll);
-	// Tabs should behave like "UI" (no entity hover / map cursor changes), but opttab remains click-through.
+	root.querySelectorAll('.content').forEach(el => {
+		el.addEventListener('wheel', onScroll);
+	});
+
+	// Tabs should behave like "UI" (no entity hover / map cursor changes)
 	(function initTabHoverBlock() {
-		let _tabIntersect,
-			_tabEnter = 0;
+		let _tabIntersect;
+		let _tabEnter = 0;
 
-		ChatBox.ui.on('mouseenter', 'table.header tr td.tab, table.header tr td.tab *', function () {
-			if (_tabEnter === 0) {
-				_tabIntersect = Mouse.intersect;
-				_tabEnter++;
-				if (_tabIntersect) {
-					Mouse.intersect = false;
-					Cursor.setType(Cursor.ACTION.DEFAULT);
-					EntityManager.setOverEntity(null);
+		root.querySelector('#chatbox').addEventListener(
+			'mouseenter',
+			event => {
+				if (event.target.closest('table.header tr td.tab')) {
+					if (_tabEnter === 0) {
+						_tabIntersect = Mouse.intersect;
+						_tabEnter++;
+						if (_tabIntersect) {
+							Mouse.intersect = false;
+							Cursor.setType(Cursor.ACTION.DEFAULT);
+							EntityManager.setOverEntity(null);
+						}
+					}
 				}
-			}
-		});
+			},
+			true
+		);
 
-		ChatBox.ui.on('mouseleave', 'table.header tr td.tab, table.header tr td.tab *', function () {
-			if (_tabEnter > 0) {
-				_tabEnter--;
-				if (_tabEnter === 0 && _tabIntersect) {
-					Mouse.intersect = true;
-					EntityManager.setOverEntity(null);
+		root.querySelector('#chatbox').addEventListener(
+			'mouseleave',
+			event => {
+				if (event.target.closest('table.header tr td.tab')) {
+					if (_tabEnter > 0) {
+						_tabEnter--;
+						if (_tabEnter === 0 && _tabIntersect) {
+							Mouse.intersect = true;
+							EntityManager.setOverEntity(null);
+						}
+					}
 				}
-			}
-		});
+			},
+			true
+		);
 
-		// Prevent walking when clicking tabs (MapControl listens on window mousedown).
-		ChatBox.ui.on('mousedown', 'table.header tr td.tab, table.header tr td.tab *', function (event) {
-			event.stopPropagation();
-		});
+		// Prevent walking when clicking tabs
+		root.querySelector('#chatbox').addEventListener(
+			'mousedown',
+			event => {
+				if (event.target.closest('table.header tr td.tab')) {
+					event.stopPropagation();
+
+					// A click only switches tab: the name is not focused until a double-click
+					// (a click inside the name being edited only moves the caret)
+					const input = event.target.closest('td.tab input');
+					if (!input || input.readOnly) {
+						event.preventDefault();
+
+						// and it drops a rename in progress
+						const editing = root.querySelector('table.header tr td.tab input:not([readonly])');
+						if (editing) {
+							editing.blur();
+						}
+					}
+				}
+			},
+			true
+		);
 	})();
 
-	// Prevent map right-click (camera rotate) when using chat right-click features.
-	this.ui.on('mousedown', '.body, .contentwrapper, .content', function (event) {
-		if (event.which !== 3) {
-			return true;
-		}
-
-		// Let other UI elements handle their own context menus, but never rotate the camera.
-		if (jQuery(event.target).closest('.event_add_cursor, .chat-function, td.tab').length) {
+	// Prevent map right-click (camera rotate) when using chat right-click features
+	const chatBody = root.querySelector('.body');
+	if (chatBody) {
+		chatBody.addEventListener('mousedown', event => {
+			if (event.which !== 3) {
+				return;
+			}
 			event.preventDefault();
 			event.stopPropagation();
-			return false;
-		}
+		});
+	}
 
-		event.preventDefault();
-		event.stopPropagation();
-		return false;
-	});
+	// Chat font scale context menu (right click)
+	const chatboxEl = root.querySelector('#chatbox');
+	if (chatboxEl) {
+		chatboxEl.addEventListener('contextmenu', event => {
+			const target = event.target;
+			if (target.closest('.body, .contentwrapper, .content')) {
+				if (target.closest('a, .item-link, .event_add_cursor, .chat-function, td.tab')) {
+					return;
+				}
 
-	// Chat font scale context menu (right click).
-	this.ui.on('contextmenu', '.body, .contentwrapper, .content', function (event) {
-		// Ignore right click on interactive elements (links, item links, scrollbars, etc.)
-		if (jQuery(event.target).closest('a, .item-link, .event_add_cursor, .chat-function, td.tab').length) {
-			return true;
-		}
+				event.preventDefault();
+				event.stopPropagation();
 
-		event.preventDefault();
-		event.stopPropagation();
+				Mouse.screen.x = event.pageX;
+				Mouse.screen.y = event.pageY;
 
-		Mouse.screen.x = event.pageX;
-		Mouse.screen.y = event.pageY;
+				ContextMenu.remove();
+				ContextMenu.append();
+				ContextMenu.addElement('Chat font x1.0', setChatFontScale(1.0));
+				ContextMenu.addElement('Chat font x1.2', setChatFontScale(1.2));
+				ContextMenu.addElement('Chat font x1.4', setChatFontScale(1.4));
+			}
+		});
+	}
 
-		ContextMenu.remove();
-		ContextMenu.append();
-		ContextMenu.addElement('Chat font x1.0', setChatFontScale(1.0));
-		ContextMenu.addElement('Chat font x1.2', setChatFontScale(1.2));
-		ContextMenu.addElement('Chat font x1.4', setChatFontScale(1.4));
+	// Clicking interactive elements in chat should not trigger map movement
+	if (chatboxEl) {
+		chatboxEl.addEventListener('mousedown', event => {
+			if (event.target.closest('.content a, .content .item-link')) {
+				event.stopPropagation();
+			}
+		});
+	}
 
-		return false;
-	});
+	const bmtoggle = root.querySelector('.battlemode .bmtoggle');
+	if (bmtoggle) {
+		bmtoggle.addEventListener('click', () => {
+			const inputEl = root.querySelector('.input');
+			const bmEl = root.querySelector('.battlemode');
+			if (inputEl) inputEl.style.display = inputEl.style.display === 'none' ? 'block' : 'none';
+			if (bmEl) bmEl.style.display = bmEl.style.display === 'none' ? 'block' : 'none';
+		});
+	}
 
-	// Clicking interactive elements in chat should not trigger map movement.
-	this.ui.on('mousedown', '.content a, .content .item-link', function (event) {
-		event.stopPropagation();
-	});
+	const battleopt2 = root.querySelector('.chat-function .battleopt2');
+	if (battleopt2) {
+		battleopt2.addEventListener('click', () => {
+			if (ChatBox.tabCount <= 5) {
+				// As in the client, a tab the player adds starts with every filter off
+				ChatBox.addNewTab(undefined, []);
+				ChatBox.onAppend();
+			}
+		});
+	}
 
-	this.ui.find('.battlemode .bmtoggle').click(function (event) {
-		ChatBox.ui.find('.input').toggle();
-		ChatBox.ui.find('.battlemode').toggle();
-	});
+	// Tab click handler (delegated)
+	if (chatboxEl) {
+		chatboxEl.addEventListener('click', event => {
+			const tab = event.target.closest('table.header tr td.tab');
+			if (tab) {
+				event.stopImmediatePropagation();
+				if (ChatBox.activeTab != tab.dataset.tab) {
+					ChatBox.switchTab(tab.dataset.tab);
+				}
+			}
+		});
+	}
 
-	this.ui.find('.chat-function .battleopt2').click(function (event) {
-		if (ChatBox.tabCount <= 5) {
-			ChatBox.addNewTab();
-			ChatBox.onAppend();
-		}
-	});
+	const wndminib = root.querySelector('.chat-function .wndminib');
+	if (wndminib) {
+		wndminib.addEventListener('click', () => {
+			if (ChatBox.tabCount > 1) {
+				ChatBox.removeTab();
+			}
+		});
+	}
 
-	this.ui.on('click', 'table.header tr td.tab', function (event) {
-		event.stopImmediatePropagation();
-		const currentElem = event.currentTarget;
-		if (ChatBox.activeTab !== currentElem.dataset.tab - 1) {
-			ChatBox.switchTab(currentElem.dataset.tab);
-		}
-	});
+	const chatmodeBtn = root.querySelector('.chat-function .chatmode');
+	if (chatmodeBtn) {
+		chatmodeBtn.addEventListener('click', () => {
+			ChatBox.toggleChat();
+		});
+	}
 
-	this.ui.find('.chat-function .wndminib').click(function () {
-		if (ChatBox.tabCount > 1) {
-			ChatBox.removeTab();
-		}
-	});
-
-	this.ui.find('.chat-function .chatmode').click(function () {
-		ChatBox.toggleChat();
-	});
-
-	this.ui.find('.chat-function .battleopt').click(function () {
-		ChatBox.toggleChatBattleOption();
-	});
+	const battleoptBtn = root.querySelector('.chat-function .battleopt');
+	if (battleoptBtn) {
+		battleoptBtn.addEventListener('click', () => {
+			ChatBox.toggleChatBattleOption();
+		});
+	}
 
 	// Init settings window as well
 	ChatBoxSettings.append();
@@ -535,17 +666,19 @@ ChatBox.init = function init() {
 	if (_preferences.tabs.length > 0 && _preferences.tabs.length == _preferences.tabOption.length) {
 		// Load saved tabs
 		for (let i = 0; i < _preferences.tabs.length; i++) {
-			if (_preferences.tabs[i] && _preferences.tabOption[i]) {
-				ChatBox.addNewTab(_preferences.tabs[i].name, _preferences.tabOption[i]);
+			if (_preferences.tabs[i]) {
+				const tabName = _preferences.tabs[i].name;
+				const tabSettings = _preferences.tabOption[i];
+				ChatBox.addNewTab(tabName, tabSettings);
 			}
 		}
 
-		// Switch to last active tab
-		if (ChatBox.tabs[_preferences.activeTab]) {
-			this.switchTab(_preferences.activeTab);
+		// switch to active tab
+		if (_preferences.activeTab !== undefined && ChatBox.tabs[_preferences.activeTab]) {
+			ChatBox.switchTab(_preferences.activeTab);
 		}
 	} else {
-		// Default tabs
+		// Create default tabs
 		const firstTab = ChatBox.addNewTab(DB.getMessage(1291), [
 			ChatBox.FILTER.PUBLIC_LOG,
 			ChatBox.FILTER.PUBLIC_CHAT,
@@ -579,65 +712,78 @@ ChatBox.init = function init() {
 	Commands.add(
 		'savechat',
 		'Saves current chat tab to txt file.',
-		function () {
+		() => {
 			ChatBox.saveCurrentTabChat();
 			return;
 		},
 		['sc'],
 		false
 	);
+
+	// Set up item link click handler inside shadow DOM
+	ChatBox._setupItemLinkHandler();
 };
 
 /**
  * Clean up the box
  */
 ChatBox.clean = function Clean() {
-	const matches = this.ui
-		.find('.content')
-		.html()
-		.match(/(blob:[^"]+)/g);
+	const root = _root();
 
-	if (matches) {
-		for (let i = 0, count = matches.length; i < count; ++i) {
-			window.URL.revokeObjectURL(matches[i]);
+	const contents = root.querySelectorAll('.content');
+	contents.forEach(content => {
+		const matches = content.innerHTML.match(/(blob:[^"]+)/g);
+		if (matches) {
+			for (let i = 0, count = matches.length; i < count; ++i) {
+				window.URL.revokeObjectURL(matches[i]);
+			}
 		}
-	}
+		content.innerHTML = '';
+	});
 
-	this.ui.find('.content').empty();
-	this.ui.find('.input-chatbox').html('');
-	this.ui.find('.input .username').val('');
+	const inputChatbox = root.querySelector('.input-chatbox');
+	if (inputChatbox) inputChatbox.innerHTML = '';
+
+	const nickBox = root.querySelector('.input .username');
+	if (nickBox) nickBox.value = '';
 
 	_historyMessage.clear();
 	_historyNickName.clear();
 };
 
 ChatBox.toggleChatBattleOption = function toggleChatBattleOption() {
-	const tabName = this.ui.find('.header tr td div.on input').val();
+	const root = _root();
+	const onInput = root.querySelector('.header tr td div.on input');
+	const tabName = onInput ? onInput.value : '';
 	ChatBoxSettings.toggle();
 	ChatBoxSettings.updateTab(this.activeTab, tabName);
 };
 
 ChatBox.removeTab = function removeTab() {
-	this.ui.find('table.header tr td.tab[data-tab="' + this.activeTab + '"]').remove();
-	this.ui.find('.body .content[data-content="' + this.activeTab + '"]').remove();
+	const root = _root();
+	const tabEl = root.querySelector(`table.header tr td.tab[data-tab="${this.activeTab}"]`);
+	if (tabEl) tabEl.remove();
 
-	let tabName = '';
-	let _elem = this.ui.find('table.header tr td.tab');
-	_elem = this.ui.find('table.header tr td.tab')[_elem.length - 1];
+	const contentEl = root.querySelector(`.body .content[data-content="${this.activeTab}"]`);
+	if (contentEl) contentEl.remove();
 
-	// Use delete instead of splice to avoid ID messup and make our life eastier.
+	const _elem = root.querySelectorAll('table.header tr td.tab');
+	const lastElem = _elem[_elem.length - 1];
+
 	delete ChatBoxSettings.tabOption[this.activeTab];
 	delete this.tabs[this.activeTab];
 	this.tabCount--;
 
-	ChatBox.switchTab(_elem.dataset.tab);
+	ChatBox.switchTab(lastElem.dataset.tab);
 
-	tabName = this.ui.find('.header tr td div.on input').val();
+	const onInput = root.querySelector('.header tr td div.on input');
+	const tabName = onInput ? onInput.value : '';
 	ChatBoxSettings.updateTab(this.activeTab, tabName);
 };
 
 ChatBox.addNewTab = function addNewTab(name, settings) {
-	// Default settings
+	const root = _root();
+
 	if (!name) {
 		name = 'New Tab';
 	}
@@ -675,29 +821,38 @@ ChatBox.addNewTab = function addNewTab(name, settings) {
 	tab.id = tabID;
 	tab.name = tabName;
 
-	// Store prev height
-	//var height = this.ui.find('.contentwrapper').height();
-
 	// Remove current active state
-	this.ui.find('table.header tr td.tab div').removeClass('on');
-	this.ui.find('.body .content').removeClass('active');
+	root.querySelectorAll('table.header tr td.tab div').forEach(el => el.classList.remove('on'));
+	root.querySelectorAll('.body .content').forEach(el => el.classList.remove('active'));
 
 	// Add new elements as active
-	this.ui.find('table.header tr .opttab').before(`
+	const opttab = root.querySelector('table.header tr .opttab');
+	if (opttab) {
+		opttab.insertAdjacentHTML(
+			'beforebegin',
+			`
 			<td class="tab" data-tab="${tabID}">
 				<div class="on">
-					<input type="text" value="${tabName}"/>
+					<input type="text" value="${ChatBox.escapeHTML(tabName)}" readonly/>
 				</div>
 			</td>
-		`);
+		`
+		);
+	}
 
-	this.ui.find('table.header tr td.tab[data-tab="' + tabID + '"] div input').on('change', function () {
-		ChatBox.tabs[tabID].name = this.value;
-	});
+	const contentWrapper = root.querySelector('.body .contentwrapper');
+	if (contentWrapper) {
+		contentWrapper.insertAdjacentHTML(
+			'beforeend',
+			`<div class="content active" data-content="${tabID}" data-scrollbar-skin="chatbox"></div>`
+		);
+	}
 
-	this.ui
-		.find('.body .contentwrapper')
-		.append(`<div class="content active" data-content="${tabID}" data-scrollbar-skin="chatbox"></div>`);
+	// Bind scroll handler on new content
+	const newContent = root.querySelector(`.body .content[data-content="${tabID}"]`);
+	if (newContent) {
+		newContent.addEventListener('wheel', onScroll);
+	}
 
 	ChatBoxSettings.tabOption[tabID] = settings;
 
@@ -712,19 +867,24 @@ ChatBox.addNewTab = function addNewTab(name, settings) {
 };
 
 ChatBox.switchTab = function switchTab(tabID) {
-	let tabName = '';
+	const root = _root();
 
-	this.ui.find('table.header tr td.tab div').removeClass('on');
-	this.ui.find('.body .content').removeClass('active');
+	root.querySelectorAll('table.header tr td.tab div').forEach(el => el.classList.remove('on'));
+	root.querySelectorAll('.body .content').forEach(el => el.classList.remove('active'));
 
 	this.activeTab = tabID;
 
-	this.ui.find('table.header tr td.tab[data-tab="' + this.activeTab + '"] div').addClass('on');
-	this.ui.find('.body .content[data-content="' + this.activeTab + '"]').addClass('active');
+	const tabDiv = root.querySelector(`table.header tr td.tab[data-tab="${this.activeTab}"] div`);
+	if (tabDiv) tabDiv.classList.add('on');
 
-	tabName = this.ui.find('.header tr td div.on input').val();
+	const contentDiv = root.querySelector(`.body .content[data-content="${this.activeTab}"]`);
+	if (contentDiv) {
+		contentDiv.classList.add('active');
+		contentDiv.scrollTop = contentDiv.scrollHeight;
+	}
 
-	this.ui.find('.content')[tabID].scrollTop = this.ui.find('.content')[tabID].scrollHeight;
+	const onInput = root.querySelector('.header tr td div.on input');
+	const tabName = onInput ? onInput.value : '';
 
 	ChatBoxSettings.updateTab(this.activeTab, tabName);
 };
@@ -733,21 +893,23 @@ ChatBox.switchTab = function switchTab(tabID) {
  * Once append to HTML
  */
 ChatBox.onAppend = function OnAppend() {
-	this.ui.find('.input').hide();
-	this.ui.find('.battlemode').show();
+	const root = _root();
+	const inputEl = root.querySelector('.input');
+	if (inputEl) inputEl.style.display = 'none';
 
-	const content = this.ui.find('.content.active');
-	content[0].scrollTop = content[0].scrollHeight;
+	const bmEl = root.querySelector('.battlemode');
+	if (bmEl) bmEl.style.display = 'block';
+
+	const content = root.querySelector('.content.active');
+	if (content) content.scrollTop = content.scrollHeight;
 };
 
 /**
  * Stop custom scroll
  */
 ChatBox.onRemove = function OnRemove() {
-	this.ui.find('.content.active').off('scroll');
-
-	_preferences.y = parseInt(this.ui.css('top'), 10) + this.ui.height();
-	_preferences.x = parseInt(this.ui.css('left'), 10);
+	_preferences.y = (parseInt(this._host.style.top, 10) || 0) + (this._host.offsetHeight || 0);
+	_preferences.x = parseInt(this._host.style.left, 10) || 0;
 	_preferences.height = _heightIndex;
 	_preferences.magnet_top = this.magnet.TOP;
 	_preferences.magnet_bottom = this.magnet.BOTTOM;
@@ -759,21 +921,17 @@ ChatBox.onRemove = function OnRemove() {
 	_preferences.activeTab = this.activeTab;
 
 	_preferences.save();
-
-	this.lastTabID = -1;
-	this.activeTab = 0;
 };
 
 /**
- * BattleMode processing
- *
  * @param {number} key id to check
  * @return {boolean} found a shortcut ?
  */
 ChatBox.processBattleMode = function processBattleMode(keyId) {
-	// Direct process
+	const root = _root();
+	const bmEl = root.querySelector('.battlemode');
 	if (
-		this.ui.find('.battlemode').is(':visible') ||
+		(bmEl && bmEl.style.display !== 'none') ||
 		KEYS.ALT ||
 		KEYS.SHIFT ||
 		KEYS.CTRL ||
@@ -782,40 +940,20 @@ ChatBox.processBattleMode = function processBattleMode(keyId) {
 	) {
 		return BattleMode.process(keyId);
 	}
-	/*
-		var messageBox = this.ui.find('.input-chatbox');
-		var text       = messageBox.html();
-
-		var messageBoxUser = this.ui.find('.input .username');
-		var text2       = messageBoxUser.val();
-
-		// Hacky, need to wait the browser to add text in the input
-		// If there is no change, send the shortcut.
-		Events.setTimeout(function(){
-			// Nothing rendered, can process the shortcut
-			if ((messageBox.html() === text) && (messageBoxUser.val() === text2)) {
-				BattleMode.process(keyId);
-			}
-		}.bind(this), 4);*/
 
 	return false;
 };
 
 /**
  * Key Event Handler
- *
- * @param {object} event - KeyEventHandler
- * @return {boolean}
  */
 ChatBox.onKeyDown = function OnKeyDown(event) {
-	const messageBox = this.ui.find('.input-chatbox');
-	const nickBox = this.ui.find('.input .username');
-	this.ui.find('.header tr td div.on input').on('keyup', function () {
-		ChatBoxSettings.updateTab(ChatBox.activeTab, this.value);
-	});
+	const root = _root();
+	const messageBox = root.querySelector('.input-chatbox');
+	const nickBox = root.querySelector('.input .username');
 
-	const activeElement = document.activeElement;
-	const isChatInputFocused = activeElement === messageBox[0] || activeElement === nickBox[0];
+	const activeElement = KEYS.getDeepActiveElement();
+	const isChatInputFocused = activeElement === messageBox || activeElement === nickBox;
 	const isOtherTextInputFocused =
 		activeElement &&
 		!isChatInputFocused &&
@@ -827,13 +965,9 @@ ChatBox.onKeyDown = function OnKeyDown(event) {
 	}
 
 	switch (event.which) {
-		//  Battle mode system (Includes F1-F24, 0-9, A-Z, ALT, SHIFT, CTRL)
 		default:
 			if (isChatInputFocused) {
-				// Allow battle-mode F-keys and Escape to work while typing.
 				if (event.which >= KEYS.F1 && event.which <= KEYS.F24) {
-					// F11/F12 are global functions (toggle UI / screenshot); let them bubble
-					// but block browser defaults (fullscreen/devtools).
 					if (event.which === KEYS.F11 || event.which === KEYS.F12) {
 						event.preventDefault();
 						return true;
@@ -844,20 +978,16 @@ ChatBox.onKeyDown = function OnKeyDown(event) {
 						event.stopImmediatePropagation();
 						return false;
 					}
-					// Even if unbound, block browser F-key defaults.
 					event.preventDefault();
 					event.stopImmediatePropagation();
 					return false;
 				}
 
-				// AltGr (Ctrl+Alt on some layouts) should be treated as text input.
 				if (event.getModifierState && event.getModifierState('AltGraph')) {
 					event.stopImmediatePropagation();
 					return true;
 				}
 
-				// Allow CTRL-combinations (shortcuts) to work while chat is open,
-				// but preserve common text-editing combos inside the input.
 				if (event.ctrlKey || KEYS.CTRL) {
 					const isEditingCombo =
 						event.which === KEYS.C ||
@@ -873,21 +1003,23 @@ ChatBox.onKeyDown = function OnKeyDown(event) {
 							event.stopImmediatePropagation();
 							return false;
 						}
-
-						// Block browser/system CTRL defaults (refresh, close tab, etc.),
-						// but let the game/UI receive the shortcut.
 						event.preventDefault();
 						return true;
 					}
 
-					// Editing combos: keep within the input and don't bubble to game.
 					event.stopImmediatePropagation();
 					return true;
 				}
 
-				// Allow ALT-combinations to work while chat is open, but keep basic
-				// caret/navigation keys local to the input.
 				if (event.altKey || KEYS.ALT) {
+					// macOS Option composes characters (e.g. Option+Q = '@' on Latin American layouts,
+					// Option+2 on Spanish): while typing, insert the character instead of firing the Alt hotkey.
+					// On Windows/Linux Alt+key reports the plain key, so hotkeys there are unaffected.
+					if (isComposedAltCharacter(event)) {
+						event.stopImmediatePropagation();
+						return true;
+					}
+
 					const isAltEditingCombo =
 						event.which === KEYS.LEFT ||
 						event.which === KEYS.RIGHT ||
@@ -904,24 +1036,22 @@ ChatBox.onKeyDown = function OnKeyDown(event) {
 							event.stopImmediatePropagation();
 							return false;
 						}
-
-						// Block browser ALT defaults (menus/navigation) but let the
-						// game/UI receive the shortcut.
 						event.preventDefault();
 						return true;
 					}
 
-					// Navigation combos: keep within the input.
 					event.stopImmediatePropagation();
 					return true;
 				}
 
+				// Escape leaves the chat input so Alt hotkeys (e.g. Option+Q) open their windows again
 				if (event.which === KEYS.ESCAPE || event.key === 'Escape') {
-					// Let UIManager/game handle Escape.
-					return true;
+					activeElement.dataset.escapeBlur = '1';
+					activeElement.blur();
+					event.stopImmediatePropagation();
+					return false;
 				}
 
-				// Let the browser handle text input, but don't bubble to game controls.
 				event.stopImmediatePropagation();
 				return true;
 			}
@@ -929,8 +1059,6 @@ ChatBox.onKeyDown = function OnKeyDown(event) {
 			if (
 				(event.target.tagName && !event.target.tagName.match(/input|select|textarea/i)) ||
 				(event.which >= KEYS.F1 && event.which <= KEYS.F24) ||
-				(event.which >= KEYS[1] && event.which <= KEYS[9]) || //  Numbers 0-9 - MicromeX
-				(event.which >= KEYS.A && event.which <= KEYS.Z) || //  Letters A-Z - MicromeX
 				KEYS.ALT ||
 				KEYS.SHIFT ||
 				KEYS.CTRL
@@ -942,52 +1070,40 @@ ChatBox.onKeyDown = function OnKeyDown(event) {
 			}
 			return true;
 
-		// Switch from user name, to message input
-		case KEYS.TAB:
-			if (document.activeElement === messageBox[0]) {
-				nickBox.select().focus();
-				break;
-			}
-
-			if (document.activeElement === nickBox[0]) {
-				messageBox.select().focus();
-				break;
-			}
-			return true;
-
-		// Get back message from history
-		case KEYS.UP:
-			if (!jQuery('#NpcMenu').length) {
-				if (document.activeElement === messageBox[0]) {
-					if (shouldLetChatInputHandleVerticalArrows(messageBox[0], 'up')) {
-						event.stopImmediatePropagation();
-						return true;
-					}
-					messageBox.html(_historyMessage.previous()).select();
-					break;
-				}
-
-				if (document.activeElement === nickBox[0]) {
-					nickBox.val(_historyNickName.previous()).select();
-					break;
-				}
-			}
-			return true;
-
 		// Message from history
-		case KEYS.DOWN:
-			if (!jQuery('#NpcMenu').length) {
-				if (document.activeElement === messageBox[0]) {
-					if (shouldLetChatInputHandleVerticalArrows(messageBox[0], 'down')) {
+		case KEYS.UP:
+			if (!document.querySelector('#NpcMenu')) {
+				if (activeElement === messageBox) {
+					if (shouldLetChatInputHandleVerticalArrows(messageBox, 'up')) {
 						event.stopImmediatePropagation();
 						return true;
 					}
-					messageBox.html(_historyMessage.next()).select();
+					messageBox.innerHTML = _historyMessage.previous();
 					break;
 				}
 
-				if (document.activeElement === nickBox[0]) {
-					nickBox.val(_historyNickName.next()).select();
+				if (activeElement === nickBox) {
+					nickBox.value = _historyNickName.previous();
+					nickBox.select();
+					break;
+				}
+			}
+			return true;
+
+		case KEYS.DOWN:
+			if (!document.querySelector('#NpcMenu')) {
+				if (activeElement === messageBox) {
+					if (shouldLetChatInputHandleVerticalArrows(messageBox, 'down')) {
+						event.stopImmediatePropagation();
+						return true;
+					}
+					messageBox.innerHTML = _historyMessage.next();
+					break;
+				}
+
+				if (activeElement === nickBox) {
+					nickBox.value = _historyNickName.next();
+					nickBox.select();
 					break;
 				}
 			}
@@ -996,43 +1112,46 @@ ChatBox.onKeyDown = function OnKeyDown(event) {
 		// Update chat height
 		case KEYS.F10:
 			this.updateHeight(false);
-			// scroll down when resize
-			this.ui.find('.content')[this.activeTab].scrollTop = this.ui.find('.content')[this.activeTab].scrollHeight;
+			{
+				const activeContent = root.querySelector(`.content[data-content="${this.activeTab}"]`);
+				if (activeContent) activeContent.scrollTop = activeContent.scrollHeight;
+			}
 			break;
 
 		// Send message
 		case KEYS.ENTER: {
-			if (
-				document.activeElement.className === 'message input-chatbox' &&
-				document.activeElement !== messageBox[0]
-			) {
+			// A focused button owns Enter - activation is its default action.
+			// This handler runs on window in the capture phase, so cancelling
+			// that default leaves every button in the client reachable by Tab
+			// but dead to Enter. Space already works, because a button
+			// activates on Space keyup, which never reaches this branch.
+			if (activeElement && activeElement.tagName === 'BUTTON' && !root.contains(activeElement)) {
 				return true;
 			}
 
-			if (jQuery('#NpcMenu, #NpcBox').length) {
+			if (document.activeElement.className === 'message input-chatbox' && document.activeElement !== messageBox) {
 				return true;
 			}
 
-			if (document.activeElement === messageBox[0]) {
+			if (document.querySelector('#NpcMenu, #NpcBox')) {
+				return true;
+			}
+
+			if (activeElement === messageBox) {
 				this.submit();
 				event.stopImmediatePropagation();
 				return false;
 			}
 
-			const input = this.ui.find('.input');
-			if (!input.is(':visible')) {
-				input.show();
-				this.ui.find('.battlemode').hide();
+			const input = root.querySelector('.input');
+			if (input && input.style.display === 'none') {
+				input.style.display = 'block';
+				const bmEl = root.querySelector('.battlemode');
+				if (bmEl) bmEl.style.display = 'none';
 			}
 
-			const el = messageBox[0];
-			el.focus();
-			const range = document.createRange();
-			const sel = window.getSelection();
-			range.selectNodeContents(el);
-			range.collapse(false);
-			sel.removeAllRanges();
-			sel.addRange(range);
+			messageBox.focus();
+			setCaretToEnd(messageBox);
 			event.stopImmediatePropagation();
 			return false;
 		}
@@ -1043,13 +1162,15 @@ ChatBox.onKeyDown = function OnKeyDown(event) {
 };
 
 ChatBox.toggleChat = function toggleChat() {
-	const messageBox = this.ui.find('.input-chatbox');
+	const root = _root();
+	const messageBox = root.querySelector('.input-chatbox');
 
-	if (document.activeElement.tagName === 'INPUT' && document.activeElement !== messageBox[0]) {
+	const activeElement = KEYS.getDeepActiveElement();
+	if (activeElement.tagName === 'INPUT' && activeElement !== messageBox) {
 		return true;
 	}
 
-	if (jQuery('#NpcMenu, #NpcBox').length) {
+	if (document.querySelector('#NpcMenu, #NpcBox')) {
 		return true;
 	}
 
@@ -1061,26 +1182,30 @@ ChatBox.toggleChat = function toggleChat() {
  * Process ChatBox message
  */
 ChatBox.submit = function Submit() {
-	const input = this.ui.find('.input');
-	const $user = input.find('.username');
-	const $text = input.find('.input-chatbox');
+	const root = _root();
+	const inputEl = root.querySelector('.input');
+	const $user = root.querySelector('.input .username');
+	const $text = root.querySelector('.input-chatbox');
 
-	const user = $user.val();
+	const user = $user ? $user.value : '';
 	const text = extractChatMessage($text);
 	const trimmedText = text.replace(/\u00A0/g, ' ').trim();
 	let isChatOn = false;
 
 	// Battle mode
 	if (!trimmedText.length) {
-		input.toggle();
-		this.ui.find('.battlemode').toggle();
-		if (input.is(':visible')) {
+		const bmEl = root.querySelector('.battlemode');
+		if (inputEl) inputEl.style.display = inputEl.style.display === 'none' ? 'block' : 'none';
+		if (bmEl) bmEl.style.display = bmEl.style.display === 'none' ? 'block' : 'none';
+
+		if (inputEl && inputEl.style.display !== 'none') {
 			isChatOn = true;
 			$text.focus();
 		}
 		const chatmode = isChatOn ? 'on' : 'off';
-		Client.loadFile(DB.INTERFACE_PATH + 'basic_interface/chatmode_' + chatmode + '.bmp', function (data) {
-			ChatBox.ui.find('.chat-function .chatmode').css('backgroundImage', 'url(' + data + ')');
+		Client.loadFile(`${DB.INTERFACE_PATH}basic_interface/chatmode_${chatmode}.bmp`, data => {
+			const chatmodeBtn = root.querySelector('.chat-function .chatmode');
+			if (chatmodeBtn) chatmodeBtn.style.backgroundImage = `url(${data})`;
 		});
 
 		return;
@@ -1097,7 +1222,7 @@ ChatBox.submit = function Submit() {
 	// Save in history
 	_historyMessage.push(trimmedText);
 
-	$text.html('');
+	$text.innerHTML = '';
 
 	// Command
 	if (trimmedText[0] === '/') {
@@ -1114,47 +1239,107 @@ ChatBox.submit = function Submit() {
 };
 
 /**
- * Extract plain chat text from the contenteditable input while preserving item links.
- * Replaces `.item-link` spans with their `data-item` payload and strips any remaining markup.
+ * Whether an Alt/Option keydown produces a different printable character than its key
+ * (macOS Option layer, dead keys), i.e. the user is typing rather than using a hotkey.
+ * @param {KeyboardEvent} event
+ * @returns {boolean}
  */
-function extractChatMessage($input) {
-	const clone = $input.clone();
+function isComposedAltCharacter(event) {
+	if (event.ctrlKey || event.metaKey || !event.key) {
+		return false;
+	}
+	if (event.key === 'Dead') {
+		return true;
+	}
+	if (event.key.length !== 1) {
+		return false;
+	}
+	// Only letter/digit keys: their unmodified character is known from event.code
+	const match = /^(?:Key|Digit)(.)$/.exec(event.code || '');
+	return !!match && event.key.toUpperCase() !== match[1];
+}
 
-	clone.find('span.item-link').each(function () {
-		const itemData = jQuery(this).attr('data-item') || jQuery(this).data('item') || '';
-		jQuery(this).replaceWith(document.createTextNode(itemData));
+/**
+ * Move caret to the end of a contenteditable element.
+ * Uses Selection.collapse(): WebKit ignores addRange() for ranges inside a shadow root, so the
+ * removeAllRanges()+addRange() idiom left Safari with no caret and typing went nowhere.
+ * @param {HTMLElement} el
+ */
+function setCaretToEnd(el) {
+	window.getSelection().collapse(el, el.childNodes.length);
+}
+
+/**
+ * Extract plain chat text from the contenteditable input while preserving item links.
+ */
+function extractChatMessage(inputEl) {
+	if (!inputEl) return '';
+	const clone = inputEl.cloneNode(true);
+
+	clone.querySelectorAll('span.item-link').forEach(el => {
+		const itemData = el.getAttribute('data-item') || el.dataset.item || '';
+		el.replaceWith(document.createTextNode(itemData));
 	});
 
-	let result = clone.text();
+	let result = clone.textContent;
 	result = result.replace(/\u00A0/g, ' ');
 	return result;
 }
 
+const ITEM_LINK = /(<ITEMLINK>.*?<\/ITEMLINK>|<ITEML>.*?<\/ITEML>|<ITEM>.*?<\/ITEM>)/i;
+
+/**
+ * Escape text for use in HTML content and quoted attributes.
+ * @param {string} text
+ * @returns {string}
+ */
+ChatBox.escapeHTML = function escapeHTML(text) {
+	return text.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+};
+
+/**
+ * Render a received message as HTML: colour codes dropped, item links clickable, the rest as text.
+ *
+ * @param {string} text
+ * @returns {string}
+ * @see docs/reference/chat/text-parsing.md
+ */
+ChatBox.messageToHTML = function messageToHTML(text) {
+	return text
+		.replace(/\^[0-9A-Fa-f]{6}/g, '')
+		.split(ITEM_LINK)
+		.map((part, i) => {
+			if (!(i % 2)) {
+				return ChatBox.escapeHTML(part);
+			}
+			const item = DB.parseItemLink(part);
+			return (
+				`<span data-item="${ChatBox.escapeHTML(part)}" class="item-link" style="color:#FFFF63; cursor:pointer;">` +
+				`&lt;${ChatBox.escapeHTML(item.name)}&gt;</span>`
+			);
+		})
+		.join('');
+};
+
 /**
  * Add text to chatbox
  *
- * @param {string} text
- * @param {number} colorType
- * @param {number} filterType
- * @param {string} color
- * @param {boolean} override - default false, html or text ?
+ * @see docs/reference/chat/text-parsing.md
  */
 ChatBox.addText = function addText(text, colorType, filterType, color, override) {
-	// parse as many <ITEMLINK> or <ITEML> as possible and replace with clickable item link, but first decode the link to get the item id
-	text = text.replace(/<ITEMLINK>.*?<\/ITEMLINK>|<ITEML>.*?<\/ITEML>|<ITEM>.*?<\/ITEM>/gi, function (match) {
-		const item = DB.parseItemLink(match);
-		const span =
-			'<span data-item="' + match + '" class="item-link" style="color:#FFFF63;">&lt;' + item.name + '&gt;</span>';
-		override = true;
-		return span;
-	});
+	// The client drops ^RRGGBB codes: a chat line has one colour.
+	text = text.replace(/\^[0-9A-Fa-f]{6}/g, '');
 
-	// Backward compatibility for older calls without filter
+	// An item link turns the line into HTML: the text around it must stay text.
+	if (!override && ITEM_LINK.test(text)) {
+		text = ChatBox.messageToHTML(text);
+		override = true;
+	}
+
 	if (isNaN(filterType)) {
 		filterType = ChatBox.FILTER.PUBLIC_LOG;
 	}
 
-	// Add to the buffer instead of processing immediately
 	_messageBuffer.push({
 		text: text,
 		colorType: colorType,
@@ -1163,10 +1348,9 @@ ChatBox.addText = function addText(text, colorType, filterType, color, override)
 		override: override
 	});
 
-	// Schedule buffer flush using requestAnimationFrame
 	if (!_rafScheduled) {
 		_rafScheduled = true;
-		requestAnimationFrame(function () {
+		requestAnimationFrame(() => {
 			_rafScheduled = false;
 			flushMessageBuffer();
 		});
@@ -1181,18 +1365,17 @@ function flushMessageBuffer() {
 		return;
 	}
 
-	// Process all messages in the buffer
+	const root = _root();
 	const messages = _messageBuffer.slice();
 	_messageBuffer = [];
 
-	// Group messages by tab to minimize DOM operations
 	const messagesByTab = {};
 
-	messages.forEach(function (msg) {
-		ChatBox.tabs.forEach(function (tab, TabNum) {
+	messages.forEach(msg => {
+		ChatBox.tabs.forEach((tab, TabNum) => {
 			const chatTabOption = ChatBoxSettings.tabOption[TabNum];
 
-			if (!chatTabOption.includes(msg.filterType)) {
+			if (!chatTabOption || !chatTabOption.includes(msg.filterType)) {
 				return;
 			}
 
@@ -1204,26 +1387,29 @@ function flushMessageBuffer() {
 		});
 	});
 
-	// Add messages of each tab at once
-	Object.keys(messagesByTab).forEach(function (TabNum) {
-		const content = ChatBox.ui.find('.content[data-content="' + TabNum + '"]');
+	Object.keys(messagesByTab).forEach(TabNum => {
+		const content = root.querySelector(`.content[data-content="${TabNum}"]`);
+		if (!content) return;
+
 		const fragment = document.createDocumentFragment();
+		const wasAtBottom = shouldScrollDownBeforeAdd(content, content.offsetHeight);
 
-		// Get scroll state before adding messages
-		const wasAtBottom = shouldScrollDownBeforeAdd(content[0], content.height());
-
-		messagesByTab[TabNum].forEach(function (msg) {
+		messagesByTab[TabNum].forEach(msg => {
 			const color = msg.color || getColorForType(msg.colorType);
-			const div = jQuery('<div/>').css('color', color)[!msg.override ? 'text' : 'html'](msg.text)[0];
+			const div = document.createElement('div');
+			div.style.color = color;
+			if (!msg.override) {
+				div.textContent = msg.text;
+			} else {
+				div.innerHTML = msg.text;
+			}
 			fragment.appendChild(div);
 		});
 
-		// Add all at once (1 reflow instead of N)
-		content[0].appendChild(fragment);
+		content.appendChild(fragment);
 
-		// Clean up old messages
-		while (content[0].childElementCount > MAX_MSG) {
-			const element = content[0].firstElementChild;
+		while (content.childElementCount > MAX_MSG) {
+			const element = content.firstElementChild;
 			const matches = element.innerHTML.match(/(blob:[^"]+)/g);
 			if (matches) {
 				for (let i = 0; i < matches.length; i++) {
@@ -1233,20 +1419,12 @@ function flushMessageBuffer() {
 			element.remove();
 		}
 
-		// Update the scroll only if it was at the bottom
 		if (wasAtBottom) {
-			content[0].scrollTop = content[0].scrollHeight;
+			content.scrollTop = content.scrollHeight;
 		}
 	});
 }
 
-/**
- * Determine color based on message type
- * @param {number} colorType
- * @return {string} color hex
- *
- *
- */
 function getColorForType(colorType) {
 	if (colorType & ChatBox.TYPE.PUBLIC && colorType & ChatBox.TYPE.SELF) {
 		return '#00FF00';
@@ -1270,17 +1448,10 @@ function getColorForType(colorType) {
 	return 'white';
 }
 
-/**
- * Validates if the scroll was at the bottom before adding new messages
- * @param {HTMLElement} container
- * @param {number} height
- * @return {boolean}
- */
 function shouldScrollDownBeforeAdd(container, height) {
 	const tolerance = 5;
 	const atBottom = container.scrollTop + height >= container.scrollHeight - tolerance;
 
-	// If there is no scrollbar or is at the end, return true
 	if (height >= container.scrollHeight || atBottom) {
 		return true;
 	}
@@ -1292,76 +1463,80 @@ function shouldScrollDownBeforeAdd(container, height) {
  * Change chatbox's height
  */
 ChatBox.updateHeight = function changeHeight(AlwaysVisible) {
+	const root = _root();
 	const HeightList = [0, 0, MAGIC_NUMBER, MAGIC_NUMBER * 2, MAGIC_NUMBER * 3, MAGIC_NUMBER * 4, MAGIC_NUMBER * 5];
-	const content = this.ui.find('.contentwrapper');
-	const bottomBefore = getChatBottomAnchorPx(this.ui, this.__lastBottomY);
+	const content = root.querySelector('.contentwrapper');
+	const bottomBefore = getChatBottomAnchorPx(root, this.__lastBottomY);
 
 	_heightIndex = (_heightIndex + 1) % HeightList.length;
 
-	// Don't remove UI (button cycles to "input only" instead of hidden)
 	if (_heightIndex === 0 && AlwaysVisible) {
 		_heightIndex = 1;
 	}
 
-	content.height(HeightList[_heightIndex]);
+	if (content) content.style.height = `${HeightList[_heightIndex]}px`;
+
+	const header = root.querySelector('.header');
+	const body = root.querySelector('.body');
+	const inputEl = root.querySelector('.input');
 
 	switch (_heightIndex) {
 		case 0:
 			this.__lastBottomY = bottomBefore;
-			this.ui.hide();
+			this._host.style.display = 'none';
 			break;
 
 		case 1:
-			this.ui.show();
-			this.ui.find('.header, .body').hide();
-			this.ui.find('.input').addClass('fix');
+			this._host.style.display = 'block';
+			if (header) header.style.display = 'none';
+			if (body) body.style.display = 'none';
+			if (inputEl) inputEl.classList.add('fix');
 			break;
 
 		default:
-			this.ui.find('.input').removeClass('fix');
-			this.ui.find('.header, .body').show();
+			if (inputEl) inputEl.classList.remove('fix');
+			if (header) header.style.display = '';
+			if (body) body.style.display = '';
 			break;
 	}
 
-	// Keep the input/battlemode bar at the same screen position.
 	if (_heightIndex !== 0 && isFinite(bottomBefore)) {
-		const bottomAfter = getChatBottomAnchorPx(this.ui, bottomBefore);
+		const bottomAfter = getChatBottomAnchorPx(root, bottomBefore);
 		if (isFinite(bottomAfter)) {
-			let top = parseInt(this.ui.css('top'), 10);
+			let top = parseInt(this._host.style.top, 10);
 			top = isFinite(top) ? top : 0;
-			this.ui.css('top', top + (bottomBefore - bottomAfter));
+			this._host.style.top = `${top + (bottomBefore - bottomAfter)}px`;
 			this.__lastBottomY = bottomBefore;
 		}
 	}
 
-	const active = this.ui.find('.content[data-content="' + this.activeTab + '"]')[0];
+	const active = root.querySelector(`.content[data-content="${this.activeTab}"]`);
 	if (active) {
 		active.scrollTop = active.scrollHeight;
 	}
 };
 
-function getChatBottomAnchorPx($ui, fallback) {
-	let bar = $ui.find('.input:visible');
-	if (bar.length) {
-		const rect = bar[0].getBoundingClientRect();
+function getChatBottomAnchorPx(root, fallback) {
+	const inputEl = root.querySelector('.input');
+	if (inputEl && inputEl.style.display !== 'none') {
+		const rect = inputEl.getBoundingClientRect();
 		return rect.bottom;
 	}
 
-	bar = $ui.find('.battlemode:visible');
-	if (bar.length) {
-		const rect2 = bar[0].getBoundingClientRect();
-		return rect2.bottom;
+	const bmEl = root.querySelector('.battlemode');
+	if (bmEl && bmEl.style.display !== 'none') {
+		const rect = bmEl.getBoundingClientRect();
+		return rect.bottom;
 	}
 
-	if (isFinite(fallback)) {
-		return fallback;
-	}
-
-	return NaN;
+	return fallback;
 }
 
+/**
+ * Determine if vertical arrow should scroll the contenteditable rather than navigate history
+ */
 function shouldLetChatInputHandleVerticalArrows(inputEl, direction) {
-	if (!inputEl || !window.getSelection) {
+	if (!inputEl) {
 		return false;
 	}
 
@@ -1380,18 +1555,15 @@ function shouldLetChatInputHandleVerticalArrows(inputEl, direction) {
 		return false;
 	}
 
-	// Only consider caret inside the chat input.
 	if (anchorNode !== inputEl && !(inputEl.contains && inputEl.contains(anchorNode))) {
 		return false;
 	}
 
-	// If user has a selection, let the browser handle navigation.
 	if (!sel.isCollapsed) {
 		return true;
 	}
 
-	// Only do this when there is more than one visual line.
-	const text = extractChatMessage(jQuery(inputEl));
+	const text = extractChatMessage(inputEl);
 	const hasNewline = text.indexOf('\n') > -1;
 	const hasOverflow = inputEl.scrollHeight > inputEl.clientHeight + 1;
 	if (!hasNewline && !hasOverflow) {
@@ -1404,7 +1576,7 @@ function shouldLetChatInputHandleVerticalArrows(inputEl, direction) {
 			range.getClientRects && range.getClientRects().length
 				? range.getClientRects()[0]
 				: range.getBoundingClientRect();
-	} catch (e) {
+	} catch (_e) {
 		return true;
 	}
 
@@ -1417,7 +1589,6 @@ function shouldLetChatInputHandleVerticalArrows(inputEl, direction) {
 		return true;
 	}
 
-	// If caret is not on the first/last visible line, allow normal arrow behavior.
 	if (direction === 'up') {
 		return caretRect.top > inputRect.top + 2;
 	}
@@ -1431,8 +1602,6 @@ function shouldLetChatInputHandleVerticalArrows(inputEl, direction) {
 
 /**
  * Save user name to nick name history
- *
- * @param {string} nick name
  */
 ChatBox.saveNickName = function saveNickName(pseudo) {
 	_historyNickName.push(pseudo);
@@ -1442,35 +1611,27 @@ ChatBox.saveNickName = function saveNickName(pseudo) {
  * Save chat from current tab into a file.
  */
 ChatBox.saveCurrentTabChat = function saveCurrentTabChat() {
+	const root = _root();
 	let data;
 
-	// Create a date
-	const tzoffset = new Date().getTimezoneOffset() * 60000; //offset in milliseconds
+	const tzoffset = new Date().getTimezoneOffset() * 60000;
 	let localISOTime = new Date(Date.now() - tzoffset).toISOString().slice(0, -1);
 	localISOTime = localISOTime.replace('T', ' ');
 	const timezone = new Date().getTimezoneOffset() / 60;
-	const date = localISOTime + ' (GMT ' + (timezone > 0 ? '-' : '+') + Math.abs(timezone).toString() + ')'; //GMT
+	const date = `${localISOTime} (GMT ${timezone > 0 ? '-' : '+'}${Math.abs(timezone).toString()})`;
+
+	const contentEl = root.querySelector(`.content[data-content="${ChatBox.activeTab}"]`);
 
 	data =
 		'<html><head><title>Chat History</title><style> body { background-color: DarkSlateGray; } </style></head><body>';
-	data += this.ui.find('.content[data-content="' + ChatBox.activeTab + '"]')[0].outerHTML;
+	data += contentEl ? contentEl.outerHTML : '';
 	data += '</body></html>';
 
-	// We create a local file
 	const url = window.URL.createObjectURL(new Blob([data], { type: 'text/plain' }));
+	const name = ChatBox.escapeHTML(ChatBox.tabs[ChatBox.activeTab].name);
 
 	ChatBox.addText(
-		'Chat History [' +
-			ChatBox.tabs[ChatBox.activeTab].name +
-			'] ' +
-			date +
-			' can be saved by <a style="color:#F88" download="ChatHistory [' +
-			ChatBox.tabs[ChatBox.activeTab].name +
-			'] (' +
-			date.replace('/', '-') +
-			').html" href="' +
-			url +
-			'" target="_blank">clicking here</a>.',
+		`Chat History [${name}] ${date} can be saved by <a style="color:#F88" download="ChatHistory [${name}] (${date.replace('/', '-')}).html" href="${url}" target="_blank">clicking here</a>.`,
 		ChatBox.TYPE.PUBLIC,
 		ChatBox.FILTER.PUBLIC_LOG,
 		null,
@@ -1484,18 +1645,20 @@ ChatBox.saveCurrentTabChat = function saveCurrentTabChat() {
 function onScroll(event) {
 	let delta;
 
-	if (event.originalEvent.wheelDelta) {
-		delta = event.originalEvent.wheelDelta / 120;
+	if (event.wheelDelta) {
+		delta = event.wheelDelta / 120;
 		if (window.opera) {
 			delta = -delta;
 		}
-	} else if (event.originalEvent.detail) {
-		delta = -event.originalEvent.detail;
+	} else if (event.detail) {
+		delta = -event.detail;
+	} else if (event.deltaY) {
+		delta = -event.deltaY / Math.abs(event.deltaY);
 	}
 
 	const lineHeight = getScrollLineHeightPx(this);
-	this.scrollTop = Math.floor(this.scrollTop / lineHeight) * lineHeight - delta * lineHeight;
-	return false;
+	this.scrollTop = Math.floor(this.scrollTop / lineHeight) * lineHeight - (delta || 0) * lineHeight;
+	event.preventDefault();
 }
 
 /**
@@ -1503,20 +1666,19 @@ function onScroll(event) {
  */
 function onDropText(event) {
 	event.stopImmediatePropagation();
+	event.preventDefault();
 	let data;
 	try {
-		data = JSON.parse(event.originalEvent.dataTransfer.getData('Text'));
-	} catch (e) {
-		return false;
+		data = JSON.parse(event.dataTransfer.getData('Text'));
+	} catch (_e) {
+		return;
 	}
 
-	// Valid if the message type
 	if (data.type == 'item') {
-		return false;
+		return;
 	}
 
-	jQuery(event.currentTarget).val(data);
-	return true;
+	event.currentTarget.value = data;
 }
 
 /**
@@ -1524,38 +1686,38 @@ function onDropText(event) {
  */
 function stopPropagation(event) {
 	event.stopImmediatePropagation();
-	return false;
+	event.preventDefault();
 }
 
 /**
  * Change private message nick name
- *
- * @param {string} nick name
- * @return {function} callback closure
  */
 function onPrivateMessageUserSelection(name) {
 	return function onPrivateMessageUserSelectionClosure() {
-		ChatBox.ui.find('.input .username').val(name);
+		const root = _root();
+		const nickBox = root.querySelector('.input .username');
+		if (nickBox) nickBox.value = name;
 	};
 }
 
 /**
  * Change target of global chat (party, guild)
- *
- * @param {number} type constant
  */
 function onChangeTargetMessage(type) {
 	return function onChangeTargetMessageClosure() {
-		const $input = ChatBox.ui.find('.input-chatbox');
+		const root = _root();
+		const $input = root.querySelector('.input-chatbox');
 
-		$input.removeClass('guild party');
+		if ($input) {
+			$input.classList.remove('guild', 'party', 'clan');
 
-		if (type & ChatBox.TYPE.PARTY) {
-			$input.addClass('party');
-		} else if (type & ChatBox.TYPE.GUILD) {
-			$input.addClass('guild');
-		} else if (type & ChatBox.TYPE.CLAN) {
-			$input.addClass('clan');
+			if (type & ChatBox.TYPE.PARTY) {
+				$input.classList.add('party');
+			} else if (type & ChatBox.TYPE.GUILD) {
+				$input.classList.add('guild');
+			} else if (type & ChatBox.TYPE.CLAN) {
+				$input.classList.add('clan');
+			}
 		}
 
 		ChatBox.sendTo = type;
@@ -1572,16 +1734,15 @@ function setChatFontScale(scale) {
 
 function clampChatFontScale(scale) {
 	const allowed = [1.0, 1.2, 1.4];
-	let i,
-		best = allowed[0],
-		bestDist = Infinity;
+	let best = allowed[0];
+	let bestDist = Infinity;
 
 	scale = parseFloat(scale);
 	if (!isFinite(scale) || scale <= 0) {
 		return 1.0;
 	}
 
-	for (i = 0; i < allowed.length; ++i) {
+	for (let i = 0; i < allowed.length; ++i) {
 		const dist = Math.abs(allowed[i] - scale);
 		if (dist < bestDist) {
 			bestDist = dist;
@@ -1601,7 +1762,7 @@ function getScrollLineHeightPx(element) {
 		if (isFinite(lh) && lh > 0) {
 			return Math.round(lh);
 		}
-	} catch (e) {
+	} catch (_e) {
 		// Ignore
 	}
 
@@ -1609,6 +1770,7 @@ function getScrollLineHeightPx(element) {
 }
 
 ChatBox.applyFontScale = function applyFontScale() {
+	const root = _root();
 	const scale = clampChatFontScale(_preferences.fontScale || 1.0);
 	const baseFont = 11;
 	const baseLineHeight = 14;
@@ -1621,28 +1783,29 @@ ChatBox.applyFontScale = function applyFontScale() {
 	_preferences.fontScale = scale;
 
 	// Chat log
-	this.ui.find('.content').css({
-		fontSize: fontSize + 'px',
-		lineHeight: lineHeight + 'px'
+	root.querySelectorAll('.content').forEach(el => {
+		el.style.fontSize = `${fontSize}px`;
+		el.style.lineHeight = `${lineHeight}px`;
 	});
 
-	// Tab labels — match chat content font size
-	this.ui.find('.header input').css({
-		fontSize: fontSize + 'px'
+	// Chat input
+	root.querySelectorAll('.input input, .input .message').forEach(el => {
+		el.style.fontFamily = 'Arial';
+		el.style.fontSize = `${fontSize}px`;
+	// Tab labels — match chat content font size（fork）
+	root.querySelector('.header input').style.fontSize = `${fontSize}px`;
+
 	});
 
-	// Chat input (match "whisp box" inputs)
-	this.ui.find('.input input, .input .message').css({
-		fontFamily: 'Arial',
-		fontSize: fontSize + 'px'
-	});
-	this.ui.find('.input .message').css({
-		lineHeight: inputLineHeight + 'px'
-	});
+	const message = root.querySelector('.input .message');
+	if (message) {
+		message.style.lineHeight = `${inputLineHeight}px`;
+	}
 };
 
 function makeResizableDiv() {
-	const resizer = ChatBox.ui.find('.event_add_cursor')[0];
+	const root = _root();
+	const resizer = root.querySelector('.event_add_cursor');
 	if (!resizer) {
 		return;
 	}
@@ -1651,34 +1814,33 @@ function makeResizableDiv() {
 	let originalAnchorY = 0;
 	let originalMouseY = 0;
 
-	const fixHeight = function fixHeight(height) {
-		return Math.floor(height / MAGIC_NUMBER) * MAGIC_NUMBER;
-	};
+	const fixHeight = height => Math.floor(height / MAGIC_NUMBER) * MAGIC_NUMBER;
 
-	const resize = function resize(e) {
+	const resize = e => {
 		let height = fixHeight(originalHeight - (e.pageY - originalMouseY));
-		// Clamp to supported height steps (keep in sync with updateHeight()).
 		height = Math.max(MAGIC_NUMBER, Math.min(MAGIC_NUMBER * 5, height));
 
-		ChatBox.ui.css('top', originalAnchorY - height);
-		ChatBox.ui.find('.contentwrapper').height(height);
+		ChatBox._host.style.top = `${originalAnchorY - height}px`;
+		const contentWrapper = root.querySelector('.contentwrapper');
+		if (contentWrapper) contentWrapper.style.height = `${height}px`;
 		_heightIndex = Math.max(2, Math.min(6, height / MAGIC_NUMBER + 1));
 
-		const active = ChatBox.ui.find('.content[data-content="' + ChatBox.activeTab + '"]')[0];
+		const active = root.querySelector(`.content[data-content="${ChatBox.activeTab}"]`);
 		if (active) {
 			active.scrollTop = active.scrollHeight;
 		}
 	};
 
-	const stopResize = function stopResize() {
+	const stopResize = () => {
 		window.removeEventListener('mousemove', resize);
 		window.removeEventListener('mouseup', stopResize);
 	};
 
-	resizer.addEventListener('mousedown', function (e) {
+	resizer.addEventListener('mousedown', e => {
 		e.preventDefault();
-		originalHeight = ChatBox.ui.find('.contentwrapper').height();
-		originalAnchorY = parseInt(ChatBox.ui.css('top'), 10) + originalHeight;
+		const contentWrapper = root.querySelector('.contentwrapper');
+		originalHeight = contentWrapper ? contentWrapper.offsetHeight : 0;
+		originalAnchorY = (parseInt(ChatBox._host.style.top, 10) || 0) + originalHeight;
 		originalMouseY = e.pageY;
 
 		window.addEventListener('mousemove', resize);
@@ -1686,35 +1848,64 @@ function makeResizableDiv() {
 	});
 }
 
-// CLICKABLE ITEM → OPEN ITEMINFO
-jQuery(document).on('click', '.item-link', function (event) {
-	// If the link is inside the chat input, keep focus there and do nothing.
-	if (jQuery(this).closest('#chatbox .input-chatbox').length) {
-		event.stopImmediatePropagation();
-		return false;
+// CLICKABLE ITEM → OPEN ITEMINFO (handle inside shadow)
+ChatBox._setupItemLinkHandler = function _setupItemLinkHandler() {
+	const root = _root();
+	if (!root) return;
+
+	root.addEventListener('click', event => {
+		const link = event.target.closest('.item-link');
+		if (!link) return;
+
+		// If the link is inside the chat input, keep focus there
+		if (link.closest('.input-chatbox')) {
+			event.stopImmediatePropagation();
+			return;
+		}
+
+		const item = DB.parseItemLink(link.dataset.item || link.getAttribute('data-item'));
+		if (!item) return;
+
+		const ItemInfo = UIManager.getComponent('ItemInfo');
+		ItemInfo.append();
+		ItemInfo.setItem(item);
+	});
+};
+
+// Also keep global handler for item links outside shadow (backwards compatibility)
+document.addEventListener('click', event => {
+	const link = event.target.closest('.item-link');
+	if (!link) {
+		return;
 	}
 
-	const item = DB.parseItemLink(jQuery(this).data('item'));
+	if (link.closest('#chatbox .input-chatbox')) {
+		event.stopImmediatePropagation();
+		event.preventDefault();
+		return;
+	}
+
+	const item = DB.parseItemLink(link.dataset.item);
 	if (!item) {
 		return;
-	} // item not found
+	}
 
 	const ItemInfo = UIManager.getComponent('ItemInfo');
-
 	ItemInfo.append();
 	ItemInfo.setItem(item);
 });
 
 ChatBox.insertText = function (text) {
-	// Find chat input
-	const input = this.ui.find('.input-chatbox');
+	const root = _root();
+	const input = root.querySelector('.input-chatbox');
+	if (!input) return;
 
-	// Append text
-	input.append(document.createTextNode(text));
-
-	// Focus input
+	input.appendChild(document.createTextNode(text));
 	input.focus();
 };
+
+// Override mouseMode to CROSS since chatbox body is click-through
+ChatBox.mouseMode = GUIComponent.MouseMode.CROSS;
 
 /**
  * Create component and export it

@@ -27,6 +27,8 @@ import Altitude from 'Renderer/Map/Altitude.js';
 import Water from 'Renderer/Map/Water.js';
 import Models from 'Renderer/Map/Models.js';
 import AnimatedModels from 'Renderer/Map/AnimatedModels.js';
+import OccluderFade from 'Renderer/Map/OccluderFade.js';
+import GR2ModelRenderer from 'Renderer/GR2/GR2ModelRenderer.js';
 import Sounds from 'Renderer/Map/Sounds.js';
 import Effects from 'Renderer/Map/Effects.js';
 import SpriteRenderer from 'Renderer/SpriteRenderer.js';
@@ -50,12 +52,31 @@ import FXAA from 'Renderer/Effects/Shaders/FXAA.js';
 import Vibrance from 'Renderer/Effects/Shaders/Vibrance.js';
 import Cartoon from 'Renderer/Effects/Shaders/Cartoon.js';
 import Blind from 'Renderer/Effects/Shaders/Blind.js';
+import RainOverlay from 'Renderer/Effects/Shaders/RainOverlay.js';
+import RainLightning from 'Renderer/Effects/Shaders/RainLightning.js';
 
 import Upsampling from 'Renderer/Effects/Shaders/Upsampling.js';
 import WebGL from 'Utils/WebGL.js';
+import PerfProbe from 'Core/PerfProbe.js';
 
 const mat4 = glMatrix.mat4;
 const _pos = new Uint16Array(2);
+
+/**
+ * Set while a loaded map's loading image fades out (onMapComplete). A map
+ * asked for meanwhile waits in _nextMap until the image is gone.
+ */
+let _revealing = false;
+let _nextMap = null;
+
+/**
+ * @param {string} mapname
+ * @returns {string} map name without its extension
+ */
+function stripMapExtension(mapname) {
+	return (mapname || '').replace(/\.[^.]*$/, '');
+}
+
 /**
  * Renderer Namespace
  */
@@ -91,6 +112,21 @@ class MapRenderer {
 	static loading = false;
 
 	/**
+	 * @var {number} id of the latest map load, bumped to cancel the one in progress
+	 */
+	static _loadId = 0;
+
+	/**
+	 * @var {number} worker request of the map load in progress, 0 when none
+	 */
+	static _loadRequest = 0;
+
+	/**
+	 * @var {Array<function>} worker results of the map load in progress, held until the fade is over
+	 */
+	static _fadeQueue = [];
+
+	/**
 	 * @var {Float32Array} diffuse Modified diffuse color
 	 */
 	static diffuse = null;
@@ -118,11 +154,20 @@ class MapRenderer {
 			return;
 		}
 
+		// The server can move us as soon as the last map has sent
+		// NOTIFY_ACTORINIT, which is before its loading image is gone.
+		if (_revealing) {
+			_nextMap = mapname;
+			return;
+		}
+
 		// Support for instance map
 		// Is it always 3 digits ?
 		mapname = mapname
-			.replace(/^(\d{3})(\d@)/, '$2') // 0061@tower   -> 1@tower
-			.replace(/^\d{3}#/, ''); // 003#prontera -> prontera
+			.replace(/^(\w{3})(\d@)/, '$2') // 0061@tower   -> 1@tower
+			.replace(/^\w{3}#/, ''); // 003#prontera -> prontera
+
+		const loadId = ++this._loadId;
 
 		// Clean objects
 		SoundManager.stop();
@@ -130,28 +175,62 @@ class MapRenderer {
 		UIManager.removeComponents();
 		Cursor.setType(Cursor.ACTION.DEFAULT);
 
+		// The server may address the same map with different extensions (.gat/.rsw)
+		const oldMap = stripMapExtension(this.currentMap);
+		const newMap = stripMapExtension(mapname);
+
 		// Don't reload a map when it's just a local teleportation
-		if (this.currentMap !== mapname) {
+		if (oldMap !== newMap) {
 			this.loading = true;
 			BGM.stop();
+
+			if (PerfProbe.enabled) {
+				PerfProbe.mapStart(mapname);
+			}
 			this.currentMap = mapname;
 
 			// Parse the filename (ugly RO)
 			const filename = mapname.replace(/\.gat$/i, '.rsw');
 
-			Background.setLoading(function () {
-				// Hooking Thread
-				Thread.hook('MAP_PROGRESS', onProgressUpdate.bind(MapRenderer));
-				Thread.hook('MAP_WORLD', onWorldComplete.bind(MapRenderer));
-				Thread.hook('MAP_GROUND', onGroundComplete.bind(MapRenderer));
-				Thread.hook('MAP_ALTITUDE', onAltitudeComplete.bind(MapRenderer));
-				Thread.hook('MAP_MODELS', onModelsComplete.bind(MapRenderer));
-				Thread.hook('MAP_ANIMATED_MODEL', onAnimatedModelComplete.bind(MapRenderer));
+			// The worker starts on the map now, while the screen fades to the
+			// loading image, rather than after the fade. What it sends back
+			// waits until the fade is done and the old map is freed, and is
+			// dropped if the load is cancelled meanwhile (loadStep, loadEvent).
+			// A cancelled load queues nothing more, and cancelLoad empties the queue.
+			let faded = false;
+			const waiting = [];
+			this._fadeQueue = waiting;
+			const afterFade =
+				fn =>
+				(...args) => {
+					if (faded) {
+						fn(...args);
+					} else if (loadId === MapRenderer._loadId) {
+						waiting.push(() => fn(...args));
+					}
+				};
 
-				// Start Loading
+			// Hooking Thread
+			Thread.hook('MAP_PROGRESS', afterFade(loadEvent(onProgressUpdate)));
+			Thread.hook('MAP_WORLD', afterFade(loadEvent(onWorldComplete)));
+			Thread.hook('MAP_GROUND', afterFade(loadEvent(onGroundComplete)));
+			Thread.hook('MAP_ALTITUDE', afterFade(loadEvent(onAltitudeComplete)));
+			Thread.hook('MAP_MODELS', afterFade(loadEvent(onModelsComplete)));
+			Thread.hook('MAP_ANIMATED_MODEL', afterFade(loadEvent(onAnimatedModelComplete)));
+
+			// Start Loading
+			MapRenderer._loadRequest = Thread.send('LOAD_MAP', filename, afterFade(loadStep(loadId, onMapComplete)));
+
+			Background.setLoading(() => {
+				// Cancelled while the loading screen was coming up
+				if (loadId !== MapRenderer._loadId) {
+					return;
+				}
+
 				MapRenderer.free();
 				Renderer.remove();
-				Thread.send('LOAD_MAP', filename, onMapComplete.bind(MapRenderer));
+				faded = true;
+				waiting.splice(0).forEach(fn => fn());
 			});
 
 			return;
@@ -161,16 +240,33 @@ class MapRenderer {
 		EntityManager.free();
 		Damage.free(gl);
 		EffectManager.free(gl);
+		JoystickUI.onRestore();
 
 		// Basic TP
 		Mouse.intersect = false;
 		Background.remove(() => {
+			if (loadId !== MapRenderer._loadId) {
+				return;
+			}
+
 			MapRenderer.onLoad();
 			Sky.setUpCloudData();
 
 			Renderer.render(MapRenderer.onRender);
 			Mouse.intersect = true;
 		});
+	}
+
+	/**
+	 * Cancel the map load in progress, if any: its remaining steps do nothing
+	 */
+	static cancelLoad() {
+		this._loadId++;
+		this._loadRequest = 0;
+		this._fadeQueue.length = 0;
+		this.loading = false;
+		_revealing = false;
+		_nextMap = null;
 	}
 
 	/**
@@ -188,6 +284,8 @@ class MapRenderer {
 		Water.free(gl);
 		Models.free(gl);
 		AnimatedModels.free(gl);
+		OccluderFade.free(gl);
+		GR2ModelRenderer.free(gl);
 		Damage.free(gl);
 		EffectManager.free(gl);
 		SignboardManager.free();
@@ -198,6 +296,7 @@ class MapRenderer {
 		PostProcess.clean(gl);
 
 		Mouse.intersect = false;
+		Cursor.setType(Cursor.ACTION.DEFAULT);
 
 		this.light = null;
 		this.water = null;
@@ -276,8 +375,16 @@ class MapRenderer {
 		// Display zone effects and entities
 		Sky.render(gl, modelView, projection, fog, tick);
 
+		OccluderFade.beginFrame(gl, modelView, tick);
 		Models.render(gl, modelView, projection, normalMat, fog, light);
 		AnimatedModels.render(gl, modelView, projection, normalMat, fog, light, tick);
+		// Entities out of the view area, decided once for both the GR2 and the entity passes
+		EntityManager.cull();
+
+		// GR2 mobs render here with the opaque world models, before EntityManager.render below
+		// -- hence the 1-frame lag documented in GR2ModelRenderer.render (syncFromEntity reads the
+		// entity pose one frame stale). Ordering is intentional (opaque geometry pass).
+		GR2ModelRenderer.render(gl, modelView, projection, normalMat, fog, light, tick);
 
 		// Render transparent elements before ground
 		ScreenEffectManager.render(gl, modelView, projection, fog, tick, true);
@@ -289,6 +396,11 @@ class MapRenderer {
 
 		// Rendering water (after sprites, billboard projection pushes it to back)
 		Water.render(gl, modelView, projection, fog, light, tick);
+
+		// Third person see-through: translucent part of the models blocking
+		// the player, drawn over the entities so they stay visible through it
+		Models.renderFaded(gl, modelView, projection, normalMat, fog, light);
+		AnimatedModels.renderFaded(gl, modelView, projection, normalMat, fog, light);
 
 		EffectManager.render(gl, modelView, projection, fog, tick, false);
 		EntityManager.render(gl, modelView, projection, fog, true);
@@ -321,6 +433,33 @@ class MapRenderer {
 	 * Callback to execute once the map is loaded
 	 */
 	static onLoad() {}
+}
+
+/**
+ * Bind a map load step to its load, so that it does nothing once the load is cancelled
+ *
+ * @param {number} loadId
+ * @param {function} step
+ */
+function loadStep(loadId, step) {
+	return (...args) => {
+		if (loadId === MapRenderer._loadId) {
+			step.apply(MapRenderer, args);
+		}
+	};
+}
+
+/**
+ * Bind a worker event of map loading, so that it only reaches the load whose request sent it
+ *
+ * @param {function} step
+ */
+function loadEvent(step) {
+	return (data, request) => {
+		if (request === MapRenderer._loadRequest) {
+			step.call(MapRenderer, data);
+		}
+	};
 }
 
 /**
@@ -446,6 +585,8 @@ function registerPostProcessModules(gl) {
 	PostProcess.register(Cartoon, gl);
 	PostProcess.register(Vibrance, gl);
 	PostProcess.register(VerticalFlip, gl);
+	PostProcess.register(RainOverlay, gl);
+	PostProcess.register(RainLightning, gl);
 	PostProcess.register(Blind, gl);
 
 	// Final Pass GPU Upsampling for Performance Mode
@@ -456,6 +597,7 @@ function registerPostProcessModules(gl) {
  * Once the map finished to load
  */
 function onMapComplete(success, error) {
+	const loadId = MapRenderer._loadId;
 	const worldResource = this.currentMap.replace(/\.gat$/i, '.rsw');
 	const mapInfo = DB.getMap(worldResource);
 
@@ -489,18 +631,41 @@ function onMapComplete(success, error) {
 	registerPostProcessModules(gl);
 	JoystickUI.onRestore();
 
-	// Starting to render
+	// Start the game now, behind the loading image, while the screen fades to
+	// black: the server sends the map's actors during the fade, and the first
+	// frames, with their set-up costs, are drawn before anyone can see them.
+	// Background.remove keeps the image over the game and its windows until
+	// the screen is black, so what the player sees is unchanged.
+	MapRenderer.loading = false;
+	_revealing = true;
+
+	MapRenderer.onLoad();
+	Sky.setUpCloudData();
+	ScreenEffectManager.startMapflagEffect(worldResource);
+
+	if (PerfProbe.enabled) {
+		PerfProbe.mapReady();
+	}
+
+	Renderer.show();
+	Renderer.render(MapRenderer.onRender);
+
+	// Display game
 	Background.remove(() => {
-		MapRenderer.loading = false;
+		// Cancelled during the fade: cancelLoad has already let go of it
+		if (loadId !== MapRenderer._loadId) {
+			return;
+		}
 
-		MapRenderer.onLoad();
-		Sky.setUpCloudData();
-		ScreenEffectManager.startMapflagEffect(worldResource);
+		_revealing = false;
 
-		// Display game
-		Renderer.show();
-		Renderer.render(MapRenderer.onRender);
 		Mouse.intersect = true;
+
+		if (_nextMap) {
+			const mapname = _nextMap;
+			_nextMap = null;
+			MapRenderer.setMap(mapname);
+		}
 	});
 }
 

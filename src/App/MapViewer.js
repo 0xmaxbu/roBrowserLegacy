@@ -33,6 +33,7 @@ const MapViewer = {};
  * 惰性创建：模块顶层 new Entity() 会因循环依赖在 Entity 初始化完成前执行而崩溃。
  * 首次访问时同步接线 Session.Entity，保持原有语义。
  */
+// Registered as the session entity: MapRenderer reads Session.Entity.position while rendering
 let _spot = null;
 Object.defineProperty(MapViewer, 'spot', {
 	get() {
@@ -61,7 +62,7 @@ MapViewer.init = function Init() {
 	const q = new Queue();
 
 	// Resources sharing
-	if (Configs.get('API')) {
+	if (Configs.get('api')) {
 		q.add(function () {
 			function onAPIMessage(event) {
 				if (typeof event.data !== 'object') {
@@ -144,7 +145,7 @@ MapViewer.init = function Init() {
 		MapControl.onRequestWalk = MapViewer.onMouseDown;
 
 		// Direct access from API
-		if (Configs.get('API')) {
+		if (Configs.get('api')) {
 			ready = true;
 			maptoload = maptoload || location.hash.substr(1).replace('data/', '');
 			MapRenderer.setMap(maptoload);
@@ -185,7 +186,7 @@ MapViewer.init = function Init() {
 MapViewer.onLoad = function () {
 	BGM.stop();
 
-	if (!Configs.get('API')) {
+	if (!Configs.get('api')) {
 		document.body.appendChild(MapViewer.dropDown);
 	}
 

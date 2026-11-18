@@ -1,11 +1,23 @@
 /**
  * Renderer/EntityRender.js
  *
- * Entity class
+ * Entity rendering pipeline — WebGL sprite rendering, action animation frame
+ * calculation, picking, shadow rendering, palette binding, and 3D GR2 model attachments.
  *
  * This file is part of ROBrowser, (http://www.robrowser.com/).
  *
  * @author Vincent Thibault
+ */
+
+/**
+ * EntityRender mixin
+ * Adds rendering methods (render, renderEntityGUI, renderShadow, isVisible, depth) to Entity.
+ *
+ * @mixin EntityRender
+ * @property {function(mat4, mat4): void} render Render WebGL entity sprite / 3D model
+ * @property {function(mat4, mat4): void} renderEntityGUI Render entity health bar, speech bubble, and nameplate
+ * @property {function(mat4, mat4): void} renderShadow Render entity ground shadow
+ * @property {function(): boolean} isVisible Check if entity is currently visible
  */
 
 import glMatrix from 'Utils/gl-matrix.js';
@@ -16,8 +28,10 @@ import SpriteRenderer from 'Renderer/SpriteRenderer.js';
 import Ground from 'Renderer/Map/Ground.js';
 import Altitude from 'Renderer/Map/Altitude.js';
 import Session from 'Engine/SessionStorage.js';
-import JobId from 'DB/Jobs/JobConst.js';
+import DB from 'DB/DBManager.js';
 import GraphicsSettings from 'Preferences/Graphics.js';
+import GR2ModelRenderer from 'Renderer/GR2/GR2ModelRenderer.js';
+import EntityComposer from './EntityComposer.js';
 
 /**
  * Load dependencies
@@ -34,6 +48,41 @@ import GraphicsSettings from 'Preferences/Graphics.js';
 const WALK_STEP_SIZE = 4.6;
 const WALK_DIST_TO_MOTION = WALK_STEP_SIZE * 0.37 * 4 * 25; // ≈ 170.2
 
+// ---------------------------------------------------------------------------
+// Trail snapshot buffer pool
+//
+// Trail snapshots persist across frames but are recycled FIFO as they age out.
+// Recycling their numeric buffers avoids allocating a vec3 / Int32Array /
+// Float32Array every time a snapshot is captured — which can happen at up to
+// ~30ms intervals per entity under fast-movement conditions.
+// ---------------------------------------------------------------------------
+const _snapshotPool = [];
+
+function acquireSnapshotBuffers() {
+	const buf = _snapshotPool.pop();
+	if (buf) return buf;
+	return {
+		position: new Float32Array(3),
+		_position: new Int32Array(2),
+		color: new Float32Array(4)
+	};
+}
+
+function releaseSnapshotBuffers(snapshot) {
+	// Soft cap: avoids unbounded growth if many distinct trails run concurrently.
+	if (_snapshotPool.length < 64) {
+		_snapshotPool.push({
+			position: snapshot.position,
+			_position: snapshot._position,
+			color: snapshot.color
+		});
+	}
+}
+
+// Scratch buffers reused for the duration of a single renderSecondBody() call.
+const _scratchPosition = new Float32Array(3);
+const _scratchColor = new Float32Array(4);
+
 /**
  * Render an Entity
  *
@@ -41,6 +90,29 @@ const WALK_DIST_TO_MOTION = WALK_STEP_SIZE * 0.37 * 4 * 25; // ≈ 170.2
  * @param {mat4} projection
  */
 function render(modelView, projection) {
+	// GR2 3D body: attach (or re-attach on a body change) an instance the renderer draws in
+	// the map pass. The billboard body + shadow are suppressed below while this.gr2 is set.
+	// `path` and `this.gr2` are both path strings; JS `!==` on strings is value equality
+	// (string interning is irrelevant), so this correctly fires only when the model file
+	// actually changed -- detach the old instance and let the block below attach the new one.
+	if (this.gr2Model && this.gr2Model.path !== this.gr2) {
+		GR2ModelRenderer.detach(this.gr2Model);
+		this.gr2Model = null;
+	}
+	if (this.gr2 && !this.gr2Model) {
+		this.gr2Model = GR2ModelRenderer.attach(this);
+	}
+	// A supported model whose file 404'd or decode threw is now flagged missing: drop the (invisible)
+	// 3D path and re-resolve the body, which falls back to the Poring sprite via isMissing in
+	// UpdateBody. Runs once -- UpdateBody clears this.gr2, so the guard is false next frame.
+	if (this.gr2 && GR2ModelRenderer.isMissing(this.gr2)) {
+		if (this.gr2Model) {
+			GR2ModelRenderer.detach(this.gr2Model);
+			this.gr2Model = null;
+		}
+		this.job = this._job;
+	}
+
 	// Process action
 	this.animations.process();
 
@@ -75,6 +147,7 @@ const renderGUI = (function renderGUIClosure() {
 	const vec4 = glMatrix.vec4;
 	const _matrix = mat4.create();
 	const _vector = vec4.create();
+	const _pickMatrix = mat4.create();
 
 	return function _renderGUI(entity, modelView, projection) {
 		// Move to camera
@@ -98,7 +171,22 @@ const renderGUI = (function renderGUIClosure() {
 		mat4.multiply(_matrix, projection, _matrix);
 
 		if (entity.effectColor[3] && entity._job !== 139) {
-			calculateBoundingRect(entity, _matrix);
+			// Same billboard as above, lifted the way the sprite itself is.
+			_vector[0] = entity.position[0] + 0.5;
+			_vector[1] = -(entity.position[2] + SPRITE_LIFT);
+			_vector[2] = entity.position[1] + 0.5;
+			mat4.translate(_pickMatrix, modelView, _vector);
+			_pickMatrix[0] = 1.0;
+			_pickMatrix[1] = 0.0;
+			_pickMatrix[2] = 0.0;
+			_pickMatrix[4] = 0.0;
+			_pickMatrix[5] = 1.0;
+			_pickMatrix[6] = 0.0;
+			_pickMatrix[8] = 0.0;
+			_pickMatrix[9] = 0.0;
+			_pickMatrix[10] = 1.0;
+			mat4.multiply(_pickMatrix, projection, _pickMatrix);
+			calculateBoundingRect(entity, _pickMatrix);
 		}
 
 		// Get depth for rendering order
@@ -138,6 +226,12 @@ const renderGUI = (function renderGUIClosure() {
  * @param {Entity}
  * @param {mat4}
  */
+/**
+ * Vertical lift renderEntity applies to every sprite before drawing it.
+ * The picking rectangle has to use it too, or it lands below the sprite.
+ */
+const SPRITE_LIFT = 0.2;
+
 const calculateBoundingRect = (function calculateBoundingRectClosure() {
 	const vec4 = glMatrix.vec4;
 	const size = glMatrix.vec2.create();
@@ -168,6 +262,27 @@ const calculateBoundingRect = (function calculateBoundingRectClosure() {
 
 		const rect = entity.boundingRect;
 		const minSize = entity.objecttype === entity.constructor.TYPE_ITEM ? 30 : 60;
+
+		// GR2 3D body: renderEntity early-returns for GR2, so no sprite body accumulates a rect.
+		// Use the screen-space box the GR2 renderer projected from the model AABB this frame so the
+		// hover/click test matches the visible model instead of the tiny default sprite box.
+		const gr2Model = entity.gr2Model;
+		if (gr2Model && gr2Model.screenRect) {
+			const sr = gr2Model.screenRect;
+			rect.x1 = sr.x1;
+			rect.y1 = sr.y1;
+			rect.x2 = sr.x2;
+			rect.y2 = sr.y2;
+			if (rect.x2 - rect.x1 < minSize) {
+				rect.x1 = (rect.x1 + rect.x2) * 0.5 - minSize * 0.5;
+				rect.x2 = rect.x1 + minSize;
+			}
+			if (rect.y2 - rect.y1 < minSize) {
+				rect.y1 = (rect.y1 + rect.y2) * 0.5 - minSize * 0.5;
+				rect.y2 = rect.y1 + minSize;
+			}
+			return;
+		}
 
 		// No body ? Default picking (sprite 110 for example)
 		if (rect.x1 === Infinity || rect.x2 === -Infinity || rect.y1 === -Infinity || rect.y2 === Infinity) {
@@ -207,6 +322,10 @@ const calculateBoundingRect = (function calculateBoundingRectClosure() {
 	};
 })();
 
+function isLookingBack(direction) {
+	return direction > 2 && direction < 6;
+}
+
 /**
  * Render Entity
  */
@@ -232,6 +351,16 @@ const renderEntity = (function renderEntityClosure() {
 			this.setAction(animation.save);
 		}
 
+		// GR2 3D body: the model is drawn by GR2ModelRenderer in the map pass. Suppress the 2D
+		// billboard body AND the shadow blob (Phase 0: no blob under a GR2). Name / lifebar /
+		// emblem overlays render in renderGUI (called separately) and are kept.
+		// Returning here also skips attachments.renderBefore() below -- intentional: the current
+		// GR2 set (guardians/emperium/flag/treasure) carries no sprite attachments. attachments.render()
+		// (the always-behind pass, called from the map-pass entry above) still runs on the parent.
+		if (this.gr2) {
+			return;
+		}
+
 		// Avoid look up, render as IDLE all not supported frames
 		const action = this.action < 0 ? this.ACTION.IDLE : this.action;
 		const direction = (Camera.direction + this.direction + 8) % 8;
@@ -247,9 +376,11 @@ const renderEntity = (function renderEntityClosure() {
 			SpriteRenderer.position[2] = Altitude.getCellHeight(this.position[0], this.position[1]) + 0.05;
 
 			// Keep shadow on ground: depth test on, depth write off, disabledepthcorrection
+			SpriteRenderer.shadowQueue = true;
 			SpriteRenderer.runWithDepth(true, false, false, function () {
 				renderElement(self, self.files.shadow, 'shadow', _position, false);
 			});
+			SpriteRenderer.shadowQueue = false;
 		}
 
 		SpriteRenderer.position.set(self.position);
@@ -275,113 +406,28 @@ const renderEntity = (function renderEntityClosure() {
 				// depthWrite = allow entity to occlude others
 				// depthCorrection ENABLED (required for isometric depth)
 				SpriteRenderer.runWithDepth(true, true, false, function () {
-					let cartidx;
-					// madogear don't appear costumes
-					const RIDING_STATUS =
-						self.effectState &
-							(StatusConst.EffectState.RIDING |
-								StatusConst.EffectState.DRAGON1 |
-								StatusConst.EffectState.DRAGON2 |
-								StatusConst.EffectState.DRAGON3 |
-								StatusConst.EffectState.DRAGON4 |
-								StatusConst.EffectState.DRAGON5 |
-								StatusConst.EffectState.WUGRIDER) || self.allRidingState;
-
-					function robeCorrection(lookingFront) {
-						if (self.robe > 0 && self.robeHeight && self.bodyHeight) {
-							const HEAD_SIZE = 64;
-							const COMPENSATION = 25;
-							if (
-								self.robeHeight +
-									(self.action === self.ACTION.SIT
-										? 0
-										: RIDING_STATUS && lookingFront
-											? COMPENSATION * 2
-											: COMPENSATION) >
-								self.bodyHeight + HEAD_SIZE
-							) {
-								if (self.action === self.ACTION.SIT) {
-									return lookingFront ? -450 : RIDING_STATUS ? 1 : -100;
-								}
-								return lookingFront ? -300 : RIDING_STATUS ? 100 : 1;
-							}
-						}
-						if (self.action === self.ACTION.SIT) {
-							return lookingFront ? -100 : 550;
-						}
-						return lookingFront ? 1 : 400;
-					}
+					SpriteRenderer.zIndex = 150;
+					EntityComposer.begin(self);
 
 					// Shield is behind on some position, seems to be hardcoded by the client
 					if (self.shield && behind) {
-						SpriteRenderer.runWithDepth(true, false, false, function () {
-							SpriteRenderer.zIndex = -1;
-							renderElement(self, self.files.shield, 'shield', _position, true);
-						});
+						renderElement(self, self.files.shield, 'shield', _position, true);
 					}
 
-					if (!(direction > 2 && direction < 6)) {
+					if (!isLookingBack(direction)) {
 						// looking front
-						if (Session.Playing == true && self.hasCart == true) {
-							cartidx = [
-								JobId.NOVICE,
-								JobId.SUPERNOVICE,
-								JobId.SUPERNOVICE_B,
-								JobId.SUPERNOVICE2,
-								JobId.SUPERNOVICE2_B
-							].includes(self._job)
-								? 0
-								: self.CartNum;
-
-							// Draw Cart
-							SpriteRenderer.runWithDepth(true, false, false, function () {
-								SpriteRenderer.zIndex = -1;
-								renderElement(self, self.files.cart_shadow, 'cartshadow', _position, false);
-								SpriteRenderer.zIndex = 1;
-								renderElement(self, self.files.cart[cartidx], 'cart', _position, false);
-							});
-						}
-
 						// Draw Robe
-						if (self.robe > 0) {
-							SpriteRenderer.zIndex = robeCorrection(true);
-							renderElement(self, self.files.robe, 'robe', _position, true);
-						}
-					}
-
-					SpriteRenderer.zIndex = 150;
-					if (
-						RIDING_STATUS &&
-						!(direction > 2 && direction < 6) &&
-						(self.action === self.ACTION.SIT || self.action === self.ACTION.WALK)
-					) {
-						SpriteRenderer.zIndex *= 2;
+						renderElement(self, self.files.robe, 'robe', _position, true);
 					}
 
 					// Draw Body
 					renderElement(self, self.files.body, 'body', _position, true);
 
-					// Isometric Projection Body Offset
-					let bodyZOffset = 250;
-					if (RIDING_STATUS) {
-						bodyZOffset *= 2;
-						if (self.action === self.ACTION.WALK && !(direction > 2 && direction < 6)) {
-							bodyZOffset += 250;
-						}
-					}
-
-					SpriteRenderer.zIndex = bodyZOffset + 50;
-
 					// Draw Head
 					renderElement(self, self.files.head, 'head', _position, false);
 
-					// TB_Layer_Priority = {Default_Mid = 100, Default_Top = 200, Default_Bottom = 300, Default_Robe = 400 }
-					// Values*10 reference https://github.com/zhad3/zrenderer/blob/c10b337dfb9d44e33b146551191b3398630823b5/source/sprite.d#L84
-
 					// Hat Middle
 					if (self.accessory3 > 0 && self.accessory3 !== self.accessory) {
-						// accessory already rendered, avoid render same item again
-						SpriteRenderer.zIndex = bodyZOffset + 100;
 						renderElement(self, self.files.accessory3, 'head', _position, false);
 					}
 
@@ -392,57 +438,38 @@ const renderEntity = (function renderEntityClosure() {
 						self.accessory2 !== self.accessory3
 					) {
 						// accessory and accessory3 already rendered, avoid render same item again
-						SpriteRenderer.zIndex = bodyZOffset + 200;
 						renderElement(self, self.files.accessory2, 'head', _position, false);
 					}
 
 					// Hat Bottom
 					if (self.accessory > 0) {
-						SpriteRenderer.zIndex = bodyZOffset + 300;
 						renderElement(self, self.files.accessory, 'head', _position, false);
 					}
 
-					if (direction > 2 && direction < 6) {
+					if (isLookingBack(direction)) {
 						// looking back
-
 						// Draw Robe
 						if (self.robe > 0) {
-							SpriteRenderer.zIndex = bodyZOffset + robeCorrection(false);
 							renderElement(self, self.files.robe, 'robe', _position, true);
-						}
-
-						// Draw Cart
-						if (Session.Playing == true && self.hasCart == true) {
-							SpriteRenderer.zIndex = bodyZOffset + 500;
-							cartidx = [
-								JobId.NOVICE,
-								JobId.SUPERNOVICE,
-								JobId.SUPERNOVICE_B,
-								JobId.SUPERNOVICE2,
-								JobId.SUPERNOVICE2_B
-							].includes(self._job)
-								? 0
-								: self.CartNum;
-							SpriteRenderer.runWithDepth(true, false, false, function () {
-								renderElement(self, self.files.cart_shadow, 'cartshadow', _position, false);
-								renderElement(self, self.files.cart[cartidx], 'cart', _position, false);
-							});
 						}
 					}
 
 					// Draw Weapon
 					if (self.weapon > 0) {
-						SpriteRenderer.zIndex = bodyZOffset + 250;
 						renderElement(self, self.files.weapon, 'weapon', _position, true);
+					}
+					renderElement(self, self.files.weapon_effect, 'weapon_effect', _position, true);
+					if (self.weapon > 0) {
 						renderElement(self, self.files.weapon_trail, 'weapon_trail', _position, true);
 					}
 
 					if (self.shield > 0 && !behind) {
-						SpriteRenderer.zIndex = bodyZOffset + 300;
 						renderElement(self, self.files.shield, 'shield', _position, true);
 					}
+					EntityComposer.end();
 				});
 				break;
+			case Entity.TYPE_WUG:
 			case Entity.TYPE_HOM:
 				SpriteRenderer.position[2] = SpriteRenderer.position[2] + 0.2;
 				SpriteRenderer.zIndex = 150;
@@ -456,6 +483,18 @@ const renderEntity = (function renderEntityClosure() {
 				SpriteRenderer.runWithDepth(true, true, false, function () {
 					renderElement(self, self.files.body, 'body', _position, true);
 				});
+				break;
+			case Entity.TYPE_CART:
+			case Entity.TYPE_MOB:
+			case Entity.TYPE_NPC:
+			case Entity.TYPE_NPC2:
+				SpriteRenderer.position[2] = SpriteRenderer.position[2] + 0.2;
+				SpriteRenderer.ignoreDepthMinCap = true;
+				SpriteRenderer.zIndex = 150;
+				SpriteRenderer.runWithDepth(true, true, false, function () {
+					renderElement(self, self.files.body, 'body', _position, true);
+				});
+				SpriteRenderer.ignoreDepthMinCap = false;
 				break;
 			default:
 				SpriteRenderer.position[2] = SpriteRenderer.position[2] + 0.2;
@@ -471,6 +510,75 @@ const renderEntity = (function renderEntityClosure() {
 		SpriteRenderer.zIndex = 1;
 	};
 })();
+
+/**
+ * Glow copy and split images, as the official client draws them for the marks
+ * of cast effects 934, 2373 and 502 (Renderer/Effects/CasterMarks.js).
+ *
+ *  - Glow copy (entity._castGlow): one more copy of each layer, in the
+ *    sprite's own colour, added, 1.5 sin(c) + 5 pixels larger on every side,
+ *    c counting the client's draws (60 a second) and wrapping after 180.
+ *  - Split images (entity._splitImageAge, the effect's age in ticks): four
+ *    white copies, shifted right, left, down and up by age x 5% of the body's
+ *    height, alpha (30 - age) x 5 out of 255.
+ *
+ * @param {Entity} entity
+ * @param {Array} layers
+ * @param {string} spr
+ * @param {string} pal
+ * @param {object} files
+ * @param {number[]} _position
+ */
+function renderCasterMarks(entity, layers, spr, pal, files, _position) {
+	const color = entity.effectColor;
+	const r = color[0];
+	const g = color[1];
+	const b = color[2];
+	const a = color[3];
+
+	if (entity._castGlow > 0) {
+		const pad = 1.5 * Math.sin((Math.floor(Date.now() / (1000 / 60)) % 181) * (Math.PI / 180)) + 5;
+		for (let i = 0; i < layers.length; ++i) {
+			const layer = layers[i];
+			const frame = layer.index >= 0 ? spr.frames[layer.index] : null;
+			if (!frame || !frame.width || !frame.height) {
+				continue;
+			}
+			const oldX = layer.scale[0];
+			const oldY = layer.scale[1];
+			layer.scale[0] = oldX * (1 + (2 * pad) / Math.abs(frame.width * oldX * files.size || 1));
+			layer.scale[1] = oldY * (1 + (2 * pad) / Math.abs(frame.height * oldY * files.size || 1));
+			entity.renderLayer(layer, spr, pal, files.size, _position, 'glow', true);
+			layer.scale[0] = oldX;
+			layer.scale[1] = oldY;
+		}
+	}
+
+	const age = entity._splitImageAge;
+	const alpha = age >= 0 ? Math.max(0, (30 - age) * 5) / 255 : 0;
+	if (alpha > 0) {
+		const shift = age * 0.05 * (entity.bodyHeight ? Math.abs(entity.bodyHeight) : 100);
+		const x = _position[0];
+		const y = _position[1];
+		color[0] = 1;
+		color[1] = 1;
+		color[2] = 1;
+		color[3] = alpha;
+		for (let k = 0; k < 4; k++) {
+			_position[0] = x + (k === 0 ? shift : k === 1 ? -shift : 0);
+			_position[1] = y + (k === 2 ? shift : k === 3 ? -shift : 0);
+			for (let i = 0; i < layers.length; ++i) {
+				entity.renderLayer(layers[i], spr, pal, files.size, _position, 'split', false);
+			}
+		}
+		_position[0] = x;
+		_position[1] = y;
+		color[0] = r;
+		color[1] = g;
+		color[2] = b;
+		color[3] = a;
+	}
+}
 
 /**
  * Render second body (BL_DOUBLE_BODY + EF_MAKEBLUR)
@@ -495,7 +603,7 @@ function renderSecondBody(entity, layers, spr, pal, files, type, _position, opti
 		return;
 	}
 
-	if (type === 'shadow' || type === 'cartshadow') {
+	if (type === 'shadow') {
 		return;
 	}
 
@@ -558,7 +666,7 @@ function renderSecondBody(entity, layers, spr, pal, files, type, _position, opti
 		const now = Date.now();
 
 		// Determine blur type: 1 (standard), 3 (10f), 4 (once), 5 (10f, attack only)
-		const interval = blurType === 3 || blurType === 5 ? 560 : 80; // 10 frames vs 5 frames
+		const interval = entity.isFastMoving ? 30 : blurType === 3 || blurType === 5 ? 560 : 80; // Fast moves capture at 30ms interval
 		const maxLen =
 			blurType === 4 ? 1 : GraphicsSettings.performanceMode ? Math.floor(trailLength / 2) : trailLength;
 
@@ -566,7 +674,8 @@ function renderSecondBody(entity, layers, spr, pal, files, type, _position, opti
 
 		// Snapshot logic
 		if (blurType === 1 || blurType === 3) {
-			shouldCapture = entity.action === entity.ACTION.WALK && now - trail.lastTick > interval;
+			shouldCapture =
+				(entity.action === entity.ACTION.WALK || entity.isFastMoving) && now - trail.lastTick > interval;
 		} else if (blurType === 4) {
 			shouldCapture = trail.snapshots.length === 0;
 		} else if (blurType === 5) {
@@ -577,30 +686,36 @@ function renderSecondBody(entity, layers, spr, pal, files, type, _position, opti
 				entity.ACTION.ATTACK3,
 				entity.ACTION.SKILL
 			].includes(entity.action);
-			shouldCapture = isCombat && now - trail.lastTick > interval;
+			shouldCapture = (isCombat || entity.isFastMoving) && now - trail.lastTick > interval;
 		}
 
 		if (shouldCapture) {
+			const buffers = acquireSnapshotBuffers();
+			buffers.position.set(entity.position);
+			buffers._position.set(_position);
+			buffers.color.set(entity.effectColor);
+
 			trail.snapshots.unshift({
-				position: glMatrix.vec3.clone(entity.position),
+				position: buffers.position,
+				_position: buffers._position,
+				color: buffers.color,
 				tick: now,
-				layers: layers, // Reference current animation frames
+				layers: layers,
 				spr: spr,
-				pal: pal,
-				_position: new Int32Array(_position),
-				color: [...entity.effectColor]
+				pal: pal
 			});
 			trail.lastTick = now;
 
 			if (trail.snapshots.length > maxLen) {
-				trail.snapshots.pop();
+				const dropped = trail.snapshots.pop();
+				releaseSnapshotBuffers(dropped);
 			}
 		}
 
 		if (trail.snapshots.length) {
-			const originalPos = glMatrix.vec3.clone(SpriteRenderer.position);
+			_scratchPosition.set(SpriteRenderer.position);
 			const originalZ = SpriteRenderer.zIndex;
-			const originalColor = new Float32Array(entity.effectColor);
+			_scratchColor.set(entity.effectColor);
 
 			SpriteRenderer.runWithDepth(true, false, false, function () {
 				const duration = blurType === 4 || blurType === 3 ? 800 : 400; // Static image lasts longer
@@ -639,9 +754,9 @@ function renderSecondBody(entity, layers, spr, pal, files, type, _position, opti
 			});
 
 			// Restore global/entity state
-			SpriteRenderer.position.set(originalPos);
+			SpriteRenderer.position.set(_scratchPosition);
 			SpriteRenderer.zIndex = originalZ;
-			entity.effectColor.set(originalColor);
+			entity.effectColor.set(_scratchColor);
 		}
 	}
 }
@@ -704,49 +819,6 @@ const renderElement = (function renderElementClosure() {
 			_position[1] = position[1] - animation.pos[0].y;
 		}
 
-		if (type === 'cart' || type === 'cartshadow') {
-			const direction = (Camera.direction + entity.direction + 8) % 8;
-
-			switch (direction) {
-				case 0:
-					{
-						_position[0] = 0;
-						_position[1] = -30;
-					}
-					break;
-				case 1:
-					_position[0] = 30;
-					_position[1] = -10;
-					break;
-				case 2:
-					_position[0] = 40;
-					_position[1] = 0;
-					break;
-				case 3:
-					_position[0] = 30;
-					_position[1] = 10;
-					break;
-				case 4:
-					{
-						_position[0] = 0;
-						_position[1] = 20;
-					}
-					break;
-				case 5:
-					_position[0] = -30;
-					_position[1] = 10;
-					break;
-				case 6:
-					_position[0] = -40;
-					_position[1] = 0;
-					break;
-				case 7:
-					_position[0] = -30;
-					_position[1] = -10;
-					break;
-			}
-		}
-
 		// Check if special body effect and enable the correct blend mode
 		const hasBerserkOrMarionette =
 			(type !== 'shadow' && entity.getOpt3(StatusConst.Status.BERSERK)) ||
@@ -765,19 +837,36 @@ const renderElement = (function renderElementClosure() {
 		const isEXPLOSIONSPIRITS = entity.getOpt3(StatusConst.Status.EXPLOSIONSPIRITS);
 		const isBERSERK = entity.getOpt3(StatusConst.Status.BERSERK);
 
-		renderSecondBody(entity, layers, spr, pal, files, type, _position, {
-			enableHalo: entity.getOpt3(StatusConst.Status.ASSUMPTIO) || !!entity._enableHalo,
-			enableTrail:
-				isENERGYCOAT ||
-				isBUNSIN ||
-				isHALLUCINATIONWALK ||
-				isQUICKEN ||
-				isOVERTHRUST ||
-				isEXPLOSIONSPIRITS ||
-				isBERSERK ||
-				!!entity._enableTrail,
-			blurType: isBUNSIN ? 5 : isHALLUCINATIONWALK ? 3 : entity._blurType || 1
-		});
+		const renderSecondary = () =>
+			renderSecondBody(entity, layers, spr, pal, files, type, _position, {
+				enableHalo: entity.getOpt3(StatusConst.Status.ASSUMPTIO) || !!entity._enableHalo,
+				enableTrail:
+					isENERGYCOAT ||
+					isBUNSIN ||
+					isHALLUCINATIONWALK ||
+					isQUICKEN ||
+					isOVERTHRUST ||
+					isEXPLOSIONSPIRITS ||
+					isBERSERK ||
+					!!entity._fastMoveTrail ||
+					!!entity._enableTrail,
+				blurType: isBUNSIN ? 5 : isHALLUCINATIONWALK ? 3 : entity._blurType || 1
+			});
+		if (EntityComposer.active) {
+			EntityComposer.suspend(renderSecondary);
+		} else {
+			renderSecondary();
+		}
+
+		// Glow copy and split images some cast effects put on the caster (CasterMarks.js)
+		if (type !== 'shadow' && type !== 'cartshadow' && (entity._castGlow > 0 || entity._splitImageAge >= 0)) {
+			const renderMarks = () => renderCasterMarks(entity, layers, spr, pal, files, _position);
+			if (EntityComposer.active) {
+				EntityComposer.suspend(renderMarks);
+			} else {
+				renderMarks();
+			}
+		}
 
 		// Render all frames
 		for (let i = 0, count = layers.length; i < count; ++i) {
@@ -806,17 +895,25 @@ function getAnimationDelay(type, entity, act) {
 		return (act.delay / 150) * entity.walk.speed;
 	}
 
-	// Delay on attack
+	// Delay on attack (fallback when animation.speed is not explicitly set)
+	// Uses the ACT file delay directly (matching official C++ client m_motionSpeed = actRes->GetDelay(action)).
+	// Player normal attacks already provide animation.speed = pkt.attackMT / m_attackMotion in onEntityAttack.
 	if (
 		entity.action === entity.ACTION.ATTACK ||
 		entity.action === entity.ACTION.ATTACK1 ||
 		entity.action === entity.ACTION.ATTACK2 ||
 		entity.action === entity.ACTION.ATTACK3
 	) {
-		return entity.attack_speed / act.animations.length;
+		if (act && act.delay && act.delay > 0) {
+			return act.delay;
+		}
+		if (entity.attack_speed && act && act.animations && act.animations.length > 0) {
+			return Math.max(entity.attack_speed / act.animations.length, 100);
+		}
+		return 150;
 	}
 
-	return act.delay;
+	return (act && act.delay) || 150;
 }
 
 /**
@@ -824,7 +921,7 @@ function getAnimationDelay(type, entity, act) {
  */
 function calcAnimation(entity, act, type, tick) {
 	// Fix for shadow
-	if (type === 'shadow' || type === 'cartshadow') {
+	if (type === 'shadow') {
 		return 0;
 	}
 
@@ -846,10 +943,6 @@ function calcAnimation(entity, act, type, tick) {
 	}
 	if (animation.speed) {
 		delay = animation.speed;
-	}
-
-	if (type === 'cart' && isIdle) {
-		return 0;
 	}
 
 	// Get rid of doridori
@@ -939,17 +1032,17 @@ function calcAnimation(entity, act, type, tick) {
 	}
 
 	// No repeat
-	anim = Math.min((tick / delay) | 0, animCount || animCount - 1); // Avoid an error if animation = 0, search for -1 :(
+	anim = Math.min((tick / delay) | 0, animCount ? animCount - 1 : 0);
 
 	anim %= animCount;
 	anim += animCount * headDir; // get rid of doridori
 	anim += animation.frame; // previous frame
 	anim %= animSize; // avoid overflow
 
-	const lastFrame = animation.frame + animSize - 1;
+	const lastFrame = animation.frame + animCount - 1;
 
-	if (type === 'body' && anim >= lastFrame) {
-		animation.frame = anim = lastFrame;
+	if (type === 'body' && ((tick / delay) | 0) >= animCount - 1) {
+		animation.frame = anim = Math.min(lastFrame, animSize - 1);
 		animation.play = false;
 		if (animation.next) {
 			entity.setAction(animation.next);
@@ -1041,7 +1134,7 @@ function renderLayer(layer, spr, pal, size, pos, type, isBlendModeOne) {
 		SpriteRenderer.color[3] = layer.color[3];
 	}
 
-	// apply disapear
+	// apply disappear
 	if (this.remove_tick) {
 		SpriteRenderer.color[3] *= 1 - (Date.now() - this.remove_tick) / this.remove_delay;
 	}
@@ -1055,6 +1148,11 @@ function renderLayer(layer, spr, pal, size, pos, type, isBlendModeOne) {
 	SpriteRenderer.xSize = this.xSize;
 	SpriteRenderer.ySize = this.ySize;
 	SpriteRenderer.image.texture = frame.texture;
+	SpriteRenderer.image.spr = spr;
+	SpriteRenderer.image.frame = frame;
+
+	// Collect player layers so the composed character is submitted once.
+	if (EntityComposer.capture(this, frame, pal.palette, SpriteRenderer.offset)) return;
 
 	// Draw Sprite
 	SpriteRenderer.render(isBlendModeOne);

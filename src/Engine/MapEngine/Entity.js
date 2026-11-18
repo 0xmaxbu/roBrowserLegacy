@@ -18,10 +18,12 @@ import Emotions from 'DB/Emotions.js';
 import { getTranslation } from 'DB/NpcTranslateTable.js';
 import LangOverlay from 'DB/LangOverlay.js'; // 顶部 import 区新增
 import SkillEffect from 'DB/Skills/SkillEffect.js';
+import { hasElementCastAura } from 'DB/Skills/CastAuraRule.js';
 import SkillActionTable from 'DB/Skills/SkillAction.js';
 import EffectConst from 'DB/Effects/EffectConst.js';
 import PetMessageConst from 'DB/Pets/PetMessageConst.js';
 import JobId from 'DB/Jobs/JobConst.js';
+import { resolveEntityWeapons } from 'Engine/MapEngine/OffhandWeapon.js';
 import AttackEffect from 'DB/Monsters/AttackEffectTable.js';
 import Sound from 'Audio/SoundManager.js';
 import Events from 'Core/Events.js';
@@ -51,7 +53,10 @@ import StatusIcons from 'UI/Components/StatusIcons/StatusIcons.js';
 import MiniMap from 'UI/Components/MiniMap/MiniMap.js';
 import PartyFriends from 'UI/Components/PartyFriends/PartyFriends.js';
 import Equipment from 'UI/Components/Equipment/Equipment.js';
+import CartItems from 'UI/Components/CartItems/CartItems.js';
 import ScreenEffectManager from 'Renderer/ScreenEffectManager.js';
+import { updateStatusEffects } from 'Engine/MapEngine/StatusEffects.js';
+import { bowAttackTiming } from 'Renderer/Effects/ArrowFlight.js';
 
 // Excludes for skill name display
 const SkillNameDisplayExclude = [
@@ -96,8 +101,9 @@ const SkillBlueCombo = [
 ];
 
 const C_MULTIHIT_DELAY = 200; // PLUSATTACKED_MOTIONTIME
+const C_DEATH_SYNC_OFFSET = 200; // extra ms after the hit before the death animation
 const AVG_ATTACK_SPEED = 432;
-//const AVG_ATTACKED_SPEED = 288; // UNUSED
+const AVG_ATTACKED_SPEED = 288;
 const MAX_ATTACKMT = AVG_ATTACK_SPEED * 2;
 
 /**
@@ -165,10 +171,7 @@ function onEntitySpam(pkt) {
 		}
 	}
 
-	if (
-		pkt.effectState & StatusState.EffectState.FALCON &&
-		[11, 4012, 4034, 4056, 4062, 4098, 4257, 4270, 4278].includes(pkt.job)
-	) {
+	if (pkt.effectState & StatusState.EffectState.FALCON && DB.isHunter(pkt.job)) {
 		if (!entity.falcon) {
 			entity.falcon = new Entity();
 		}
@@ -182,7 +185,9 @@ function onEntitySpam(pkt) {
 			name: '',
 			hp: -1,
 			maxhp: -1,
-			hideShadow: true
+			hideShadow: true,
+			_followTargetX: entity.position[0],
+			_followTargetY: entity.position[1]
 		});
 		EntityManager.add(entity.falcon);
 	}
@@ -199,32 +204,35 @@ function onEntitySpam(pkt) {
 			speed: Math.max(entity.walk.speed - 50, 1),
 			name: '',
 			hp: -1,
-			maxhp: -1
+			maxhp: -1,
+			_followTargetX: entity.position[0],
+			_followTargetY: entity.position[1]
 		});
 		EntityManager.add(entity.wug);
 	}
 
-	if (entity.objecttype === Entity.TYPE_PC) {
-		// don't know why switch from katar to sword, knife server put it on the left hand instead of right hand first.
-		// so we have to swap it. maybe have a better solution.
-		if (pkt.weapon == 0 && pkt.shield != 0 && !DB.isShield(pkt.shield)) {
-			pkt.weapon = pkt.shield;
-			pkt.shield = 0;
-		}
+	let cartNum = 0;
+	if (pkt.effectState & StatusState.EffectState.CART1) {
+		cartNum = 1;
+	} else if (pkt.effectState & StatusState.EffectState.CART2) {
+		cartNum = 2;
+	} else if (pkt.effectState & StatusState.EffectState.CART3) {
+		cartNum = 3;
+	} else if (pkt.effectState & StatusState.EffectState.CART4) {
+		cartNum = 4;
+	} else if (pkt.effectState & StatusState.EffectState.CART5) {
+		cartNum = 5;
+	}
 
-		const weaponType = DB.getWeaponType(pkt.weapon, true);
-		const viewId = DB.getWeaponViewID(pkt.weapon);
-		if (DB.isAssassin(entity.job) && pkt.shield !== 0 && !DB.isShield(pkt.shield) && pkt.weapon !== 0) {
-			const secondaryWeaponType = DB.getWeaponType(pkt.shield, true);
-			entity.weapon = DB.mountWeapon(weaponType, secondaryWeaponType);
-			entity.shield = 0;
-		} else if (DB.isKatar(weaponType)) {
-			entity.weapon = viewId;
-			entity.shield = viewId;
-		} else {
-			entity.weapon = viewId;
-			entity.shield = pkt.shield;
-		}
+	if (cartNum > 0 || entity.hasCart || (Session.Entity && entity.GID === Session.Entity.GID && Session.hasCart)) {
+		const realCartNum = DB.isSuperNovice(entity._job) ? 0 : cartNum || entity.CartNum || Session.CartNum || 1;
+		entity.setCart(true, realCartNum);
+	}
+
+	if (entity.objecttype === Entity.TYPE_PC) {
+		const resolved = resolveEntityWeapons(pkt.weapon, pkt.shield, entity, Session.Entity, Inventory, Equipment);
+		entity.weapon = resolved.weapon;
+		entity.shield = resolved.shield;
 		if (PACKETVER.value > 20150513) {
 			if (entity.body !== pkt.body) {
 				entity.body = pkt.body;
@@ -351,10 +359,12 @@ function onEntityVanish(pkt) {
 					EffectManager.spam(EF_Init_Par);
 				}
 				if (entity.falcon) {
+					EntityManager.removeGID(entity.falcon.GID);
 					entity.falcon.remove(pkt.type);
 					entity.falcon = null;
 				}
 				if (entity.wug) {
+					EntityManager.removeGID(entity.wug.GID);
 					entity.wug.remove(pkt.type);
 					entity.wug = null;
 				}
@@ -362,10 +372,12 @@ function onEntityVanish(pkt) {
 			case Entity.VT.OUTOFSIGHT:
 				EffectManager.remove(null, pkt.GID, null);
 				if (entity.falcon) {
+					EntityManager.removeGID(entity.falcon.GID);
 					entity.falcon.remove(pkt.type);
 					entity.falcon = null;
 				}
 				if (entity.wug) {
+					EntityManager.removeGID(entity.wug.GID);
 					entity.wug.remove(pkt.type);
 					entity.wug = null;
 				}
@@ -380,13 +392,39 @@ function onEntityVanish(pkt) {
 				}
 		}
 
-		entity.remove(pkt.type);
-		EntityManager.removeGID(pkt.GID);
-	}
+		// Show escape menu
+		if (pkt.GID === Session.Entity.GID && pkt.type === 1) {
+			Escape.showDeathMenu(haveSiegfriedItem());
+		}
 
-	// Show escape menu
-	if (pkt.GID === Session.Entity.GID && pkt.type === 1) {
-		Escape.showDeathMenu(haveSiegfriedItem());
+		// Sync the death animation to the killer attack's impact tick so it
+		// lands with the hit instead of playing instantly. Only applies to a
+		// VT.DEAD vanish for a non-PC entity whose death is driven by a recent
+		// damaging attack; all other vanish types (exit/teleport/out-of-sight)
+		// and stale/zero sync ticks fall through to an immediate removal.
+		const isSyncedDeath =
+			pkt.type === Entity.VT.DEAD &&
+			entity.objecttype !== Entity.TYPE_PC &&
+			entity._deathSyncTick > Renderer.tick;
+
+		const deathDelay = isSyncedDeath ? entity._deathSyncTick - Renderer.tick + C_DEATH_SYNC_OFFSET : 0;
+
+		// Free the GID immediately so it can be reused; removeGID only drops the
+		// lookup entry and keeps the entity in the render list, so the death /
+		// fade-out animation continues independently. Deferring removeGID would
+		// leave the GID mapped to a dying entity and let a reused GID collide.
+		EntityManager.removeGID(pkt.GID);
+
+		const playDeath = () => {
+			entity.remove(pkt.type);
+		};
+
+		if (deathDelay > 0) {
+			entity._deathSyncTick = 0;
+			Events.setTimeout(playDeath, deathDelay);
+		} else {
+			playDeath();
+		}
 	}
 }
 
@@ -398,10 +436,15 @@ function onEntityVanish(pkt) {
 function onEntityMove(pkt) {
 	const entity = EntityManager.get(pkt.GID);
 	if (entity) {
-		//entity.position[0] = pkt.MoveData[0];
-		//entity.position[1] = pkt.MoveData[1];
-		//entity.position[2] = Altitude.getCellHeight(  pkt.MoveData[0],  pkt.MoveData[1] );
-		entity.walkTo(pkt.MoveData[0], pkt.MoveData[1], pkt.MoveData[2], pkt.MoveData[3], undefined, pkt.moveStartTime);
+		entity.walkTo(
+			pkt.MoveData[0],
+			pkt.MoveData[1],
+			pkt.MoveData[2],
+			pkt.MoveData[3],
+			undefined,
+			pkt.moveStartTime,
+			pkt.moveServerEndTime || pkt.moveEndTime
+		);
 	}
 }
 
@@ -437,6 +480,7 @@ function onEntityStopMove(pkt) {
 function onEntityJump(pkt) {
 	const entity = EntityManager.get(pkt.AID);
 	if (entity) {
+		entity.resetRoute();
 		entity.position[0] = pkt.xPos;
 		entity.position[1] = pkt.yPos;
 		entity.position[2] = Altitude.getCellHeight(pkt.xPos, pkt.yPos);
@@ -444,23 +488,63 @@ function onEntityJump(pkt) {
 }
 
 /**
- * Body relocation packet support
+ * Fast relocation packet support (e.g. Body Relocation, Fallen Angel)
  *
  * @param {object} pkt - PACKET.ZC.FASTMOVE
  */
 function onEntityFastMove(pkt) {
 	const entity = EntityManager.get(pkt.AID);
-	if (entity) {
-		entity.walkTo(entity.position[0], entity.position[1], pkt.targetXpos, pkt.targetYpos);
-
-		if (entity.walk.path.length) {
-			const speed = entity.walk.speed;
-			entity.walk.speed = 10;
-			entity.walk.onEnd = function onWalkEnd() {
-				entity.walk.speed = speed;
-			};
+	if (entity && entity.fastMoveTo(pkt.targetXpos, pkt.targetYpos, 15, null, false)) {
+		if (entity.objecttype === entity.constructor.TYPE_PC) {
+			if (DB.isMonk(entity.job)) {
+				entity._fastMoveTrail = true;
+				entity.setAction({
+					action: entity.ACTION.ATTACK,
+					frame: 0,
+					repeat: false,
+					play: false
+				});
+			} else if (DB.isGunslinger(entity.job)) {
+				entity._fastMoveTrail = true;
+				entity.setAction({
+					action: entity.ACTION.SKILL,
+					frame: 0,
+					repeat: false,
+					play: false
+				});
+			}
 		}
 	}
+}
+
+/**
+ * Perform Entity Action with forced position relocation (knockback / slide)
+ *
+ * @param {object} pkt - PACKET.ZC.NOTIFY_ACT_POSITION
+ */
+function onEntityActionPosition(pkt) {
+	if (typeof pkt.xPos === 'number' && typeof pkt.yPos === 'number' && (pkt.xPos !== 0 || pkt.yPos !== 0)) {
+		const targetEntity = EntityManager.get(pkt.targetGID);
+		if (targetEntity) {
+			targetEntity.fastMoveTo(pkt.xPos, pkt.yPos, 20, null, true);
+		}
+	}
+
+	const srcEntity = EntityManager.get(pkt.GID);
+	const attackSpeed =
+		srcEntity && typeof srcEntity.attack_speed === 'number' && srcEntity.attack_speed > 0
+			? srcEntity.attack_speed
+			: AVG_ATTACK_SPEED;
+
+	const normalizedPkt = {
+		...pkt,
+		attackMT: typeof pkt.attackMT === 'number' && pkt.attackMT > 0 ? pkt.attackMT : attackSpeed,
+		attackedMT: typeof pkt.attackedMT === 'number' && pkt.attackedMT > 0 ? pkt.attackedMT : AVG_ATTACKED_SPEED,
+		leftDamage: typeof pkt.leftDamage === 'number' ? pkt.leftDamage : 0,
+		count: typeof pkt.count === 'number' && pkt.count > 0 ? pkt.count : 1
+	};
+
+	onEntityAction(normalizedPkt);
 }
 
 /**
@@ -552,11 +636,18 @@ function onEntityAction(pkt) {
 		case 10: // critital [DMG_CRITICAL]
 		case 11: // lucky
 		case 13: {
-			// multi-hit critical
-			if (pkt.attackMT > MAX_ATTACKMT) {
-				pkt.attackMT = MAX_ATTACKMT;
-			}
-			srcEntity.attack_speed = pkt.attackMT;
+			const attackMT =
+				typeof pkt.attackMT === 'number' && pkt.attackMT > 0
+					? pkt.attackMT
+					: (srcEntity && srcEntity.attack_speed) || AVG_ATTACK_SPEED;
+			const baseAttackMT = Math.min(attackMT, MAX_ATTACKMT);
+			pkt.attackMT = baseAttackMT;
+			pkt.attackedMT =
+				typeof pkt.attackedMT === 'number' && pkt.attackedMT > 0 ? pkt.attackedMT : AVG_ATTACKED_SPEED;
+			pkt.leftDamage = typeof pkt.leftDamage === 'number' ? pkt.leftDamage : 0;
+			pkt.count = typeof pkt.count === 'number' && pkt.count > 0 ? pkt.count : 1;
+
+			srcEntity.attack_speed = baseAttackMT;
 
 			let animSpeed = 0;
 			let delayTime = pkt.attackMT;
@@ -584,15 +675,17 @@ function onEntityAction(pkt) {
 				const _soundTime = (delayTime = m_attackMotion * m_motionSpeed * 24.0);
 				animSpeed = pkt.attackMT / m_attackMotion;
 
-				// Display throw arrow effect when using bows, not an elegant conditional but it works.. [Waken]
+				// Bows: as in the official client, the arrow leaves at the attack motion's hit frame
+				// and the hit lands 8 arrow frames later (ArrowFlight.js).
 				if (DB.isBow(DB.getWeaponType(srcEntity.weapon, true))) {
-					delayTime = (m_attackMotion + 8 / m_motionSpeed) * m_motionSpeed * 24.0;
-					pkt.attackMT += delayTime;
+					const bow = bowAttackTiming(m_attackMotion, m_motionSpeed);
+					delayTime = bow.hitMs;
+					pkt.attackMT = bow.hitMs;
 					const EF_Init_Par = {
 						effectId: 'ef_arrow_projectile',
 						ownerAID: dstEntity.GID,
 						otherAID: srcEntity.GID,
-						startTick: Renderer.tick + pkt.attackMT,
+						startTick: Renderer.tick + bow.releaseMs,
 						otherPosition: srcEntity.position
 					};
 					EffectManager.spam(EF_Init_Par);
@@ -772,8 +865,6 @@ function onEntityAction(pkt) {
 				}
 			}
 
-			srcEntity.attack_speed = pkt.attackMT;
-
 			if (pkt.leftDamage) {
 				// KAGEROU, OBORO does not use ATTCK3 for left
 				const useATTACK =
@@ -815,7 +906,9 @@ function onEntityAction(pkt) {
 
 			// Talk sometime
 			if (
+				Session.Entity &&
 				srcEntity.GID === Session.Entity.GID &&
+				Session.pet &&
 				Session.pet.friendly > 900 &&
 				(Session.pet.lastTalk || 0) + 10000 < Date.now()
 			) {
@@ -875,14 +968,14 @@ function onEntityAction(pkt) {
 	}
 
 	if (pkt?.damage > 0) {
-		if (srcEntity.GID === Session.Character.GID) {
+		if (Session.Entity && srcEntity.GID === Session.Entity.GID) {
 			// I deal damage
 			ChatBox.addText(
 				DB.getMessage(1607).replace('%s', dstEntity.display.name).replace('%d', pkt.damage),
 				ChatBox.TYPE.INFO,
 				ChatBox.FILTER.BATTLE
 			);
-		} else if (dstEntity.GID === Session.Character.GID) {
+		} else if (Session.Entity && dstEntity.GID === Session.Entity.GID) {
 			// I receive damage
 			ChatBox.addText(
 				DB.getMessage(1605).replace('%s', srcEntity.display.name).replace('%d', pkt.damage),
@@ -919,7 +1012,7 @@ function onEntityAction(pkt) {
 				ChatBox.TYPE.INFO,
 				ChatBox.FILTER.BATTLE
 			);
-		} else if (PartyFriends.isGroupMember(srcEntity.display.name)) {
+		} else if (PartyFriends.isGroupMember(srcEntity.display?.name)) {
 			// Party member deals damage
 			ChatBox.addText(
 				DB.getMessage(1608)
@@ -929,7 +1022,7 @@ function onEntityAction(pkt) {
 				ChatBox.TYPE.INFO,
 				ChatBox.FILTER.PARTY_BATTLE
 			);
-		} else if (PartyFriends.isGroupMember(dstEntity.display.name)) {
+		} else if (PartyFriends.isGroupMember(dstEntity.display?.name)) {
 			// Party member receives damage
 			ChatBox.addText(
 				DB.getMessage(1606)
@@ -1104,7 +1197,7 @@ function updateEntityStyle(entity) {
 
 function onTitleChangeAck(pkt) {
 	if (pkt.result === 0) {
-		const comp = Equipment.getUI();
+		const comp = Equipment;
 		if (comp && typeof comp.setTitle === 'function') {
 			comp.setTitle(pkt.title_id);
 		}
@@ -1192,7 +1285,7 @@ function onEntityQuestNotifyEffect(pkt) {
 			return;
 	}
 
-	MiniMap.getUI().addNpcMark(pkt.npcID, pkt.xPos, pkt.yPos, color, Infinity);
+	MiniMap.addNpcMark(pkt.npcID, pkt.xPos, pkt.yPos, color, Infinity);
 }
 
 /**
@@ -1242,23 +1335,20 @@ function onEntityViewChange(pkt) {
 					entity.job = pkt.value;
 				}
 				if (entity === Session.Entity) {
-					// Apply the job change first
-					Session.Character.job = pkt.value;
-
 					//Interchange UI depending on Job
 					if (PACKETVER.value >= 20200520) {
-						BasicInfo.getUI().remove();
-						BasicInfo.selectUIVersionWithJob(DB.getJobClass(Session.Character.job));
-						BasicInfo.getUI().prepare();
-						BasicInfo.getUI().update('blvl', Session.Character.level);
-						BasicInfo.getUI().update('jlvl', Session.Character.joblevel);
-						BasicInfo.getUI().update('zeny', Session.Character.money);
-						BasicInfo.getUI().update('name', Session.Character.name);
-						BasicInfo.getUI().update('bexp', Session.Character.exp, BasicInfo.getUI().base_exp_next);
-						BasicInfo.getUI().append();
+						BasicInfo.remove();
+						BasicInfo.selectUIVersionWithJob(DB.getJobClass(pkt.value));
+						BasicInfo.prepare();
+						BasicInfo.update('blvl', Session.Entity.clevel);
+						BasicInfo.update('jlvl', Session.Entity.joblevel);
+						BasicInfo.update('zeny', Session.Entity.money);
+						BasicInfo.update('name', Session.Entity.display.name);
+						BasicInfo.update('bexp', BasicInfo.base_exp, BasicInfo.base_exp_next);
+						BasicInfo.append();
 					}
 					// Update UI for all client versions
-					BasicInfo.getUI().update('job', pkt.value);
+					BasicInfo.update('job', pkt.value);
 				}
 			}
 			break;
@@ -1272,30 +1362,27 @@ function onEntityViewChange(pkt) {
 			// stored in a long value (uint16 and uint16 in uint32)
 			// source: https://github.com/rathena/rathena/blob/master/src/map/clif.c#L3162
 			if (pkt instanceof PACKET.ZC.SPRITE_CHANGE2) {
-				// don't know why switch from katar to sword, knife server put it on the left hand instead of right hand first.
-				// so we have to swap it. maybe have a better solution.
-				if (pkt.value === 0 && pkt.value2 !== 0 && !DB.isShield(pkt.value2)) {
-					pkt.value = pkt.value2;
-					pkt.value2 = 0;
-				}
-
-				const weaponType = DB.getWeaponType(pkt.value, true);
-				const viewId = DB.getWeaponViewID(pkt.value);
-
-				if (DB.isAssassin(entity.job) && pkt.value2 !== 0 && !DB.isShield(pkt.value2)) {
-					const secondaryWeaponType = DB.getWeaponType(pkt.value2, true);
-					entity.weapon = DB.mountWeapon(weaponType, secondaryWeaponType);
-					entity.shield = 0;
-				} else if (DB.isKatar(weaponType)) {
-					entity.weapon = viewId;
-					entity.shield = viewId;
-				} else {
-					entity.weapon = viewId;
-					entity.shield = pkt.value2;
-				}
+				const resolved = resolveEntityWeapons(
+					pkt.value,
+					pkt.value2,
+					entity,
+					Session.Entity,
+					Inventory,
+					Equipment
+				);
+				entity.weapon = resolved.weapon;
+				entity.shield = resolved.shield;
 			} else {
-				entity.weapon = pkt.value;
-				entity.shield = pkt.value2;
+				const resolved = resolveEntityWeapons(
+					pkt.value,
+					pkt.value2 !== undefined ? pkt.value2 : entity.shield,
+					entity,
+					Session.Entity,
+					Inventory,
+					Equipment
+				);
+				entity.weapon = resolved.weapon;
+				entity.shield = resolved.shield;
 			}
 
 			// load self aura
@@ -1331,7 +1418,18 @@ function onEntityViewChange(pkt) {
 			entity.bodypalette = pkt.value;
 			break;
 		case 8:
-			entity.shield = pkt.value;
+			{
+				const resolved = resolveEntityWeapons(
+					entity.weapon,
+					pkt.value,
+					entity,
+					Session.Entity,
+					Inventory,
+					Equipment
+				);
+				entity.weapon = resolved.weapon;
+				entity.shield = resolved.shield;
+			}
 			break;
 		case 9:
 			break; // LOOK_SHOES ??
@@ -1397,13 +1495,15 @@ function onEntityUseSkill(pkt) {
 			if (pkt.SKID in SkillActionTable) {
 				const action = SkillActionTable[pkt.SKID];
 				if (action) {
-					srcEntity.setAction(action(srcEntity, Renderer.tick));
+					srcEntity.setAction(action(srcEntity, Renderer.tick, pkt));
 				}
 			} else {
 				if (DB.isDoram(srcEntity.job)) {
-					srcEntity.setAction(SkillActionTable['DEFAULT_DORAM'](srcEntity, Renderer.tick));
+					srcEntity.setAction(SkillActionTable['DEFAULT_DORAM'](srcEntity, Renderer.tick, pkt));
+				} else if (DB.isMonk(srcEntity.job)) {
+					srcEntity.setAction(SkillActionTable['DEFAULT_MONK'](srcEntity, Renderer.tick, pkt));
 				} else {
-					srcEntity.setAction(SkillActionTable['DEFAULT'](srcEntity, Renderer.tick));
+					srcEntity.setAction(SkillActionTable['DEFAULT'](srcEntity, Renderer.tick, pkt));
 				}
 			}
 		}
@@ -1450,7 +1550,7 @@ function onEntityUseSkill(pkt) {
 		EffectManager.spamSkill(pkt.SKID, pkt.targetAID, null, null, pkt.srcAID);
 
 		if (pkt.result == 1) {
-			EffectManager.spamSkillSuccess(pkt.SKID, pkt.targetAID, null, pkt.srcAID);
+			EffectManager.spamSkillSuccess(pkt.SKID, pkt.targetAID, null, pkt.srcAID, pkt.level);
 		}
 	}
 }
@@ -1461,7 +1561,7 @@ function onEntityUseSkill(pkt) {
  * @param {object} pkt - PACKET.ZC.SKILL_ENTRY
  */
 function onSkillAppear(pkt) {
-	EffectManager.spamSkillZone(pkt.job, pkt.xPos, pkt.yPos, pkt.AID, pkt.creatorAID);
+	EffectManager.spamSkillZone(pkt.job, pkt.xPos, pkt.yPos, pkt.AID, pkt.creatorAID, pkt.level, pkt.range);
 }
 
 /**
@@ -1470,6 +1570,7 @@ function onSkillAppear(pkt) {
  * @param {object} pkt - PACKET.ZC.SKILL_DISAPPEAR
  */
 function onSkillDisapear(pkt) {
+	EffectManager.spamSkillZoneEnd(pkt.AID);
 	EffectManager.remove(null, pkt.AID);
 	const entity = EntityManager.get(pkt.AID);
 	if (entity) {
@@ -1539,10 +1640,16 @@ function onEntityUseSkillToAttack(pkt) {
 			if (pkt.SKID in SkillActionTable) {
 				const action = SkillActionTable[pkt.SKID];
 				if (action) {
-					srcEntity.setAction(action(srcEntity, Renderer.tick));
+					srcEntity.setAction(action(srcEntity, Renderer.tick, pkt));
 				}
 			} else {
-				srcEntity.setAction(SkillActionTable['DEFAULT'](srcEntity, Renderer.tick));
+				if (DB.isDoram(srcEntity.job)) {
+					srcEntity.setAction(SkillActionTable['DEFAULT_DORAM'](srcEntity, Renderer.tick, pkt));
+				} else if (DB.isMonk(srcEntity.job)) {
+					srcEntity.setAction(SkillActionTable['DEFAULT_MONK'](srcEntity, Renderer.tick, pkt));
+				} else {
+					srcEntity.setAction(SkillActionTable['DEFAULT'](srcEntity, Renderer.tick, pkt));
+				}
 			}
 
 			//Pet Talk
@@ -1612,7 +1719,7 @@ function onEntityUseSkillToAttack(pkt) {
 			const addDamage = function (i, startTick) {
 				if (pkt.damage) {
 					// Only if hits
-					EffectManager.spamSkillHit(pkt.SKID, pkt.targetID, startTick, pkt.AID);
+					EffectManager.spamSkillHit(pkt.SKID, pkt.targetID, startTick, pkt.AID, i);
 				}
 
 				if (!isCombo && isBlueCombo) {
@@ -1647,10 +1754,22 @@ function onEntityUseSkillToAttack(pkt) {
 				addDamage(i, Renderer.tick + pkt.attackMT + C_MULTIHIT_DELAY * i);
 			}
 		}
+
+		if (typeof pkt.xPos === 'number' && typeof pkt.yPos === 'number' && (pkt.xPos !== 0 || pkt.yPos !== 0)) {
+			const pushedEntity = dstEntity || srcEntity;
+			if (pushedEntity) {
+				pushedEntity.fastMoveTo(pkt.xPos, pkt.yPos, 20, null, true);
+			}
+		}
 	}
+
+	// Effects the official client plays as each damage packet arrives
+	EffectManager.spamSkillDamage(pkt.SKID, pkt.targetID, Renderer.tick, pkt.AID, undefined, pkt.count);
+	EffectManager.spamSkillMotion(pkt.SKID, pkt.AID, pkt.targetID, Renderer.tick, pkt.action, pkt.level, !!dstEntity);
 
 	if (srcEntity && dstEntity && pkt.action != SkillAction.SPLASH) {
 		// && pkt.action != SkillAction.MULTI_HIT
+		EffectManager.spamSkillRelease(pkt.SKID, pkt.targetID, Renderer.tick, pkt.AID);
 		EffectManager.spamSkill(pkt.SKID, pkt.targetID, null, Renderer.tick + pkt.attackMT, pkt.AID);
 	}
 }
@@ -1763,7 +1882,7 @@ function onEntityCastSkill(pkt) {
 	}
 
 	//Spells like Bash, Hide, Double Strafe etc. has special casting effect
-	EffectManager.spamSkillCast(pkt.SKID, pkt.AID, null, pkt.targetID);
+	EffectManager.spamSkillCast(pkt.SKID, pkt.AID, null, pkt.targetID, pkt.delayTime);
 
 	if (dstEntity && dstEntity !== srcEntity) {
 		srcEntity.lookTo(dstEntity.position[0], dstEntity.position[1]);
@@ -1792,8 +1911,12 @@ function onEntityCastSkill(pkt) {
 		}
 	}
 
-	// Check if cast aura needs to be hidden
-	hideCastAura = pkt.SKID in SkillEffect && SkillEffect[pkt.SKID].hideCastAura;
+	// Check if cast aura needs to be hidden. Skills the official client gives
+	// no element aura (DB/Skills/CastAuraRule.js) show only their own cast aura, if any.
+	const castSkill = pkt.SKID in SkillEffect ? SkillEffect[pkt.SKID] : null;
+	hideCastAura =
+		(castSkill && castSkill.hideCastAura) ||
+		(!hasElementCastAura(pkt.SKID) && !(castSkill && castSkill.castAuraEffectId));
 
 	// Cast aura
 	if (pkt.delayTime && !hideCastAura) {
@@ -1837,7 +1960,15 @@ function onEntityCastSkill(pkt) {
 				break;
 		}
 
-		EffectManager.spam(EF_Init_Par);
+		// Some skills always use the same cast aura, whatever the packet's element.
+		// A list plays each of its effects for the cast time.
+		if (castSkill && castSkill.castAuraEffectId) {
+			[castSkill.castAuraEffectId].flat().forEach(effectId => {
+				EffectManager.spam({ ...EF_Init_Par, effectId });
+			});
+		} else {
+			EffectManager.spam(EF_Init_Par);
+		}
 	}
 }
 
@@ -1852,7 +1983,12 @@ function onEntityCastCancel(pkt) {
 		entity.cast.clean();
 
 		// Cancel effects
-		EffectManager.remove(null, entity.GID, [12, 54, 55, 56, 57, 58, 59, 454, 60, 513]);
+		EffectManager.remove(
+			null,
+			entity.GID,
+			[12, 1709, 54, 55, 56, 57, 58, 59, 830, 2368, 454, 60, 513, 831, 840, 841, 842, 843, 845]
+		);
+		EffectManager.removeCastLoops(entity.GID);
 		EffectManager.remove(LockOnTarget, entity.GID);
 		EffectManager.remove(MagicTarget, entity.GID);
 		EffectManager.remove(MagicRing, entity.GID);
@@ -1916,7 +2052,7 @@ function onEntityStatusChange(pkt) {
 		// Maya purple card
 		case StatusConst.CLAIRVOYANCE:
 			if (entity === Session.Entity) {
-				Session.Character.intravision = pkt.state;
+				Session.Entity.intravision = pkt.state;
 				EntityManager.forEach(_entity => {
 					/** @type {*} Intentional self-assignment to trigger effectState updates. */
 					// eslint-disable-next-line no-self-assign
@@ -1930,6 +2066,36 @@ function onEntityStatusChange(pkt) {
 			entity.hasCart = pkt.state || !pkt.hasOwnProperty('state');
 			if (pkt.val && (pkt.state || !pkt.hasOwnProperty('state'))) {
 				entity.CartNum = pkt.val[0];
+			}
+			if (Session.Entity && entity.GID === Session.Entity.GID) {
+				Session.hasCart = entity.hasCart;
+				Session.CartNum = entity.CartNum;
+			}
+			entity._statusCart = !!entity.hasCart;
+			if (
+				entity._statusCart ||
+				!(
+					entity.effectState &
+					(StatusState.EffectState.CART1 |
+						StatusState.EffectState.CART2 |
+						StatusState.EffectState.CART3 |
+						StatusState.EffectState.CART4 |
+						StatusState.EffectState.CART5)
+				)
+			) {
+				entity.setCart(entity._statusCart, entity.CartNum);
+			} else {
+				// Option-derived cart still present; keep it
+				entity.hasCart = true;
+			}
+			// CARTOFF removes CartItems from the DOM; mount it again when a cart is re-acquired
+			if (
+				Session.Entity &&
+				entity.GID === Session.Entity.GID &&
+				entity.hasCart &&
+				!CartItems._host?.isConnected
+			) {
+				CartItems.append();
 			}
 			break;
 
@@ -1962,7 +2128,9 @@ function onEntityStatusChange(pkt) {
 					name: '',
 					hp: -1,
 					maxhp: -1,
-					hideShadow: true
+					hideShadow: true,
+					_followTargetX: entity.position[0],
+					_followTargetY: entity.position[1]
 				});
 				EntityManager.add(entity.falcon);
 			}
@@ -2354,6 +2522,9 @@ function onEntityStatusChange(pkt) {
 			break;
 	}
 
+	// MSG_STATE_CHANGE3 and MSG_STATE_CHANGE5 (0x8ff, 0x984) carry no state: the
+	// server sends them for statuses already on when an actor comes into view.
+	updateStatusEffects(pkt.AID, pkt.index, Object.prototype.hasOwnProperty.call(pkt, 'state') ? pkt.state : 1);
 	processBlockStatus(entity, pkt);
 
 	// D-19 Phase 12-10: per-entity buff/debuff cache for panel display.
@@ -2436,11 +2607,13 @@ function onEntityOptionChange(pkt) {
 			name: '',
 			hp: -1,
 			maxhp: -1,
-			hideShadow: true
+			hideShadow: true,
+			_followTargetX: entity.position[0],
+			_followTargetY: entity.position[1]
 		});
 		EntityManager.add(entity.falcon);
 	} else if (entity.falcon && !(entity.effectState & StatusState.EffectState.FALCON)) {
-		entity.falcon.remove();
+		EntityManager.remove(entity.falcon.GID);
 		entity.falcon = null;
 	}
 
@@ -2454,12 +2627,36 @@ function onEntityOptionChange(pkt) {
 			speed: Math.max(entity.walk.speed - 50, 1),
 			name: '',
 			hp: -1,
-			maxhp: -1
+			maxhp: -1,
+			_followTargetX: entity.position[0],
+			_followTargetY: entity.position[1]
 		});
 		EntityManager.add(entity.wug);
 	} else if (entity.wug && !(entity.effectState & StatusState.EffectState.WUG)) {
-		entity.wug.remove();
+		EntityManager.remove(entity.wug.GID);
 		entity.wug = null;
+	}
+
+	let statusCartNum = 0;
+	if (entity.effectState & StatusState.EffectState.CART1) {
+		statusCartNum = 1;
+	} else if (entity.effectState & StatusState.EffectState.CART2) {
+		statusCartNum = 2;
+	} else if (entity.effectState & StatusState.EffectState.CART3) {
+		statusCartNum = 3;
+	} else if (entity.effectState & StatusState.EffectState.CART4) {
+		statusCartNum = 4;
+	} else if (entity.effectState & StatusState.EffectState.CART5) {
+		statusCartNum = 5;
+	}
+
+	// Keep the cart while the ON_PUSH_CART status is active (tracked separately from option bits)
+	const keepViaFlag = !!entity._statusCart || (entity === Session.Entity && entity.hasCart);
+	if (statusCartNum > 0 || keepViaFlag) {
+		const realCartNum = DB.isSuperNovice(entity._job) ? 0 : statusCartNum || entity.CartNum || 1;
+		entity.setCart(true, realCartNum);
+	} else if (entity.cart) {
+		entity.setCart(false);
 	}
 }
 
@@ -2620,9 +2817,9 @@ function onNotifyExp(pkt) {
  */
 
 function onMarkMvp(pkt) {
-	MiniMap.getUI().removeNpcMark('mvp'); //hack for mark system (todo: debug this)
+	MiniMap.removeNpcMark('mvp'); //hack for mark system (todo: debug this)
 	if (pkt.infoType == 1) {
-		MiniMap.getUI().addNpcMark('mvp', pkt.xPos, pkt.yPos, 0x0ff0000, Infinity);
+		MiniMap.addNpcMark('mvp', pkt.xPos, pkt.yPos, 0x0ff0000, Infinity);
 		/**if(!MiniMap.isNpcMarkExist('mvp')) {    // wtf marker is pushed with delay??
 				ChatBox.addText( pkt.name+' is already spawned at ('+pkt.xPos+','+pkt.yPos+')', null, ChatBox.FILTER.PUBLIC_LOG, '#FFFF63');
 			}*/
@@ -2666,6 +2863,11 @@ function onEntityWillBeHitSub(pkt, dstEntity) {
 	// only if has damage > 0 and type is not endure and not lucky
 	if ((pkt.damage > 0 || pkt.leftDamage > 0) && pkt.action !== 4 && pkt.action !== 9 && pkt.action !== 11) {
 		const count = pkt.count || 1;
+
+		// Remember the impact tick of the (last) hit so a death triggered by
+		// this attack can be synced to land with the hit instead of instantly.
+		const lastHitDelay = pkt.attackMT + C_MULTIHIT_DELAY * (pkt.leftDamage ? 1.75 : 1) * (count - 1);
+		dstEntity._deathSyncTick = Math.max(dstEntity._deathSyncTick || 0, Renderer.tick + lastHitDelay);
 
 		function impendingAttack() {
 			// Get hurt when attack happens
@@ -2722,7 +2924,7 @@ function onEntityWillBeHitSub(pkt, dstEntity) {
  * Does player have a Token of Siegfried?
  */
 function haveSiegfriedItem() {
-	const itemInfo = Inventory.getUI().getItemById(7621);
+	const itemInfo = Inventory.getItemById(7621);
 
 	if (Session.IsPKZone || Session.IsSiegeMode || Session.IsEventPVPMode) {
 		return false;
@@ -2871,6 +3073,7 @@ export default function EntityEngine() {
 	Network.hookPacket(PACKET.ZC.NOTIFY_ACT, onEntityAction);
 	Network.hookPacket(PACKET.ZC.NOTIFY_ACT2, onEntityAction);
 	Network.hookPacket(PACKET.ZC.NOTIFY_ACT3, onEntityAction);
+	Network.hookPacket(PACKET.ZC.NOTIFY_ACT_POSITION, onEntityActionPosition);
 	Network.hookPacket(PACKET.ZC.NOTIFY_CHAT, onEntityTalk);
 	Network.hookPacket(PACKET.ZC.SHOWSCRIPT, onEntityTalk);
 	Network.hookPacket(PACKET.ZC.NPC_CHAT, onEntityTalkColor);
@@ -2926,3 +3129,5 @@ export default function EntityEngine() {
 	Network.hookPacket(PACKET.ZC.ACK_CHANGE_TITLE, onTitleChangeAck);
 	Network.hookPacket(PACKET.ZC.HAT_EFFECT, onHatEffects);
 }
+
+export { onEntityActionPosition, onEntityAction, onEntitySpam, onEntityViewChange };

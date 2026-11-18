@@ -27,9 +27,10 @@ const defaultGraphicsSettings = {
 	cursor: true,
 
 	/**
-	 * Game FPS Limit
+	 * Game FPS Limit. -1: none, one frame per display refresh (rAF never runs
+	 * faster than the display), which is also the smoothest
 	 */
-	fpslimit: 60,
+	fpslimit: -1,
 
 	/**
 	 * Performance Mode
@@ -86,7 +87,15 @@ const defaultGraphicsSettings = {
 
 	casEnabled: false,
 	casContrast: 0.0,
-	casSharpening: 1.0
+	casSharpening: 1.0,
+
+	/**
+	 * Fade map geometry blocking the view of the player (not in first person)
+	 * 'off' | 'dither' | 'alpha'
+	 */
+	occluderFade: 'off',
+	occluderFadeOpacity: 0.25,
+	occluderFadeRadius: 5.0
 };
 
 /**

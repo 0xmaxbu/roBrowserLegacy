@@ -81,13 +81,6 @@ const Viewer = new GUIComponent('GRFViewer', cssText);
 Viewer.render = () => htmlText;
 
 /**
- * Helper to get shadow root
- */
-function _getRoot() {
-	return Viewer._shadow || Viewer._host;
-}
-
-/**
  * Initialize Component
  */
 Viewer.init = function init() {
@@ -102,14 +95,16 @@ Viewer.init = function init() {
 
 	Renderer.show();
 
-	const root = _getRoot();
+	const root = Viewer.getRoot();
 
-	if (!Configs.get('API')) {
+	if (!Configs.get('api')) {
 		initDropDown(root.querySelector('select'));
 	} else {
 		const hash = decodeURIComponent(location.hash);
 		location.hash = hash;
-		loadModel(hash.substr(1));
+		if (hash.length > 1) {
+			loadModel(hash.substr(1));
+		}
 	}
 };
 
@@ -130,7 +125,7 @@ Viewer.onAppend = function onAppend() {
  * @param {HTMLElement} select dropdown
  */
 function initDropDown(select) {
-	Client.search(/data\\[^\0]+\.rsm/gi, list => {
+	Client.search(/data\\[^\0]+\.rsm2?(?=\0|$)/gi, list => {
 		const hash = decodeURIComponent(location.hash);
 
 		for (let i = 0, count = list.length; i < count; ++i) {
@@ -151,7 +146,7 @@ function initDropDown(select) {
 			loadModel(select.value);
 		}
 
-		const root = _getRoot();
+		const root = Viewer.getRoot();
 		root.querySelector('.head').style.display = 'block';
 		select.focus();
 	});
@@ -179,7 +174,6 @@ function loadModel(filename) {
 	Client.getFile(filename, buf => {
 		_model = new Model(buf);
 
-		const data = _model.compile();
 		let i, count, j, size, offset, length;
 		const objects = [];
 		const infos = [];
@@ -189,6 +183,8 @@ function loadModel(filename) {
 
 		_GlobalParameters.filename = filename.replace('data/model/', '');
 		_model.createInstance(_GlobalParameters, 0, 0);
+
+		const data = _model.compile();
 
 		count = data.meshes.length;
 		let total = 0;

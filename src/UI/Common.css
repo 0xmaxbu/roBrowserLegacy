@@ -16,16 +16,49 @@ body {
 	margin: 0;
 }
 
+/* Reference for the viewport sized body below */
+html {
+	height: 100%;
+}
+
+/* Prevent mobile browser auto-zoom on input focus and double-tap */
+:host {
+	touch-action: manipulation;
+}
+
+input,
+textarea,
+select {
+	touch-action: manipulation;
+}
+
 canvas {
 	touch-action: none;
 }
 
+/* Page zoomed in (browser pinch / input focus zoom, tracked by Core/Mobile.js): hand the
+   touches back to the browser so the user can pan and pinch the page back out */
+body.ro-page-zoomed canvas {
+	touch-action: auto;
+}
+
 body {
-	background-color: #000;
-	color: #484848;
-	font-size: 11px;
-	font-weight: 400;
-	font-family: Gulim, Dotum, 'Malgun Gothic', sans-serif, Arial;
+	background-color: black;
+	font-size: 12px;
+	/* 'SCDream' first: wins only when the server actually serves the client font (loaded via
+	   @font-face in DBManager). When it isn't served it resolves to Arial — the official client's
+	   window UI font for intl/america servicetype (Ragexe draws window text with CreateFontA on the
+	   Gulim/Arial face table). Liberation Sans / Arimo provide Arial metrics on Linux. */
+	font-family: 'SCDream', Arial, 'Liberation Sans', Arimo, sans-serif;
+	/* Normalize any resolved font's x-height to Arial's (sxHeight 1062 / unitsPerEm 2048 = 0.5186),
+	   so text keeps Arial's apparent size on every OS/font. It's inherited and crosses Shadow DOM
+	   hosts, so it also rescales elements that use a non-Arial face; those opt out with
+	   `font-size-adjust: none` on the selector declaring that font (Intro, GrfViewer, JoystickUI
+	   header). SCDream, when a server serves it, is normalized to Arial on purpose.
+	   Progressive enhancement: engines that don't support the numeric form ignore it
+	   and render at the resolved font's native x-height (no JS fallback needed — Arial
+	   / Liberation Sans already carry correct metrics, only annex fonts degrade). */
+	font-size-adjust: 0.5186;
 	overflow: hidden;
 	-webkit-user-select: none;
 	user-select: none;
@@ -33,6 +66,19 @@ body {
 	min-height: 100vh;
 	letter-spacing: 0;
 	line-height: 1.2;
+}
+
+/* Apps owning the 3D viewport (set by Renderer.init) are a fixed viewport: size the body to it and
+   contain it. `overflow: hidden` alone doesn't clip the body box — it propagates to the viewport —
+   so content positioned off screen (entity overlays, signboards, dragged windows) still extends the
+   document's scrollable area, and the browser scrolls, or on mobile lays the page out at its
+   fallback width and scales it down, to reveal it. Paint containment clips the box for real. */
+body.ro-viewport {
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	contain: paint;
 }
 
 .title {
@@ -125,6 +171,8 @@ ui-button {
 }
 
 /* Hide native cursor inside Shadow DOM when custom cursor is active */
-:host-context(.custom-cursor) * {
-	cursor: none !important;
+@container style(--ro-game-cursor: on) {
+	* {
+		cursor: none !important;
+	}
 }

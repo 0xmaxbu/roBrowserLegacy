@@ -71,8 +71,6 @@ let MER_AI;
 let default_HO_AI;
 let default_MER_AI;
 
-startLua();
-
 /**
  * @const {Array} message string
  */
@@ -121,38 +119,20 @@ const CheckAttendanceTable = { Config: {}, Rewards: [], Periods: [] };
  * @const {Array} buyingStoreItemList Table
  */
 const buyingStoreItemList = new Array();
+import { createDBServices } from 'DB/DBServices.js';
 
-/**
- * @const {Array} LaphineSysTable Table
- */
-const LaphineSysTable = [];
+import * as JobClassification from 'DB/Jobs/JobClassification.js';
+import { createJobGroups } from 'DB/Jobs/JobGroups.js';
 
-/**
- * @const {Array} LaphineUpgTable Table
- */
-const LaphineUpgTable = [];
+import { getMonsterName } from 'DB/Monsters/MonsterDatabase.js';
 
-/**
- * @const {Object} ItemDBName Table
- * json object
- */
-const ItemDBNameTbl = {};
+import { getSkillName, getSkillDescription } from 'DB/Skills/SkillDescriptions.js';
 
-/**
- * @const {Object} ItemReform Table
- * json object
- */
-const ItemReformTable = { ReformInfo: {}, ReformItemList: {} };
+import { getHatResource } from 'DB/Effects/HatEffectLoader.js';
+import mergeEz2Effects from 'DB/Effects/Ez2EffectMerge.js';
 
-/**
- * @type {Object} EnchantList Table json object
- */
-let EnchantListTable = {};
-
-/**
- * @const {Object} SignBoardTranslated Table
- */
-const SignBoardTranslatedTable = {};
+import { createItemLink, parseItemLink, getItemNameFromLink } from 'DB/Items/ItemLink.js';
+import { formatUnixDate, formatMsgToHtml } from 'DB/System/Formatting.js';
 
 /**
  * @type {Object} SignBoard Table
@@ -265,9 +245,11 @@ const langType = servers[0] && servers[0].langtype ? parseInt(servers[0].langtyp
 const userCharpage = TextEncoding.detectEncodingByLangtype(langType, Configs.get('disableKorean'));
 const grfCharpage = 'windows-1252';
 	TextEncoding.setCharset(grfCharpage);
+// Sex-specific asset path components.
+
+// setup default encoding
 
 // create decoders
-const userStringDecoder = TextEncoding;
 
 /**
  * DB NameSpace
@@ -282,6 +264,252 @@ const MEOW_PET_TABLE = {
 	21607: 'meow_cow',
 	21608: 'meow_orange'
 };
+let initialJobGroups = createJobGroups();
+
+function loadTable(filename, separator, size, callback, onEnd, useCharPage = false) {
+	Client.loadFile(
+		filename,
+		function (buffer) {
+			console.log('Loading file "' + filename + '"...');
+
+			let data = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;
+			data = TextEncoding.decode(data, useCharPage ? userCharpage : null);
+
+			// Remove commented lines
+			const content = ('\n' + data).replace(/\n(\/\/[^\n]+)/g, '');
+			const elements = content.split(separator);
+			const count = elements.length;
+			const args = new Array(size + 1);
+
+			for (let i = 0; i < count; i++) {
+				if (i % size === 0) {
+					if (i) {
+						callback.apply(null, args);
+					}
+					args[i % size] = i;
+				}
+
+				args[(i % size) + 1] = elements[i].replace(/^\s+|\s+$/g, ''); // trim
+			}
+
+			onEnd();
+		},
+		onEnd
+	);
+}
+function loadCSV(filename, targetTable, keyIndex, valueIndex, onEnd) {
+	Client.loadFile(
+		filename,
+		function (data) {
+			console.log('Loading file "' + filename + '"...');
+
+			const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
+			let text = '';
+			let isBase64 = true;
+
+			// Convert buffer to a raw "binary string".
+			// This prevents atob() from throwing "outside latin1 range" errors.
+			for (let i = 0, count = bytes.length; i < count; i++) {
+				text += String.fromCharCode(bytes[i]);
+			}
+
+			// Check if the file is Base64 encoded
+			if (!text.trimEnd().endsWith('=')) {
+				text = TextEncoding.decode(bytes, 'utf-8');
+				isBase64 = false;
+			}
+
+			// Split lines
+			const lines = text.split(/\r?\n/);
+			let index = 0;
+			for (let i = 0; i < lines.length; i++) {
+				const line = lines[i].trim();
+				if (!line || line.startsWith('//')) {
+					continue;
+				}
+
+				const parts = isBase64 ? line.split(',') : line.split('\t');
+				if (parts.length <= Math.max(keyIndex, valueIndex)) {
+					continue;
+				}
+
+				try {
+					// Decode columns from Base64
+					const value = isBase64 ? base64DecodeUtf8(parts[valueIndex].trim()) : parts[valueIndex].trim();
+					targetTable[index] = value;
+					index++;
+				} catch (e) {
+					console.error('Base64 decode failed on line', i + 1, ':', line, e);
+				}
+			}
+			if (typeof onEnd === 'function') {
+				onEnd();
+			}
+		},
+		onEnd
+	);
+}
+function loadXMLFile(filename, callback, onEnd) {
+	Client.loadFile(
+		filename,
+		async function (file) {
+			console.log('Loading file "' + filename + '"...');
+			let xml = file instanceof ArrayBuffer ? new Uint8Array(file) : file;
+			xml = TextEncoding.decode(xml, userCharpage);
+			xml = xml.replace(/^.*<\?xml/, '<?xml');
+			const parser = new DOMParser();
+			const parsedXML = parser.parseFromString(xml, 'application/xml');
+			const json = XmlParse.xml2json(parsedXML);
+			callback.call(null, json);
+			onEnd();
+		},
+		onEnd
+	);
+}
+function loadBSONFile(filename, targetTable, onEnd) {
+	Client.loadFile(
+		filename,
+		function (arrayBuffer) {
+			try {
+				console.log('Loading file "' + filename + '"...');
+
+				const bytes = new Uint8Array(arrayBuffer);
+				let offset = 0;
+
+				const docs = [];
+
+				while (offset < bytes.length) {
+					const size =
+						bytes[offset] |
+						(bytes[offset + 1] << 8) |
+						(bytes[offset + 2] << 16) |
+						(bytes[offset + 3] << 24);
+
+					const slice = bytes.slice(offset, offset + size);
+					docs.push(BSON.deserialize(slice));
+
+					offset += size;
+				}
+
+				// ---- AS-IS TABLE HANDLING ----
+
+				let data;
+				if (docs.length === 1) {
+					data = docs[0]; // single root document
+				} else {
+					data = docs; // true multi-doc BSON
+				}
+
+				// Clear target table
+				for (const k in targetTable) {
+					delete targetTable[k];
+				}
+
+				// If root has exactly ONE key, unwrap it
+				if (typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length === 1) {
+					const rootKey = Object.keys(data)[0];
+					data = data[rootKey];
+				}
+
+				// Copy AS-IS
+				Object.assign(targetTable, data);
+			} catch (e) {
+				console.error('BSON parse error:', e);
+			} finally {
+				if (onEnd) {
+					onEnd();
+				}
+			}
+		},
+		onEnd
+	);
+}
+function getSystemAliases(basePath) {
+	basePath = basePath.replace(/\.(lub|lua)$/i, ''); // Prevents extension been passed
+
+	const suffixes = ['', '_true', '_sak', '_Sakray']; // Priority order
+	const extensions = ['.lub', '.lua'];
+	const fileList = [];
+
+	for (let s = 0; s < suffixes.length; s++) {
+		for (let e = 0; e < extensions.length; e++) {
+			fileList.push(basePath + suffixes[s] + extensions[e]);
+		}
+	}
+	return fileList;
+}
+function loadMoveInfoTable(onEnd) {
+	Client.loadFile(
+		'data/ItemMoveInfoV5.txt',
+		function (file) {
+			console.log('Loading file "ItemMoveInfoV5.txt"...');
+
+			let data = file instanceof ArrayBuffer ? new Uint8Array(file) : file;
+			data = TextEncoding.decode(data, userCharpage);
+			const lines = data.split(/\r?\n/);
+
+			for (let line of lines) {
+				line = line.trim();
+				if (!line || line.startsWith('//')) {
+					continue;
+				}
+
+				// Remove inline comments
+				const commentIndex = line.indexOf('//');
+				if (commentIndex !== -1) {
+					line = line.slice(0, commentIndex).trim();
+				}
+
+				const cols = line.split(/\s+/);
+				if (cols.length < 9) {
+					console.warn('Invalid ItemMoveInfo line:', line);
+					continue;
+				}
+
+				const [key, drop, exchange, storage, cart, npcSale, mail, auction, guildStorage] = cols;
+
+				const item = ItemTable[key] || (ItemTable[key] = {});
+
+				item.moveInfo = {
+					Drop: drop === '1',
+					Exchange: exchange === '1',
+					Storage: storage === '1',
+					Cart: cart === '1',
+					NPCSale: npcSale === '1',
+					Mail: mail === '1',
+					Auction: auction === '1',
+					GuildStorage: guildStorage === '1'
+				};
+			}
+			onEnd();
+		},
+		onEnd
+	);
+}
+async function startLua() {
+	lua = await CLua.Lua.create({ customWasmUri: wasmUrl });
+	HO_AI = await CLua.Lua.create({ customWasmUri: wasmUrl });
+	MER_AI = await CLua.Lua.create({ customWasmUri: wasmUrl });
+	default_HO_AI = await CLua.Lua.create({ customWasmUri: wasmUrl });
+	default_MER_AI = await CLua.Lua.create({ customWasmUri: wasmUrl });
+}
+
+const userStringDecoder = TextEncoding;
+const ItemDBNameTbl = {};
+const ItemReformTable = { ReformInfo: {}, ReformItemList: {} };
+let EnchantListTable = {};
+const LaphineSysTable = [];
+const LaphineUpgTable = [];
+const SignBoardTranslatedTable = {};
+function base64DecodeUtf8(str) {
+	try {
+		const bytes = Uint8Array.from(atob(str), c => c.charCodeAt(0));
+		return TextEncoding.decode(bytes, 'utf-8');
+	} catch (e) {
+		console.warn('Base64 UTF-8 decode failed:', str, e);
+		return str;
+	}
+}
 
 class DB {
 	/**
@@ -309,83 +537,12 @@ class DB {
 	 */
 	static UpdateOwnerName = {};
 
-	/**
-	 * Initialize DB
-	 */
-	static init() {
-		DB.isLoaded = false;
-		DB.count = 0;
-		DB.index = 0;
-
-		// Callback
-		let index = 0,
-			count = 0;
-		function onLoad() {
-			count++;
-			return function OnLoadClosure() {
-				index++;
-
-				if (DB.onProgress) {
-					DB.onProgress(index, count);
-				}
-
-				if (index === count && DB.onReady) {
-					DB.onReady();
-				}
-			};
-		}
-
-		if (Configs.get('useSystemFolderFont', false)) {
-			loadFontFromClient('System/Font/');
-		}
-
-		// Loading TXT Tables
-		loadTable(
-			'data/mp3nametable.txt',
-			'#',
-			2,
-			function (_index, key, val) {
-				(MapTable[key] || (MapTable[key] = {})).mp3 = val;
-			},
-			onLoad()
-		);
-		loadTable(
-			'data/mapnametable.txt',
-			'#',
-			2,
-			function (_index, key, val) {
-				(MapTable[key] || (MapTable[key] = {})).name = val;
-			},
-			onLoad(),
-			true
-		);
-		const loadmsg = onLoad();
-		loadTable(
-			'data/msgstringtable.txt',
-			'#',
-			1,
-			(_index, val) => {
-				MsgStringTable[_index] = val;
-			},
-			() => loadCSV('data/msgstringtable.csv', MsgStringTable, 0, 1, loadmsg),
-			true
-		);
-
-		loadTable(
-			'data/resnametable.txt',
-			'#',
-			2,
-			function (_index, key, val) {
-				DB.mapalias[key] = val;
-			},
-			onLoad()
-		);
-	}
-
 	static isLoaded = false;
 	static count = 0;
 	static index = 0;
 	static lazyInit() {
+		// Lua 运行时（HOAI/MERAI 宠物 AI）异步初始化；延迟到 lazyInit 保证模块导入零副作用（上游测试环境要求）
+		startLua();
 		console.log('Loading DB files...');
 		// Callback
 		DB.index = 0;
@@ -943,11 +1100,11 @@ class DB {
 	}
 
 	static getAllTitles() {
-		return TitleTable;
+		return systemDatabase.SystemDatabase.getAllTitles(...arguments);
 	}
 
 	static getAchievementTable() {
-		return AchievementTable;
+		return systemDatabase.SystemDatabase.getAchievementTable(...arguments);
 	}
 
 	/**
@@ -978,11 +1135,11 @@ class DB {
 	}
 
 	static getTitleString(titleID) {
-		return TitleTable[titleID] || '';
+		return systemDatabase.SystemDatabase.getTitleString(...arguments);
 	}
 
 	static getSkillName(skillID) {
-		return (SkillInfo[skillID] && SkillInfo[skillID].SkillName) || '';
+		return getSkillName(skillID);
 	}
 
 	/**
@@ -991,45 +1148,27 @@ class DB {
 	 * @param {number} jobid
 	 */
 	static isNPC(jobid) {
-		return (
-			(jobid > 45 && jobid < 130) ||
-			(jobid >= 401 && jobid < 1000) ||
-			(jobid >= 10001 && jobid < 19999) ||
-			(jobid > 22300 && jobid < 22313) ||
-			jobid == 32767 ||
-			jobid == -1
-		);
+		return JobClassification.isNPC.call(this, jobid);
 	}
 
 	static isMercenary(jobid) {
-		return jobid >= 6017 && jobid <= 6046;
+		return JobClassification.isMercenary.call(this, jobid);
 	}
 
 	static isHomunculus(jobid) {
-		return (jobid >= 6001 && jobid <= 6016) || (jobid >= 6048 && jobid <= 6052);
+		return JobClassification.isHomunculus.call(this, jobid);
 	}
 
 	static isMonster(jobid) {
-		return (
-			(jobid >= 1001 && jobid <= 3999) ||
-			(jobid >= 20000 && jobid < 20834) ||
-			(jobid >= 20852 && jobid < 22301) ||
-			(jobid > 22313 && jobid < 22322)
-		); // 22322 = last monster released on EP21
+		return JobClassification.isMonster.call(this, jobid);
 	}
 
 	static isPlayer(jobid) {
-		return (jobid >= 0 && jobid < 45) || (jobid >= 4001 && jobid <= 4361) || jobid == 4294967294;
+		return JobClassification.isPlayer.call(this, jobid);
 	}
 
 	static isDoram(jobid) {
-		return (
-			(jobid >= 4217 && jobid <= 4220) ||
-			jobid === 4308 ||
-			jobid === 4315 ||
-			// 喵喵雇佣兵外观（多兰夏装，服务端 mercenary_db Id 同号）
-			jobid === JobId.DORAM_MEOW_SUMMER
-		);
+		return JobClassification.isDoram.call(this, jobid);
 	}
 
 	/**
@@ -1039,27 +1178,119 @@ class DB {
 	 * @return {boolean} is baby
 	 */
 	static isBaby(jobid) {
-		return BabyTable.indexOf(jobid) > -1;
+		return JobClassification.isBaby.call(this, jobid);
 	}
 
+	/**
+	 * Is character a Assassin class
+	 *
+	 * @param {number} jobid
+	 * @return {boolean}
+	 */
+	static S_JOBS_ASSASSIN = initialJobGroups.S_JOBS_ASSASSIN;
+
+	static isAssassin(jobid) {
+		return JobClassification.isAssassin.call(this, jobid);
+	}
+
+	/**
+	 * Is character a Hunter class
+	 *
+	 * @param {number} jobid
+	 * @return {boolean}
+	 */
+	static S_JOBS_HUNTER = initialJobGroups.S_JOBS_HUNTER;
+
+	static isHunter(jobid) {
+		return JobClassification.isHunter.call(this, jobid);
+	}
+
+	/**
+	 * Is character a Monk class
+	 *
+	 * @param {number} jobid
+	 * @return {boolean}
+	 */
+	static S_JOBS_MONK = initialJobGroups.S_JOBS_MONK;
+
+	static isMonk(jobid) {
+		return JobClassification.isMonk.call(this, jobid);
+	}
+
+	/**
+	 * Is character a SN class
+	 *
+	 * @param {number} jobid
+	 * @return {boolean}
+	 */
+	static S_JOBS_SN = initialJobGroups.S_JOBS_SN;
+
+	static isSuperNovice(jobid) {
+		return JobClassification.isSuperNovice.call(this, jobid);
+	}
+
+	/**
+	 * Is character a TaeKwon class
+	 *
+	 * @param {number} jobid
+	 * @return {boolean}
+	 */
+	static S_JOBS_TAEKWON = initialJobGroups.S_JOBS_TAEKWON;
+
+	static isTaeKwon(jobid) {
+		return JobClassification.isTaeKwon.call(this, jobid);
+	}
+
+	/**
+	 * Is character a Gunslinger class
+	 *
+	 * @param {number} jobid
+	 * @return {boolean}
+	 */
+	static S_JOBS_GS = initialJobGroups.S_JOBS_GS;
+
+	static isGunslinger(jobid) {
+		return JobClassification.isGunslinger.call(this, jobid);
+	}
+
+	/**
+	 * Is character a Royal Guard class
+	 *
+	 * @param {number} jobid
+	 * @return {boolean}
+	 */
+	static S_JOBS_RG = initialJobGroups.S_JOBS_RG;
+
+	static isRoyalGuard(jobid) {
+		return JobClassification.isRoyalGuard.call(this, jobid);
+	}
+
+	/**
+	 * Is character using Madogear
+	 *
+	 * @param {number} jobid
+	 * @return {boolean}
+	 */
+	static S_JOBS_MADO = initialJobGroups.S_JOBS_MADO;
+
 	static isMadogear(jobid) {
-		return jobid == 4086 || jobid == 4087 || jobid == 4112 || jobid == 4279;
+		return JobClassification.isMadogear.call(this, jobid);
 	}
 
 	static isElem(jobid) {
-		return (jobid >= 2114 && jobid <= 2125) || (jobid >= 20816 && jobid <= 20820);
+		return JobClassification.isElem.call(this, jobid);
 	}
 
 	static isAbr(jobid) {
-		return jobid >= 20834 && jobid <= 20837;
+		return JobClassification.isAbr.call(this, jobid);
 	}
 
 	static isBionic(jobid) {
-		return jobid >= 20848 && jobid <= 20851;
+		return JobClassification.isBionic.call(this, jobid);
 	}
 
 	static isWarp(jobid) {
-		return jobid == 45 || jobid == 139;
+		return JobClassification.isWarp.call(this, jobid);
 	}
 
 	/**
@@ -1185,12 +1416,18 @@ class DB {
 	 * @param {boolean} sex
 	 */
 	static getAdminPath(sex) {
-		return (
-			'data/sprite/\xc0\xce\xb0\xa3\xc1\xb7/\xb8\xf6\xc5\xeb/' +
-			SexTable[sex] +
-			'/\xbf\xee\xbf\xb5\xc0\xda_' +
-			SexTable[sex]
-		);
+		return ActorResourcePaths.getAdminPath(...arguments);
+	}
+
+	/**
+	 * Whether the archive ships the halter-lead mounts' own palettes, read off
+	 * a file only those archives have: asked once per archive.
+	 *
+	 * @param {function} onAnswer - called once the archive answers, if it has not yet
+	 * @return {boolean|undefined} undefined until the archive answers
+	 */
+	static hasMountPalettes(onAnswer) {
+		return bootstrap.hasMountPalettes(...arguments);
 	}
 
 	/**
@@ -1200,24 +1437,7 @@ class DB {
 	 * @param {boolean} sex
 	 */
 	static getBodyPalPath(id, pal, sex) {
-		if (id === 0 || !(id in PaletteTable)) {
-			return null;
-		}
-
-		// 多兰（含喵喵雇佣兵外观）：身体调色板在 도람족/body/ 子目录
-		if (DB.isDoram(id)) {
-			return (
-				'data/palette/\xb5\xb5\xb6\xf7\xc1\xb7/body/' +
-				PaletteTable[id] +
-				'_' +
-				SexTable[sex] +
-				'_' +
-				pal +
-				'.pal'
-			);
-		}
-
-		return 'data/palette/\xb8\xf6/' + PaletteTable[id] + '_' + SexTable[sex] + '_' + pal + '.pal';
+		return ActorResourcePaths.getBodyPalPath(...arguments);
 	}
 
 	/**
@@ -1228,31 +1448,7 @@ class DB {
 	 * @param {boolean} orcish
 	 */
 	static getHeadPath(id, job, sex, orcish) {
-		// ORC HEAD
-		if (orcish) {
-			return 'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/orcface';
-		}
-
-		// DORAM
-		if (DB.isDoram(job)) {
-			return (
-				'data/sprite/\xb5\xb5\xb6\xf7\xc1\xb7/\xb8\xd3\xb8\xae\xc5\xeb/' +
-				SexTable[sex] +
-				'/' +
-				(HairIndexTable[sex + 2][id] || id) +
-				'_' +
-				SexTable[sex]
-			);
-		}
-
-		return (
-			'data/sprite/\xc0\xce\xb0\xa3\xc1\xb7/\xb8\xd3\xb8\xae\xc5\xeb/' +
-			SexTable[sex] +
-			'/' +
-			(HairIndexTable[sex][id] || id) +
-			'_' +
-			SexTable[sex]
-		);
+		return ActorResourcePaths.getHeadPath(...arguments);
 	}
 
 	/**
@@ -1263,27 +1459,7 @@ class DB {
 	 * @param {boolean} sex
 	 */
 	static getHeadPalPath(id, pal, job, sex) {
-		if (DB.isDoram(job)) {
-			return (
-				'data/palette/\xb5\xb5\xb6\xf7\xc1\xb7/\xb8\xd3\xb8\xae/\xb8\xd3\xb8\xae' +
-				(HairIndexTable[sex + 2][id] || id) +
-				'_' +
-				SexTable[sex] +
-				'_' +
-				pal +
-				'.pal'
-			);
-		}
-
-		return (
-			'data/palette/\xb8\xd3\xb8\xae/\xb8\xd3\xb8\xae' +
-			(HairIndexTable[sex][id] || id) +
-			'_' +
-			SexTable[sex] +
-			'_' +
-			pal +
-			'.pal'
-		);
+		return ActorResourcePaths.getHeadPalPath(...arguments);
 	}
 
 	/**
@@ -1292,11 +1468,7 @@ class DB {
 	 * @param {boolean} sex
 	 */
 	static getHatPath(id, sex) {
-		if (id === 0 || !(id in HatTable)) {
-			return null;
-		}
-
-		return 'data/sprite/\xbe\xc7\xbc\xbc\xbb\xe7\xb8\xae/' + SexTable[sex] + '/' + SexTable[sex] + HatTable[id];
+		return ActorResourcePaths.getHatPath(...arguments);
 	}
 
 	/**
@@ -1306,20 +1478,7 @@ class DB {
 	 * @param {boolean} sex
 	 */
 	static getRobePath(id, job, sex) {
-		if (id === 0 || !(id in RobeTable)) {
-			return null;
-		}
-
-		return (
-			'data/sprite/\xb7\xce\xba\xea/' +
-			RobeTable[id] +
-			'/' +
-			SexTable[sex] +
-			'/' +
-			(ClassTable[job] || ClassTable[0]) +
-			'_' +
-			SexTable[sex]
-		);
+		return ActorResourcePaths.getRobePath(...arguments);
 	}
 
 	/**
@@ -1329,10 +1488,7 @@ class DB {
 	 * @param {boolean} sex
 	 */
 	static getRobePathNoSex(id, job, sex) {
-		if (id === 0 || !(id in RobeTable)) {
-			return null;
-		}
-		return `data/sprite/\xb7\xce\xba\xea/${RobeTable[id]}/${RobeTable[id]}${DB.isDoram(job) ? '_doram' : ''}`;
+		return ActorResourcePaths.getRobePathNoSex(...arguments);
 	}
 
 	/**
@@ -1340,11 +1496,7 @@ class DB {
 	 * @param {number} id (pets)
 	 */
 	static getPetEquipPath(id) {
-		if (id === 0 || !(id in PetAction)) {
-			return null;
-		}
-
-		return 'data/sprite/' + PetAction[id];
+		return ActorResourcePaths.getPetEquipPath(...arguments);
 	}
 
 	/**
@@ -1352,573 +1504,66 @@ class DB {
 	 * @param {number} id (pets)
 	 */
 	static getPetIllustPath(id) {
-		return 'data/texture/' + (PetIllustration[id] || PetIllustration[1002]);
+		return ActorResourcePaths.getPetIllustPath(...arguments);
+	}
+
+	/**
+	 * Is the item ID a shield item?
+	 * Only checks inventory item IDs, never view IDs.
+	 *
+	 * @param {integer} id item id
+	 * @return {boolean}
+	 */
+	static isShieldItem(id) {
+		return EquipmentRules.isShieldItem(...arguments);
 	}
 
 	/**
 	 * is shield checking
 	 *
-	 * @param {integer} id
+	 * The left-hand slot can hold either an item ID or a view ID (ClassNum, <= 500).
+	 * Shield views and weapon views share the same numeric range (1-500).
+	 *
+	 * When reliable offhand information is known (isOffhandWeapon === true/false),
+	 * that flag distinguishes weapons from shields.
+	 * When explicitly marked (isOffhandWeapon is true/false), that classification is honored.
+	 * When unknown (isOffhandWeapon === undefined), ambiguous view IDs (<= 500) are preserved
+	 * as shields unless reliable weapon evidence is present (e.g. item ID > 500), rather than
+	 * assuming every assassin's shield view is a weapon.
+	 *
+	 * @param {integer} id item id or view id
+	 * @param {integer} [job] job id of the owner
+	 * @param {boolean} [isOffhandWeapon] explicitly marks whether the equipment is an offhand weapon
 	 * @return {boolean} is shield?
 	 *
 	 * @author MrUnzO
 	 */
-	static isShield(id) {
-		// shields has the following ranges:
-		// 2100 - 2199
-		// 28900 - 28999
-		// 460000 - 460099
-		if ((id >= 2100 && id <= 2199) || (id >= 28900 && id <= 28999) || (id >= 460000 && id <= 460099)) {
-			return true;
-		}
-		return false;
+	static isShield(id, job, isOffhandWeapon) {
+		return EquipmentRules.isShield(...arguments);
+	}
+
+	/**
+	 * Whether the reference client has a shield sprite for this job/view pair.
+	 * The original check uses custom item sprites for IDs above 2000 and fixed
+	 * job/view support for the four generic shield sprites.
+	 * @param {number} job
+	 * @param {number} shieldView shield item ID or generic shield view
+	 * @returns {boolean}
+	 */
+	static hasJobShieldSprite(job, shieldView) {
+		return EquipmentRules.hasJobShieldSprite(...arguments);
 	}
 
 	static getPCAttackMotion(job, sex, itemID, isDualWeapon) {
-		if (isDualWeapon) {
-			switch (job) {
-				case JobId.THIEF:
-				case JobId.THIEF_H:
-					return 5.75;
-				case JobId.MERCHANT:
-				case JobId.MERCHANT_H:
-					return 5.85;
-			}
-		} else {
-			switch (job) {
-				case JobId.NOVICE:
-				case JobId.NOVICE_H:
-				case JobId.NOVICE_B:
-				case JobId.SUPERNOVICE:
-				case JobId.SUPERNOVICE_B:
-				case JobId.SUPERNOVICE2:
-				case JobId.SUPERNOVICE2_B:
-				case JobId.HYPER_NOVICE:
-					switch (sex) {
-						case 1:
-							return 5.85;
-					}
-					break;
-				case JobId.ASSASSIN:
-				case JobId.ASSASSIN_H:
-				case JobId.ASSASSIN_B:
-				case JobId.GUILLOTINE_CROSS:
-				case JobId.GUILLOTINE_CROSS_H:
-				case JobId.GUILLOTINE_CROSS_B:
-				case JobId.SHADOW_CROSS:
-					switch (DB.getWeaponType(itemID)) {
-						case WeaponType.KATAR:
-						case WeaponType.SHORTSWORD_SHORTSWORD:
-						case WeaponType.SWORD_SWORD:
-						case WeaponType.AXE_AXE:
-						case WeaponType.SHORTSWORD_SWORD:
-						case WeaponType.SHORTSWORD_AXE:
-						case WeaponType.SWORD_AXE:
-							return 3.0;
-					}
-					break;
-			}
-		}
-		return 6;
+		return EquipmentRules.getPCAttackMotion(...arguments);
 	}
 
 	static isDualWeapon(job, sex, weaponType) {
-		let dualWeapon = false;
-
-		switch (job) {
-			case JobId.GUNSLINGER:
-			case JobId.GUNSLINGER_B:
-			case JobId.REBELLION:
-			case JobId.REBELLION_B:
-			case JobId.NIGHT_WATCH: {
-				switch (weaponType) {
-					case WeaponType.GUN_RIFLE:
-					case WeaponType.GUN_GATLING:
-					case WeaponType.GUN_SHOTGUN:
-					case WeaponType.GUN_GRANADE:
-						dualWeapon = true;
-						break;
-				}
-				break;
-			}
-			case JobId.NINJA:
-			case JobId.NINJA_B:
-			case JobId.KAGEROU:
-			case JobId.KAGEROU_B:
-			case JobId.SHINKIRO:
-			case JobId.OBORO:
-			case JobId.OBORO_B:
-			case JobId.SHIRANUI: {
-				switch (weaponType) {
-					case WeaponType.SYURIKEN:
-						dualWeapon = true;
-						break;
-				}
-				break;
-			}
-			case JobId.GANGSI:
-			case JobId.DEATHKNIGHT:
-			case JobId.COLLECTOR: {
-				// �ӽ�
-				break;
-			}
-			case JobId.TAEKWON:
-			case JobId.TAEKWON_B:
-			case JobId.STAR:
-			case JobId.STAR_B:
-			case JobId.STAR2:
-			case JobId.STAR2_B:
-			case JobId.EMPEROR:
-			case JobId.EMPEROR_B:
-			case JobId.EMPEROR2:
-			case JobId.EMPEROR2_B:
-			case JobId.SKY_EMPEROR:
-			case JobId.SKY_EMPEROR2: {
-				break;
-			}
-			case JobId.LINKER:
-			case JobId.LINKER_B:
-			case JobId.REAPER:
-			case JobId.REAPER_B:
-			case JobId.SOUL_ASCETIC: {
-				//case JobId.SOUL_ASCETIC2:??
-				switch (weaponType) {
-					case WeaponType.SHORTSWORD:
-						if (sex == 1) {
-							dualWeapon = true;
-						} // male
-						break;
-					case WeaponType.ROD:
-					case WeaponType.TWOHANDROD:
-						if (sex == 0) {
-							dualWeapon = true;
-						} // Female
-						break;
-				}
-				break;
-			}
-			case JobId.SWORDMAN:
-			case JobId.SWORDMAN_H:
-			case JobId.SWORDMAN_B: {
-				switch (weaponType) {
-					case WeaponType.TWOHANDSWORD:
-					case WeaponType.TWOHANDSPEAR:
-						dualWeapon = true;
-						break;
-				}
-				break;
-			}
-			case JobId.ARCHER:
-			case JobId.ARCHER_H:
-			case JobId.ARCHER_B: {
-				switch (weaponType) {
-					case WeaponType.BOW:
-						break;
-					default:
-						dualWeapon = true;
-						break;
-				}
-				break;
-			}
-			case JobId.THIEF:
-			case JobId.THIEF_H:
-			case JobId.THIEF_B: {
-				switch (weaponType) {
-					case WeaponType.BOW:
-						dualWeapon = true;
-						break;
-				}
-				break;
-			}
-			case JobId.MAGICIAN:
-			case JobId.MAGICIAN_H:
-			case JobId.MAGICIAN_B: {
-				switch (weaponType) {
-					case WeaponType.TWOHANDROD:
-						dualWeapon = true;
-						break;
-				}
-				break;
-			}
-			case JobId.MERCHANT:
-			case JobId.MERCHANT_H:
-			case JobId.MERCHANT_B: {
-				switch (weaponType) {
-					case WeaponType.TWOHANDAXE:
-						dualWeapon = true;
-						break;
-				}
-				break;
-			}
-			case JobId.ACOLYTE:
-			case JobId.ACOLYTE_H:
-			case JobId.ACOLYTE_B: {
-				break;
-			}
-			case JobId.NOVICE:
-			case JobId.NOVICE_H:
-			case JobId.NOVICE_B:
-			case JobId.SUPERNOVICE:
-			case JobId.SUPERNOVICE_B:
-			case JobId.SUPERNOVICE2:
-			case JobId.SUPERNOVICE2_B:
-			case JobId.HYPER_NOVICE: {
-				switch (sex) {
-					case 0:
-						switch (weaponType) {
-							case WeaponType.TWOHANDSWORD:
-							case WeaponType.TWOHANDAXE:
-							case WeaponType.TWOHANDROD:
-							case WeaponType.TWOHANDMACE:
-								break;
-							case WeaponType.SHORTSWORD:
-								dualWeapon = true;
-								break;
-						}
-						break;
-					case 1:
-						switch (weaponType) {
-							case WeaponType.TWOHANDSWORD:
-							case WeaponType.TWOHANDAXE:
-							case WeaponType.TWOHANDROD:
-							case WeaponType.TWOHANDMACE:
-								dualWeapon = true;
-								break;
-							case WeaponType.SHORTSWORD:
-								break;
-						}
-						break;
-				}
-				break;
-			}
-			case JobId.KNIGHT:
-			case JobId.KNIGHT2:
-			case JobId.CHICKEN:
-			case JobId.KNIGHT_H:
-			case JobId.CHICKEN_H:
-			case JobId.KNIGHT_B:
-			case JobId.CHICKEN_B:
-			case JobId.KNIGHT2_H:
-			case JobId.KNIGHT2_B:
-			case JobId.RUNE_KNIGHT:
-			case JobId.RUNE_KNIGHT_H:
-			case JobId.RUNE_KNIGHT_B:
-			case JobId.RUNE_KNIGHT2:
-			case JobId.RUNE_KNIGHT2_H:
-			case JobId.RUNE_KNIGHT2_B:
-			case JobId.DRAGON_KNIGHT:
-			case JobId.DRAGON_KNIGHT2: {
-				switch (weaponType) {
-					case WeaponType.TWOHANDSPEAR:
-					case WeaponAction.TWOHANDSWORD:
-						dualWeapon = true;
-						break;
-				}
-				break;
-			}
-			case JobId.PRIEST:
-			case JobId.PRIEST_H:
-			case JobId.PRIEST_B:
-			case JobId.ARCHBISHOP:
-			case JobId.ARCHBISHOP_H:
-			case JobId.ARCHBISHOP_B:
-			case JobId.CARDINAL: {
-				switch (weaponType) {
-					case WeaponType.BOOK:
-						dualWeapon = true;
-						break;
-				}
-				break;
-			}
-			case JobId.WIZARD:
-			case JobId.WIZARD_H:
-			case JobId.WIZARD_B:
-			case JobId.WARLOCK:
-			case JobId.WARLOCK_H:
-			case JobId.WARLOCK_B:
-			case JobId.ARCH_MAGE: {
-				switch (weaponType) {
-					case WeaponType.SHORTSWORD:
-						if (sex == 1) {
-							dualWeapon = true;
-						}
-						break;
-					case WeaponType.ROD:
-					case WeaponType.TWOHANDROD:
-						if (sex == 0) {
-							dualWeapon = true;
-						}
-						break;
-				}
-				break;
-			}
-			case JobId.BLACKSMITH:
-			case JobId.BLACKSMITH_H:
-			case JobId.BLACKSMITH_B:
-			case JobId.MECHANIC:
-			case JobId.MECHANIC_H:
-			case JobId.MECHANIC_B:
-			case JobId.MECHANIC2:
-			case JobId.MECHANIC2_H:
-			case JobId.MECHANIC2_B:
-			case JobId.MEISTER:
-			case JobId.MEISTER2: {
-				switch (weaponType) {
-					case WeaponType.SWORD:
-					case WeaponType.AXE:
-					case WeaponType.TWOHANDAXE:
-					case WeaponType.MACE:
-						dualWeapon = true;
-						break;
-				}
-				break;
-			}
-			case JobId.ASSASSIN:
-			case JobId.ASSASSIN_H:
-			case JobId.ASSASSIN_B:
-			case JobId.GUILLOTINE_CROSS:
-			case JobId.GUILLOTINE_CROSS_H:
-			case JobId.GUILLOTINE_CROSS_B:
-			case JobId.SHADOW_CROSS: {
-				switch (weaponType) {
-					case WeaponType.KATAR:
-					case WeaponType.SHORTSWORD_SHORTSWORD:
-					case WeaponType.SHORTSWORD_SWORD:
-					case WeaponType.SHORTSWORD_AXE:
-					case WeaponType.SWORD_SWORD:
-					case WeaponType.SWORD_AXE:
-					case WeaponType.AXE_AXE:
-						dualWeapon = true;
-						break;
-				}
-				break;
-			}
-			case JobId.HUNTER:
-			case JobId.HUNTER_H:
-			case JobId.HUNTER_B:
-			case JobId.RANGER:
-			case JobId.RANGER_H:
-			case JobId.RANGER_B:
-			case JobId.RANGER2:
-			case JobId.RANGER2_H:
-			case JobId.RANGER2_B:
-			case JobId.WINDHAWK:
-			case JobId.WINDHAWK2: {
-				switch (weaponType) {
-					case WeaponType.BOW:
-						dualWeapon = true;
-						break;
-				}
-				break;
-			}
-			case JobId.SAGE:
-			case JobId.SAGE_H:
-			case JobId.SAGE_B:
-			case JobId.SORCERER:
-			case JobId.SORCERER_H:
-			case JobId.SORCERER_B:
-			case JobId.ELEMENTAL_MASTER:
-				{
-					switch (weaponType) {
-						case WeaponType.BOOK:
-						case WeaponType.ROD:
-						case WeaponType.TWOHANDROD:
-						case WeaponType.TWOHANDSPEAR: // ��ս������� ���� ���̵� ����� �����Ǹ� �����.
-							dualWeapon = true;
-							break;
-					}
-				}
-				break;
-			case JobId.ALCHEMIST:
-			case JobId.ALCHEMIST_H:
-			case JobId.ALCHEMIST_B:
-			case JobId.GENETIC:
-			case JobId.GENETIC_H:
-			case JobId.GENETIC_B:
-			case JobId.BIOLO:
-				{
-					switch (weaponType) {
-						case WeaponType.SWORD:
-						case WeaponType.AXE:
-						case WeaponType.TWOHANDAXE:
-						case WeaponType.MACE:
-							dualWeapon = true;
-							break;
-					}
-				}
-				break;
-			case JobId.CRUSADER:
-			case JobId.CRUSADER_H:
-			case JobId.CRUSADER_B:
-			case JobId.CHICKEN2:
-			case JobId.CHICKEN2_H:
-			case JobId.CHICKEN2_B:
-			case JobId.CRUSADER2:
-			case JobId.CRUSADER2_H:
-			case JobId.CRUSADER2_B:
-			case JobId.ROYAL_GUARD:
-			case JobId.ROYAL_GUARD_H:
-			case JobId.ROYAL_GUARD_B:
-			case JobId.ROYAL_GUARD2:
-			case JobId.ROYAL_GUARD2_H:
-			case JobId.ROYAL_GUARD2_B:
-			case JobId.IMPERIAL_GUARD:
-			case JobId.IMPERIAL_GUARD2:
-				{
-					switch (weaponType) {
-						case WeaponType.SPEAR:
-						case WeaponType.TWOHANDSPEAR:
-							dualWeapon = true;
-							break;
-					}
-				}
-				break;
-			case JobId.MONK:
-			case JobId.MONK_H:
-			case JobId.MONK_B:
-			case JobId.SURA:
-			case JobId.SURA_H:
-			case JobId.SURA_B:
-			case JobId.INQUISITOR:
-				{
-					switch (weaponType) {
-						case WeaponType.KNUKLE:
-						case WeaponType.NONE:
-							dualWeapon = true;
-							break;
-					}
-				}
-				break;
-			case JobId.ROGUE:
-			case JobId.ROGUE_H:
-			case JobId.ROGUE_B:
-			case JobId.SHADOW_CHASER:
-			case JobId.SHADOW_CHASER_H:
-			case JobId.SHADOW_CHASER_B:
-			case JobId.ABYSS_CHASER:
-				{
-					switch (weaponType) {
-						case WeaponType.BOW:
-							dualWeapon = true;
-							break;
-					}
-				}
-				break;
-			case JobId.BARD:
-			case JobId.BARD_H:
-			case JobId.BARD_B:
-			case JobId.MINSTREL:
-			case JobId.MINSTREL_H:
-			case JobId.MINSTREL_B:
-			case JobId.TROUBADOUR:
-			case JobId.DANCER:
-			case JobId.DANCER_H:
-			case JobId.DANCER_B:
-			case JobId.WANDERER:
-			case JobId.WANDERER_H:
-			case JobId.WANDERER_B:
-			case JobId.TROUVERE:
-				{
-					switch (weaponType) {
-						case WeaponType.BOW:
-							dualWeapon = true;
-							break;
-					}
-				}
-				break;
-			case JobId.DO_SUMMONER1:
-			case JobId.DO_SUMMONER_B1:
-			case JobId.SPIRIT_HANDLER:
-				break;
-		}
-		return dualWeapon;
+		return EquipmentRules.isDualWeapon(...arguments);
 	}
 
 	static getWeaponType(itemID, realType = false, considerDualHandIds = false) {
-		const id = Number(itemID);
-
-		if (isNaN(id) || id < 0) {
-			return WeaponType.NONE;
-		}
-
-		if (realType && id in WeaponTypeExpansion) {
-			return WeaponTypeExpansion[id];
-		}
-
-		if (considerDualHandIds && id <= WeaponType.SWORD_AXE) {
-			return id;
-		}
-
-		// if itemID is lesser then WeaponType.MAX, return the itemID
-		if (id < WeaponType.MAX) {
-			return id;
-		}
-
-		// look for classnum in ItemTable
-		if (id in ItemTable && 'ClassNum' in ItemTable[id]) {
-			const classNum = ItemTable[id].ClassNum;
-
-			// look for classNum in WeaponTypeExpansion
-			if (classNum in WeaponTypeExpansion) {
-				return WeaponTypeExpansion[classNum];
-			}
-
-			// ClassNUm is the real weapon type
-			return classNum;
-		} else {
-			// if itemID is not in ItemTable, try to find the corresponding weapon type based on the range id
-			const ranges = [
-				{ min: 1100, max: 1149, type: WeaponType.SWORD },
-				{ min: 1150, max: 1199, type: WeaponType.TWOHANDSWORD },
-				{ min: 1200, max: 1249, type: WeaponType.SHORTSWORD },
-				{ min: 1250, max: 1299, type: WeaponType.KATAR },
-				{ min: 1300, max: 1349, type: WeaponType.AXE },
-				{ min: 1350, max: 1399, type: WeaponType.TWOHANDAXE },
-				{ min: 1400, max: 1449, type: WeaponType.SPEAR },
-				{ min: 1450, max: 1499, type: WeaponType.TWOHANDSPEAR },
-				{ min: 1500, max: 1549, type: WeaponType.MACE },
-				{ min: 1550, max: 1599, type: WeaponType.BOOK },
-				{ min: 1600, max: 1699, type: WeaponType.ROD },
-				{ min: 1700, max: 1749, type: WeaponType.BOW },
-				{ min: 1750, max: 1799, type: WeaponType.NONE },
-				{ min: 1800, max: 1849, type: WeaponType.KNUKLE },
-				{ min: 1900, max: 1949, type: WeaponType.INSTRUMENT },
-				{ min: 1950, max: 1999, type: WeaponType.WHIP },
-				{ min: 20000, max: 20999, type: WeaponType.TWOHANDROD },
-				{ min: 13000, max: 13099, type: WeaponType.SHORTSWORD },
-				{ min: 13100, max: 13149, type: WeaponType.GUN_HANDGUN },
-				{ min: 13150, max: 13199, type: WeaponType.GUN_RIFLE },
-				{ min: 13300, max: 13399, type: WeaponType.SYURIKEN },
-				{ min: 13400, max: 13499, type: WeaponType.SWORD },
-				{ min: 18100, max: 18499, type: WeaponType.BOW },
-				{ min: 21000, max: 21999, type: WeaponType.TWOHANDSWORD }
-			];
-
-			// Find the corresponding range
-			for (const range of ranges) {
-				if (id >= range.min && id <= range.max) {
-					return range.type;
-				}
-			}
-
-			const gunGatling = [13157, 13158, 13159, 13172, 13177];
-			if (gunGatling.indexOf(id) > -1) {
-				return WeaponType.GUN_GATLING;
-			}
-
-			const gunShotGun = [13154, 13155, 13156, 13167, 13168, 13169, 13173, 13178];
-			if (gunShotGun.indexOf(id) > -1) {
-				return WeaponType.GUN_SHOTGUN;
-			}
-
-			const gunGranade = [13160, 13161, 13162, 13174, 13179];
-			if (gunGranade.indexOf(id) > -1) {
-				return WeaponType.GUN_GRANADE;
-			}
-		}
-
-		// if itemID is not in any range, return NONE
-		return WeaponType.NONE;
+		return EquipmentRules.getWeaponType(...arguments);
 	}
 
 	/**
@@ -1927,33 +1572,18 @@ class DB {
 	 * @param {number} job class
 	 * @param {boolean} sex
 	 */
-	static getShieldPath(id, job, sex) {
-		if (id === 0) {
-			return null;
-		}
+	static getShieldPath(id, job, sex, isMounted = false) {
+		return EquipmentRules.getShieldPath(...arguments);
+	}
 
-		// Dual weapon (based on range id)
-		if (!DB.isShield(id)) {
-			return DB.getWeaponPath(id, job, sex);
-		}
-
-		const baseClass = WeaponJobTable[job] || WeaponJobTable[0];
-
-		// ItemID to View Id
-		if (id in ItemTable && 'ClassNum' in ItemTable[id]) {
-			id = ItemTable[id].ClassNum;
-		}
-
-		return (
-			'data/sprite/\xb9\xe6\xc6\xd0/' +
-			baseClass +
-			'/' +
-			baseClass +
-			'_' +
-			SexTable[sex] +
-			'_' +
-			(ShieldTable[id] || ShieldTable[1])
-		);
+	/**
+	 * Convert an equipped shield item ID to the view value used by the generic
+	 * shield resource fallback. Packet view IDs are already in this form.
+	 * @param {number} id item ID or view ID
+	 * @returns {number}
+	 */
+	static getShieldViewID(id) {
+		return EquipmentRules.getShieldViewID(...arguments);
 	}
 
 	/**
@@ -1963,37 +1593,7 @@ class DB {
 	 * @param {boolean} sex
 	 */
 	static getWeaponPath(id, job, sex, leftid = false) {
-		if (id === 0) {
-			return null;
-		}
-
-		const baseClass = WeaponJobTable[job] || WeaponJobTable[0];
-
-		id = DB.getWeaponType(id);
-
-		// TODO: CHECK IF THIS IS CORRECT
-		if (leftid) {
-			if (leftid in ItemTable && 'ClassNum' in ItemTable[leftid]) {
-				leftid = ItemTable[leftid].ClassNum;
-			}
-
-			// Create dualhand Id
-			const right = Object.keys(WeaponType).find(key => WeaponType[key] === id);
-			const left = Object.keys(WeaponType).find(key => WeaponType[key] === leftid);
-			if (right && left) {
-				id = WeaponType[right + '_' + left];
-			}
-		}
-
-		return (
-			'data/sprite/\xc0\xce\xb0\xa3\xc1\xb7/' +
-			baseClass +
-			'/' +
-			baseClass +
-			'_' +
-			SexTable[sex] +
-			(WeaponTable[id] || '_' + id)
-		);
+		return EquipmentRules.getWeaponPath(...arguments);
 	}
 
 	/**
@@ -2003,46 +1603,28 @@ class DB {
 	 * @param {boolean} sex
 	 */
 	static getWeaponTrail(id, job, sex) {
-		if (id === 0) {
-			return null;
-		}
+		return EquipmentRules.getWeaponTrail(...arguments);
+	}
 
-		const baseClass = WeaponJobTable[job] || WeaponJobTable[0];
-
-		const realId = DB.getWeaponType(id, true, true);
-
-		return (
-			'data/sprite/\xc0\xce\xb0\xa3\xc1\xb7/' +
-			baseClass +
-			'/' +
-			baseClass +
-			'_' +
-			SexTable[sex] +
-			WeaponTrailTable[realId]
-		);
+	/**
+	 * Resolve the generic weapon-effect sprite used by ACT layer 6 in the
+	 * reference client. `id` is a weapon item/view ID; -1 selects a class-only
+	 * effect name (used by special job effects).
+	 * @param {number} id weapon item or view ID, or -1 for class-only effects
+	 * @param {number} job class
+	 * @param {number} sex
+	 * @param {number} effect 0 = weapon glow, 1 = class aura
+	 * @returns {string|null}
+	 */
+	static getWeaponEffectPath(id, job, sex, effect = 0) {
+		return EquipmentRules.getWeaponEffectPath(...arguments);
 	}
 
 	/**
 	 * @param {number} cart id
 	 */
 	static getCartPath(num) {
-		const id = Math.max(Math.min(num, 13), 0); //cap 0-13
-		return [
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbd\xb4\xb3\xeb\xbc\xd5\xbc\xf6\xb7\xb9',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbc\xd5\xbc\xf6\xb7\xb9',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbc\xd5\xbc\xf6\xb7\xb91',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbc\xd5\xbc\xf6\xb7\xb92',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbc\xd5\xbc\xf6\xb7\xb93',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbc\xd5\xbc\xf6\xb7\xb94',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbc\xd5\xbc\xf6\xb7\xb95',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbc\xd5\xbc\xf6\xb7\xb96',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbc\xd5\xbc\xf6\xb7\xb97',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbc\xd5\xbc\xf6\xb7\xb98',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xbc\xb1\xb9\xb0\xbb\xf3\xc0\xda\xc4\xab\xc6\xae',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xc6\xf7\xb8\xb5\xbd\xc6\xc0\xba\xc4\xab\xc6\xae',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xc6\xf7\xb8\xb5\xc4\xab\xc6\xae',
-			'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/\xb8\xb6\xb5\xb5\xc4\xab\xc6\xae'
-		][id];
+		return EquipmentRules.getCartPath(...arguments);
 	}
 
 	/**
@@ -2050,8 +1632,7 @@ class DB {
 	 * @param {number} weapon id
 	 */
 	static getWeaponSound(id) {
-		const type = DB.getWeaponType(id, true);
-		return WeaponSoundTable[type];
+		return EquipmentRules.getWeaponSound(...arguments);
 	}
 
 	/**
@@ -2059,16 +1640,7 @@ class DB {
 	 * @param {number} weapon id
 	 */
 	static getWeaponHitSound(id) {
-		const type = DB.getWeaponType(id, true, true);
-
-		const hitSound = WeaponHitSoundTable[type];
-
-		// if array return random item
-		if (Array.isArray(hitSound)) {
-			return hitSound[Math.floor(Math.random() * hitSound.length)];
-		}
-
-		return hitSound;
+		return EquipmentRules.getWeaponHitSound(...arguments);
 	}
 
 	/**
@@ -2076,11 +1648,7 @@ class DB {
 	 * @param {number} weapon id
 	 */
 	static getJobHitSound(job_id) {
-		if (!job_id) {
-			return JobHitSoundTable[0];
-		}
-
-		return JobHitSoundTable[job_id] || JobHitSoundTable[0];
+		return EquipmentRules.getJobHitSound(...arguments);
 	}
 
 	/**
@@ -2088,28 +1656,7 @@ class DB {
 	 * @param {number} id weapon
 	 */
 	static getWeaponViewID(id) {
-		// validate if is number
-		if (isNaN(id)) {
-			return 0;
-		}
-
-		// if id is 0, return 0
-		if (id === 0) {
-			return 0;
-		}
-
-		// if less then weapon type.MAX, return the id
-		if (id < WeaponType.MAX) {
-			return id;
-		}
-
-		// try to get view from classnum in ItemTable
-		if (id in ItemTable && 'ClassNum' in ItemTable[id]) {
-			return ItemTable[id].ClassNum;
-		}
-
-		// all cases failed, return weapon type to use base sprite
-		return DB.getWeaponType(id);
+		return EquipmentRules.getWeaponViewID(...arguments);
 	}
 
 	/**
@@ -2119,81 +1666,36 @@ class DB {
 	 * @param {number} sex
 	 */
 	static getWeaponAction(id, job, sex) {
-		const type = DB.getWeaponType(id, true);
+		return EquipmentRules.getWeaponAction(...arguments);
+	}
 
-		if (job in WeaponAction) {
-			if (WeaponAction[job] instanceof Array) {
-				if (type in WeaponAction[job][sex]) {
-					return WeaponAction[job][sex][type];
-				}
-			} else if (type in WeaponAction[job]) {
-				return WeaponAction[job][type];
-			}
-		}
+	/**
+	 * @return {{frame: number, length: number}|null} attack slice for jobs with combined action sheets
+	 * @param {number} job
+	 * @param {number} weapon
+	 */
+	static getAttackSlice(job, weapon) {
+		return EquipmentRules.getAttackSlice(...arguments);
+	}
 
-		return 0;
+	/**
+	 * Resolve Assassin-family dual-wield categories from the original item ID ranges.
+	 * The client uses these ranges in CPc::GetDualWieldWeaponType (RVA 0x00DAB460).
+	 */
+	static getDualWieldWeaponType(firstItemId, secondItemId) {
+		return EquipmentRules.getDualWieldWeaponType(...arguments);
 	}
 
 	static mountWeapon(weaponID, shieldID) {
-		const _weapon = DB.getWeaponType(weaponID, true);
-		const _shield = DB.getWeaponType(shieldID, true);
-
-		let weapon;
-
-		const viewId = _weapon + _shield;
-
-		switch (viewId) {
-			case 2:
-				weapon = WeaponType.SHORTSWORD_SHORTSWORD;
-				break;
-			case 3:
-				weapon = WeaponType.SHORTSWORD_SWORD;
-				break;
-			case 4:
-				weapon = WeaponType.SWORD_SWORD;
-				break;
-			case 7:
-				weapon = WeaponType.SHORTSWORD_AXE;
-				break;
-			case 8:
-				weapon = WeaponType.SWORD_AXE;
-				break;
-			case 12:
-				weapon = WeaponType.AXE_AXE;
-				break;
-			default:
-				weapon = viewId;
-				break;
-		}
-
-		return weapon;
+		return EquipmentRules.mountWeapon(...arguments);
 	}
 
 	static isBow(weaponType) {
-		return (
-			weaponType == WeaponType.BOW ||
-			weaponType == WeaponType.CrossBow ||
-			weaponType == WeaponType.Arbalest ||
-			weaponType == WeaponType.Kakkung ||
-			weaponType == WeaponType.Hunter_Bow ||
-			weaponType == WeaponType.Bow_Of_Rudra
-		);
+		return EquipmentRules.isBow(...arguments);
 	}
 
 	static isKatar(weaponType) {
-		return weaponType == WeaponType.KATAR;
-	}
-
-	static isAssassin(jobID) {
-		return (
-			jobID == JobId.ASSASSIN ||
-			jobID == JobId.ASSASSIN_H ||
-			jobID == JobId.ASSASSIN_B ||
-			jobID == JobId.GUILLOTINE_CROSS ||
-			jobID == JobId.GUILLOTINE_CROSS_H ||
-			jobID == JobId.GUILLOTINE_CROSS_B ||
-			jobID == JobId.SHADOW_CROSS
-		);
+		return EquipmentRules.isKatar(...arguments);
 	}
 
 	/**
@@ -2235,11 +1737,7 @@ class DB {
 	 * @return {string} path
 	 */
 	static getItemPath(itemid, identify) {
-		const it = DB.getItemInfo(itemid);
-		return (
-			'data/sprite/\xbe\xc6\xc0\xcc\xc5\xdb/' +
-			(identify ? it.identifiedResourceName : it.unidentifiedResourceName)
-		);
+		return itemDatabase.ItemDatabase.getItemPath(...arguments);
 	}
 
 	/**
@@ -2256,167 +1754,7 @@ class DB {
 	 * @return {string} - The full name of the item with all applicable details.
 	 */
 	static getItemName(item, options = {}) {
-		const {
-			showItemRefine = true,
-			showItemGrade = true,
-			showItemSlots = true,
-			showItemPrefix = true,
-			showItemPostfix = true,
-			showItemOptions = true
-		} = options;
-
-		const it = DB.getItemInfo(item.ITID);
-		let str = '';
-		let prefix = '';
-		let postfix = '';
-		let showprefix = false;
-		let showpostfix = false;
-
-		if (!item.IsIdentified) {
-			return it.unidentifiedDisplayName;
-		}
-
-		if (item.RefiningLevel && showItemRefine) {
-			str = '+' + item.RefiningLevel + ' ';
-		}
-
-		if (item.enchantgrade && showItemGrade) {
-			const list = ['', 'D', 'C', 'B', 'A'];
-			str += '[' + list[item.enchantgrade] + '] ';
-		}
-
-		//Hide slots for forged weapons
-		let showslots = true;
-		if (item.slot) {
-			let very = '';
-			let name = '';
-			let elem = '';
-
-			switch (item.slot.card1) {
-				case 0x00ff: {
-					// FORGE
-					showslots = false;
-					if (item.slot.card2 >= 3840) {
-						very = MsgStringTable[461]; //Very Very Very Strong
-					} else if (item.slot.card2 >= 2560) {
-						very = MsgStringTable[460]; //Very Very Strong
-					} else if (item.slot.card2 >= 1024) {
-						very = MsgStringTable[459]; //Very Strong
-					}
-					switch (Math.abs(item.slot.card2 % 10)) {
-						case 1:
-							elem = MsgStringTable[452];
-							break; // 's Ice
-						case 2:
-							elem = MsgStringTable[454];
-							break; // 's Earth
-						case 3:
-							elem = MsgStringTable[451];
-							break; // 's Fire
-						case 4:
-							elem = MsgStringTable[453];
-							break; // 's Wind
-						default:
-							elem = MsgStringTable[450];
-							break; // 's
-					}
-
-					const GID = (item.slot.card4 << 16) + item.slot.card3;
-					name = '<font color="red" class="owner-' + GID + '">Unknown</font>';
-					if (DB.CNameTable[GID] && DB.CNameTable[GID] !== 'Unknown') {
-						name = '<font color="#87cefa" class="owner-' + GID + '">' + DB.CNameTable[GID] + '</font>';
-					} else {
-						DB.UpdateOwnerName[GID] = function (pkt) {
-							delete DB.UpdateOwnerName[pkt.GID];
-							setTimeout(() => {
-								const elements = document.querySelectorAll('.owner-' + pkt.GID);
-								for (let i = 0; i < elements.length; i++) {
-									elements[i].innerText = pkt.CName;
-									elements[i].style.color = 'blue';
-								}
-							}, 1000);
-						};
-						DB.getNameByGID(GID);
-					}
-
-					str += very + ' ' + name + elem + ' ';
-					break;
-				}
-				case 0x00fe: // CREATE
-					elem = MsgStringTable[450];
-					break;
-				case 0xff00: // PET
-					break;
-				// Show card prefix
-				default: {
-					const list = ['', 'Double ', 'Triple ', 'Quadruple '];
-					const cards = {};
-					const cardList = [];
-
-					for (let i = 1; i <= 4; ++i) {
-						const card = item.slot['card' + i];
-
-						if (card) {
-							//store order
-							if (!cardList.includes(card)) {
-								cardList.push(card);
-							}
-
-							//store details
-							if (cards[card]) {
-								cards[card].count++;
-							} else {
-								cards[card] = {};
-								cards[card].isPostfix = DB.getItemInfo(card).isPostfix;
-								cards[card].prefixName = DB.getItemInfo(card).prefixName;
-								cards[card].count = 0;
-							}
-						}
-					}
-
-					//create prefixes and postfixes in order
-					cardList.forEach(card => {
-						if (cards[card].isPostfix) {
-							postfix += ' ' + list[cards[card].count] + cards[card].prefixName;
-							showpostfix = true;
-						} else {
-							prefix += list[cards[card].count] + cards[card].prefixName + ' ';
-							showprefix = true;
-						}
-					});
-					break;
-				}
-			}
-			switch (item.slot.card4) {
-				case 0x1: //BELOVED PET
-					showslots = false;
-					str = DB.getMessage(756) + ' ' + str;
-					break;
-			}
-		}
-
-		if (showprefix && showItemPrefix) {
-			str += prefix;
-		}
-
-		str += it.identifiedDisplayName;
-
-		if (showpostfix && showItemPostfix) {
-			str += postfix;
-		}
-
-		if (it.slotCount > 0 && showslots && showItemSlots) {
-			str += ' [' + it.slotCount + ']';
-		}
-
-		if (item.Options && showItemOptions) {
-			const numOfOptions = item.Options.filter(Option => Option?.index && Option?.index !== 0).length;
-			if (numOfOptions) {
-				str += ' [' + numOfOptions + ' Option]';
-			}
-		}
-
-		return str;
+		return itemDatabase.ItemDatabase.getItemName(...arguments);
 	}
 
 	/**
@@ -2464,14 +1802,7 @@ class DB {
 	 * @return {string|null} - The value associated with the given key, or null if not found.
 	 */
 	static getMessageEmotionCSV(keyOrIndex) {
-		if (typeof keyOrIndex === 'number') {
-			// Get keys as array just for this lookup
-			const keys = Object.keys(MsgEmotionCSV);
-			const key = keys[keyOrIndex];
-			return key ? MsgEmotionCSV[key] : null;
-		}
-		// string key lookup
-		return MsgEmotionCSV[keyOrIndex] ?? null;
+		return systemDatabase.SystemDatabase.getMessageEmotionCSV(...arguments);
 	}
 
 	/**
@@ -2489,9 +1820,7 @@ class DB {
 	 * @return {object}
 	 */
 	static getMap(mapname) {
-		const map = mapname.replace('.gat', '.rsw');
-
-		return MapTable[map] || null;
+		return mapDatabase.MapDatabase.getMap(...arguments);
 	}
 
 	/**
@@ -2502,16 +1831,7 @@ class DB {
 	 * @return {string} map location
 	 */
 	static getMapName(mapname, defaultName) {
-		if (!mapname) {
-			return typeof defaultName === 'undefined' ? DB.getMessage(187) : defaultName;
-		}
-		const map = mapname.replace('.gat', '.rsw');
-
-		if (!(map in MapTable) || !MapTable[map].name) {
-			return typeof defaultName === 'undefined' ? DB.getMessage(187) : defaultName;
-		}
-
-		return MapTable[map].name;
+		return mapDatabase.MapDatabase.getMapName(...arguments);
 	}
 
 	/**
@@ -2529,7 +1849,7 @@ class DB {
 	 * @param {number} efst id
 	 */
 	static getTownInfo(mapname) {
-		return TownInfo[mapname] || null;
+		return mapDatabase.MapDatabase.getTownInfo(mapname);
 	}
 
 	/**
@@ -2537,7 +1857,7 @@ class DB {
 	 * @param {number} efst id
 	 */
 	static getMapInfo(mapname) {
-		return MapInfo[mapname] || null;
+		return mapDatabase.MapDatabase.getMapInfo(...arguments);
 	}
 
 	/**
@@ -2545,7 +1865,7 @@ class DB {
 	 * @returns LaphineSysTable
 	 */
 	static getLaphineSysList() {
-		return LaphineSysTable;
+		return itemDatabase.ItemDatabase.getLaphineSysList(...arguments);
 	}
 
 	/**
@@ -2554,12 +1874,7 @@ class DB {
 	 * @returns LaphineSysTable[key] if itemId found
 	 */
 	static getLaphineSysInfoById(itemId) {
-		for (const key in LaphineSysTable) {
-			if (LaphineSysTable[key].ItemID === itemId) {
-				return LaphineSysTable[key];
-			}
-		}
-		return null;
+		return itemDatabase.ItemDatabase.getLaphineSysInfoById(...arguments);
 	}
 
 	/**
@@ -2568,7 +1883,7 @@ class DB {
 	 * @return {Object} The Laphine Upgrade Table.
 	 */
 	static getLaphineUpgList() {
-		return LaphineUpgTable;
+		return itemDatabase.ItemDatabase.getLaphineUpgList(...arguments);
 	}
 
 	/**
@@ -2578,12 +1893,7 @@ class DB {
 	 * @return {Object|null} The Laphine Upgrade information if found, or null if not found.
 	 */
 	static getLaphineUpgInfoById(itemId) {
-		for (const key in LaphineUpgTable) {
-			if (LaphineUpgTable[key].ItemID === itemId) {
-				return LaphineUpgTable[key];
-			}
-		}
-		return null;
+		return itemDatabase.ItemDatabase.getLaphineUpgInfoById(...arguments);
 	}
 
 	/**
@@ -2593,7 +1903,7 @@ class DB {
 	 * @return {Object|null} The Enchant group info if found, or null.
 	 */
 	static getEnchantGroup(groupId) {
-		return EnchantListTable[groupId] || null;
+		return itemDatabase.ItemDatabase.getEnchantGroup(...arguments);
 	}
 
 	/**
@@ -2602,7 +1912,7 @@ class DB {
 	 * @return {Object} Enchant group table.
 	 */
 	static getEnchantGroups() {
-		return EnchantListTable;
+		return itemDatabase.ItemDatabase.getEnchantGroups(...arguments);
 	}
 
 	/**
@@ -2613,11 +1923,7 @@ class DB {
 	 * @return {Object|null} Enchant slot info if found.
 	 */
 	static getEnchantSlot(groupId, slotNum) {
-		const group = EnchantListTable[groupId];
-		if (!group || !group.slots) {
-			return null;
-		}
-		return group.slots[slotNum] || null;
+		return itemDatabase.ItemDatabase.getEnchantSlot(...arguments);
 	}
 
 	/**
@@ -2627,7 +1933,7 @@ class DB {
 	 * @return {number} The item ID associated with the base item.
 	 */
 	static getItemIdfromBase(baseItem) {
-		return ItemDBNameTbl[baseItem];
+		return itemDatabase.ItemDatabase.getItemIdfromBase(...arguments);
 	}
 
 	/**
@@ -2637,12 +1943,7 @@ class DB {
 	 * @return {string|null} The base item associated with the item ID, or null if not found.
 	 */
 	static getBasefromItemID(itemId) {
-		for (const key in ItemDBNameTbl) {
-			if (ItemDBNameTbl[key] === itemId) {
-				return key;
-			}
-		}
-		return null; // Return null if not found
+		return itemDatabase.ItemDatabase.getBasefromItemID(...arguments);
 	}
 
 	/**
@@ -2652,15 +1953,7 @@ class DB {
 	 * @return {Object|null} The reform list associated with the item ID, or null if not found.
 	 */
 	static findReformListByItemID(itemId) {
-		// First, get the base item from the item ID
-		const baseItem = DB.getBasefromItemID(itemId);
-
-		// Check if the base item was found and if it exists as a key in ReformItemList
-		if (baseItem && ItemReformTable.ReformItemList.hasOwnProperty(baseItem)) {
-			return ItemReformTable.ReformItemList[baseItem];
-		} else {
-			return null; // Return null if not found
-		}
+		return itemDatabase.ItemDatabase.findReformListByItemID(...arguments);
 	}
 
 	/**
@@ -2670,12 +1963,7 @@ class DB {
 	 * @return {Object|null} The reform information object if found, or null if not found.
 	 */
 	static getReformInfo(reformId) {
-		// Check if the reformId exists in the ReformInfo
-		if (ItemReformTable.ReformInfo[reformId]) {
-			return ItemReformTable.ReformInfo[reformId];
-		} else {
-			return null; // Return null if the reform ID is not found
-		}
+		return itemDatabase.ItemDatabase.getReformInfo(...arguments);
 	}
 
 	/**
@@ -2685,20 +1973,7 @@ class DB {
 	 * @return {Array} An array of reform information objects.
 	 */
 	static getAllReformInfos(reformIds) {
-		const reformInfos = [];
-
-		for (let i = 0; i < reformIds.length; i++) {
-			const reformId = reformIds[i];
-			const reformInfo = DB.getReformInfo(reformId);
-
-			if (reformInfo) {
-				reformInfos.push(reformInfo);
-			} else {
-				console.error('Reform Info not found for reform ID:', reformId);
-			}
-		}
-
-		return reformInfos;
+		return itemDatabase.ItemDatabase.getAllReformInfos(...arguments);
 	}
 
 	/**
@@ -2711,20 +1986,7 @@ class DB {
 	 * @return {Object|null} The signboard object if found, or null if not found.
 	 */
 	static findSignboard(mapname, x, y, tolerance = 1) {
-		const mapData = SignBoardTable[mapname];
-		if (mapData) {
-			for (const xKey in mapData) {
-				if (Math.abs(x - xKey) <= tolerance) {
-					const yData = mapData[xKey];
-					for (const yKey in yData) {
-						if (Math.abs(y - yKey) <= tolerance) {
-							return yData[yKey];
-						}
-					}
-				}
-			}
-		}
-		return null;
+		return signBoards.SignBoardDatabase.findSignboard(...arguments);
 	}
 
 	/**
@@ -2733,7 +1995,7 @@ class DB {
 	 * @return {Object} Signboard data for the map
 	 */
 	static getAllSignboardsForMap(mapname) {
-		return SignBoardTable[mapname] || null;
+		return signBoards.SignBoardDatabase.getAllSignboardsForMap(...arguments);
 	}
 
 	/**
@@ -2743,15 +2005,15 @@ class DB {
 	 * @return {string} The translated signboard description if found, otherwise the original description.
 	 */
 	static getTranslatedSignBoard(description) {
-		return SignBoardTranslatedTable[description] || description;
+		return signBoards.SignBoardDatabase.getTranslatedSignBoard(...arguments);
 	}
 
 	static getRandomJoke() {
-		return JokeTable[Math.round(Math.random() * (JokeTable.length - 1))];
+		return systemDatabase.SystemDatabase.getRandomJoke(...arguments);
 	}
 
 	static getRandomScream() {
-		return ScreamTable[Math.round(Math.random() * (ScreamTable.length - 1))];
+		return systemDatabase.SystemDatabase.getRandomScream(...arguments);
 	}
 
 	/**
@@ -2781,50 +2043,7 @@ class DB {
 	 * @returns {Promise<string>} resolves with the character name
 	 */
 	static getNameByGID(GID, ttl = 8000) {
-		// Already have a real name cached — resolve immediately
-		if (DB.CNameTable[GID] && DB.CNameTable[GID] !== 'Unknown') {
-			return Promise.resolve(DB.CNameTable[GID]);
-		}
-
-		// Already requested (pending 'Unknown') — don't re-send, just
-		// return a promise that piggybacks on the existing in-flight request
-		if (DB.CNameTable[GID] === 'Unknown') {
-			return new Promise(resolve => {
-				if (!DB._nameCallbacks[GID]) {
-					DB._nameCallbacks[GID] = [];
-				}
-				DB._nameCallbacks[GID].push(resolve);
-			});
-		}
-
-		// New request — send to server
-		let pkt;
-		if (PACKETVER.value >= 20180307) {
-			pkt = new PACKET.CZ.REQNAME_BYGID2();
-		} else {
-			pkt = new PACKET.CZ.REQNAME_BYGID();
-		}
-		pkt.GID = GID;
-		Network.sendPacket(pkt);
-		DB.CNameTable[pkt.GID] = 'Unknown';
-
-		// Arm a TTL timer so callbacks are never leaked if the server is silent
-		DB._nameCallbackTimers[GID] = setTimeout(() => {
-			// Only act if the entry hasn't already been resolved by the server
-			if (DB._nameCallbacks[GID]) {
-				// Clear the 'Unknown' sentinel so the next caller can retry
-				delete DB.CNameTable[GID];
-				DB._resolveNameCallbacks(GID, 'Unknown');
-			}
-			delete DB._nameCallbackTimers[GID];
-		}, ttl);
-
-		return new Promise(resolve => {
-			if (!DB._nameCallbacks[GID]) {
-				DB._nameCallbacks[GID] = [];
-			}
-			DB._nameCallbacks[GID].push(resolve);
-		});
+		return ownerNames.OwnerNameResolver.getNameByGID(...arguments);
 	}
 
 	/**
@@ -2836,18 +2055,7 @@ class DB {
 	 * @private
 	 */
 	static _resolveNameCallbacks(GID, name) {
-		// Cancel the TTL timer if the server replied before it fired
-		if (DB._nameCallbackTimers[GID]) {
-			clearTimeout(DB._nameCallbackTimers[GID]);
-			delete DB._nameCallbackTimers[GID];
-		}
-		const callbacks = DB._nameCallbacks[GID];
-		if (callbacks) {
-			delete DB._nameCallbacks[GID];
-			for (const cb of callbacks) {
-				cb(name);
-			}
-		}
+		return ownerNames.OwnerNameResolver._resolveNameCallbacks(...arguments);
 	}
 
 	/**
@@ -2859,49 +2067,7 @@ class DB {
 	 * @author MrUnzO
 	 */
 	static getPetTalk(data) {
-		// Structure:
-		// Examaple: 1013010
-		// 1013  |      01     |     0
-		// mobID | hungryState | actionState
-		const mobId = parseInt(data.toString().substring(0, 4)) || 1001;
-		const hungryState = parseInt(data.toString().substring(4, 6)) || 0;
-		const actionState = parseInt(data.toString().substring(6, 7)) || 0;
-
-		if (hungryState >= Object.keys(PetHungryState).length || actionState >= Object.keys(PetMessageConst).length) {
-			return false;
-		}
-
-		let mobName, hungryText, actionText;
-		if (mobId && mobId >= 1000 && mobId < 4000) {
-			mobName = (MonsterTable[mobId] || MonsterTable[1001]).toLowerCase();
-		}
-		if (hungryState !== null && hungryState !== undefined) {
-			hungryText = DB.getPetHungryText(parseInt(hungryState));
-		}
-
-		if (actionState !== null && actionState !== undefined) {
-			actionText = DB.getPetActText(parseInt(actionState));
-		}
-
-		if (!mobName || !hungryText || !actionText) {
-			return false;
-		}
-
-		if (
-			PetTalkTable &&
-			PetTalkTable[mobName] &&
-			PetTalkTable[mobName][hungryText] &&
-			PetTalkTable[mobName][hungryText][actionText]
-		) {
-			let rnd = 0;
-			if (PetTalkTable[mobName][hungryText][actionText] instanceof Array) {
-				rnd = parseInt((Math.random() * 100) % PetTalkTable[mobName][hungryText][actionText].length);
-				return TextEncoding.decodeString(PetTalkTable[mobName][hungryText][actionText][rnd]);
-			}
-			return TextEncoding.decodeString(PetTalkTable[mobName][hungryText][actionText]);
-		}
-
-		return false;
+		return PetDatabase.getPetTalk(...arguments);
 	}
 
 	/**
@@ -2913,21 +2079,7 @@ class DB {
 	 * @author MrUnzO
 	 */
 	static getPetHungryState(hunger) {
-		if (!hunger) {
-			return 0;
-		}
-		if (hunger > 90 && hunger <= 100) {
-			return PetHungryState.PET_FULL;
-		} else if (hunger > 75 && hunger <= 90) {
-			return PetHungryState.PET_ENOUGH;
-		} else if (hunger > 25 && hunger <= 75) {
-			return PetHungryState.PET_SATISFIED;
-		} else if (hunger > 10 && hunger <= 25) {
-			return PetHungryState.PET_HUNGRY;
-		} else if (hunger >= 0 && hunger <= 10) {
-			return PetHungryState.PET_HUNGER;
-		}
-		return 0;
+		return PetDatabase.getPetHungryState(...arguments);
 	}
 
 	/**
@@ -2939,21 +2091,7 @@ class DB {
 	 * @author MrUnzO
 	 */
 	static getPetFriendlyState(friendly) {
-		if (!friendly) {
-			return 0;
-		}
-		if (friendly > 900 && friendly <= 1000) {
-			return PetFriendlyState.PET_FAMILIAR;
-		} else if (friendly > 750 && friendly <= 900) {
-			return PetFriendlyState.PET_FRIENDLY;
-		} else if (friendly > 250 && friendly <= 750) {
-			return PetFriendlyState.PET_NORMAL;
-		} else if (friendly > 100 && friendly <= 250) {
-			return PetFriendlyState.PET_AWKWARD;
-		} else if (friendly >= 0 && friendly <= 100) {
-			return PetFriendlyState.PET_ASHAMED;
-		}
-		return 0;
+		return PetDatabase.getPetFriendlyState(...arguments);
 	}
 
 	/**
@@ -2965,32 +2103,7 @@ class DB {
 	 * @author MrUnzO
 	 */
 	static getPetActText(action) {
-		switch (action) {
-			case PetMessageConst.PM_FEEDING:
-				return 'feeding';
-			case PetMessageConst.PM_HUNTING:
-				return 'hunting';
-			case PetMessageConst.PM_DANGER:
-				return 'danger';
-			case PetMessageConst.PM_DEAD:
-				return 'dead';
-			case PetMessageConst.PM_NORMAL:
-				return 'stand';
-			case PetMessageConst.PM_CONNENCT:
-				return 'connect';
-			case PetMessageConst.PM_LEVELUP:
-				return 'levelup';
-			case PetMessageConst.PM_PERFORMANCE1:
-				return 'perfor_1';
-			case PetMessageConst.PM_PERFORMANCE2:
-				return 'perfor_2';
-			case PetMessageConst.PM_PERFORMANCE3:
-				return 'perfor_3';
-			case PetMessageConst.PM_PERFORMANCE_S:
-				return 'perfor_s';
-		}
-
-		return 'stand';
+		return PetDatabase.getPetActText(...arguments);
 	}
 
 	/**
@@ -3002,19 +2115,7 @@ class DB {
 	 * @author MrUnzO
 	 */
 	static getPetHungryText(state) {
-		switch (state) {
-			case PetHungryState.PET_HUNGER:
-				return 'hungry';
-			case PetHungryState.PET_HUNGRY:
-				return 'bit_hungry';
-			case PetHungryState.PET_SATISFIED:
-				return 'noting';
-			case PetHungryState.PET_ENOUGH:
-				return 'full';
-			case PetHungryState.PET_FULL:
-				return 'so_full';
-		}
-		return 'hungry';
+		return PetDatabase.getPetHungryText(...arguments);
 	}
 
 	/**
@@ -3028,11 +2129,7 @@ class DB {
 	 * @author MrUnzO
 	 */
 	static getPetEmotion(hunger, friendly, act) {
-		if (PetEmotionTable[hunger][friendly][act]) {
-			return PetEmotionTable[hunger][friendly][act];
-		}
-
-		return false;
+		return PetDatabase.getPetEmotion(...arguments);
 	}
 
 	/**
@@ -3046,7 +2143,7 @@ class DB {
 	 * @author MrUnzO
 	 */
 	static getPetTalkNumber(job, act, hungry) {
-		return parseInt(job.toString() + ('0' + hungry).slice(-2) + act.toString());
+		return PetDatabase.getPetTalkNumber(...arguments);
 	}
 
 	/**
@@ -3058,19 +2155,7 @@ class DB {
 	 * @author MrUnzO
 	 */
 	static isIndoor(mapname) {
-		if (mapname === undefined) {
-			return -1;
-		}
-		let map;
-		if (mapname.substring(mapname.length - 4, mapname.length) == '.gat') {
-			map = mapname.replace('.gat', '.rsw');
-		} else {
-			map = mapname;
-		}
-		if (MapTable[map] === undefined) {
-			return false;
-		}
-		return MapTable[map].indoor || false;
+		return mapDatabase.MapDatabase.isIndoor(...arguments);
 	}
 
 	/**
@@ -3100,15 +2185,15 @@ class DB {
 	}
 
 	static getCheckAttendanceInfo() {
-		return CheckAttendanceTable;
+		return systemDatabase.SystemDatabase.getCheckAttendanceInfo(...arguments);
 	}
 
 	static getBuyingStoreItemList() {
-		return buyingStoreItemList;
+		return itemDatabase.ItemDatabase.getBuyingStoreItemList(...arguments);
 	}
 
 	static isBuyable(id) {
-		return buyingStoreItemList.includes(id);
+		return itemDatabase.ItemDatabase.isBuyable(...arguments);
 	}
 
 	/**
@@ -3124,7 +2209,7 @@ class DB {
 	 * @returns {boolean}
 	 */
 	static isPetEgg(id) {
-		return id >= 9000 && id <= 9150;
+		return itemDatabase.ItemDatabase.isPetEgg(...arguments);
 	}
 
 	/**
@@ -3134,146 +2219,7 @@ class DB {
 	 *
 	 */
 	static getJobClass(job) {
-		switch (job) {
-			case JobId.NOVICE:
-			case JobId.DO_SUMMONER1:
-				return 'Base_Class';
-
-			case JobId.SWORDMAN:
-			case JobId.MAGICIAN:
-			case JobId.ARCHER:
-			case JobId.ACOLYTE:
-			case JobId.MERCHANT:
-			case JobId.THIEF:
-				return 'First_Class';
-
-			case JobId.KNIGHT:
-			case JobId.PRIEST:
-			case JobId.WIZARD:
-			case JobId.BLACKSMITH:
-			case JobId.HUNTER:
-			case JobId.ASSASSIN:
-			case JobId.KNIGHT2:
-			case JobId.CRUSADER:
-			case JobId.MONK:
-			case JobId.SAGE:
-			case JobId.ROGUE:
-			case JobId.ALCHEMIST:
-			case JobId.BARD:
-			case JobId.DANCER:
-			case JobId.CRUSADER2:
-			case JobId.SUPERNOVICE:
-				return 'Second_Class';
-
-			case JobId.GUNSLINGER:
-			case JobId.NINJA:
-			case JobId.TAEKWON:
-				return 'Expanded_First_Class';
-
-			case JobId.NOVICE_H:
-				return 'Rebirth_Class';
-
-			case JobId.SWORDMAN_H:
-			case JobId.MAGICIAN_H:
-			case JobId.ARCHER_H:
-			case JobId.ACOLYTE_H:
-			case JobId.MERCHANT_H:
-			case JobId.THIEF_H:
-				return 'Rebirth_First_Class';
-
-			case JobId.KNIGHT_H:
-			case JobId.PRIEST_H:
-			case JobId.WIZARD_H:
-			case JobId.BLACKSMITH_H:
-			case JobId.HUNTER_H:
-			case JobId.ASSASSIN_H:
-			case JobId.KNIGHT2_H:
-			case JobId.CRUSADER_H:
-			case JobId.MONK_H:
-			case JobId.SAGE_H:
-			case JobId.ROGUE_H:
-			case JobId.ALCHEMIST_H:
-			case JobId.BARD_H:
-			case JobId.DANCER_H:
-			case JobId.CRUSADER2_H:
-				return 'Rebirth_Second_Class';
-
-			case JobId.STAR:
-			case JobId.STAR2:
-			case JobId.LINKER:
-			case JobId.KAGEROU:
-			case JobId.OBORO:
-			case JobId.REBELLION:
-				return 'Expanded_Second_Class';
-
-			case JobId.RUNE_KNIGHT:
-			case JobId.WARLOCK:
-			case JobId.RANGER:
-			case JobId.ARCHBISHOP:
-			case JobId.MECHANIC:
-			case JobId.ROYAL_GUARD:
-			case JobId.SORCERER:
-			case JobId.MINSTREL:
-			case JobId.WANDERER:
-			case JobId.SURA:
-			case JobId.GENETIC:
-			case JobId.SHADOW_CHASER:
-			case JobId.RUNE_KNIGHT2:
-			case JobId.ROYAL_GUARD2:
-			case JobId.RANGER2:
-			case JobId.MECHANIC2:
-				return 'Normal_Third_Class';
-
-			case JobId.RUNE_KNIGHT_H:
-			case JobId.WARLOCK_H:
-			case JobId.RANGER_H:
-			case JobId.ARCHBISHOP_H:
-			case JobId.MECHANIC_H:
-			case JobId.GUILLOTINE_CROSS_H:
-			case JobId.ROYAL_GUARD_H:
-			case JobId.SORCERER_H:
-			case JobId.MINSTREL_H:
-			case JobId.WANDERER_H:
-			case JobId.SURA_H:
-			case JobId.GENETIC_H:
-			case JobId.SHADOW_CHASER_H:
-				return 'Rebirth_Third_Class';
-
-			case JobId.EMPEROR:
-			case JobId.REAPER:
-			case JobId.EMPEROR2:
-				return 'Expanded_Third_Class';
-
-			case JobId.DRAGON_KNIGHT:
-			case JobId.MEISTER:
-			case JobId.SHADOW_CROSS:
-			case JobId.ARCH_MAGE:
-			case JobId.CARDINAL:
-			case JobId.WINDHAWK:
-			case JobId.IMPERIAL_GUARD:
-			case JobId.BIOLO:
-			case JobId.ABYSS_CHASER:
-			case JobId.ELEMENTAL_MASTER:
-			case JobId.INQUISITOR:
-			case JobId.TROUBADOUR:
-			case JobId.TROUVERE:
-			case JobId.WINDHAWK2:
-			case JobId.MEISTER2:
-			case JobId.DRAGON_KNIGHT2:
-			case JobId.IMPERIAL_GUARD2:
-			case JobId.SKY_EMPEROR:
-			case JobId.SOUL_ASCETIC:
-			case JobId.SHINKIRO:
-			case JobId.SHIRANUI:
-			case JobId.NIGHT_WATCH:
-			case JobId.HYPER_NOVICE:
-			case JobId.SPIRIT_HANDLER:
-			case JobId.SKY_EMPEROR2:
-				return 'Fourth_Class';
-
-			default:
-				return 'Base_Class';
-		}
+		return JobClassification.getJobClass(job);
 	}
 
 	/**
@@ -3286,19 +2232,7 @@ class DB {
 	 * @author alisonrag
 	 */
 	static loadClanEmblem(clanId, callback) {
-		Client.loadFile(
-			DB.INTERFACE_PATH + 'clan_system/clan_emblem' + clanId.toString().padStart(2, '0') + '.bmp',
-			function (dataURI) {
-				const img = new Image();
-				img.decoding = 'async';
-				img.src = dataURI; // String Base64
-
-				// wait image load to call the callback
-				img.onload = function () {
-					callback(img);
-				};
-			}
-		);
+		return emblemLoader.loadClanEmblem(...arguments);
 	}
 
 	/**
@@ -3311,18 +2245,7 @@ class DB {
 	 * @author alisonrag
 	 */
 	static loadGroupEmblem(groupId, callback) {
-		const extension = [22, 23, 24, 25].includes(groupId) ? 'gif' : 'bmp'; // for some reason 22 ~ 25 group emblem has .gif extension
-
-		Client.loadFile(DB.INTERFACE_PATH + 'group/group_' + groupId + '.' + extension, function (dataURI) {
-			const img = new Image();
-			img.decoding = 'async';
-			img.src = dataURI; // String Base64
-
-			// wait image load to call the callback
-			img.onload = function () {
-				callback(img);
-			};
-		});
+		return emblemLoader.loadGroupEmblem(...arguments);
 	}
 
 	/**
@@ -3334,31 +2257,18 @@ class DB {
 	 *
 	 */
 	static loadMobEmblem(mobType, callback) {
-		let monType = '';
-
-		switch (mobType) {
-			case 1:
-				monType = 'montype_boss.bmp';
-				break;
-			case 2:
-				monType = 'montype_mvp.bmp';
-				break;
-			default:
-				console.error('Unknown mob type:', mobType);
-				return;
-		}
-
-		Client.loadFile(DB.INTERFACE_PATH + monType, function (dataURI) {
-			const img = new Image();
-			img.decoding = 'async';
-			img.src = dataURI; // String Base64
-
-			// wait image load to call the callback
-			img.onload = function () {
-				callback(img);
-			};
-		});
+		return emblemLoader.loadMobEmblem(...arguments);
 	}
+	/**
+	 * Get grouped monster entries for a single navigation map.
+	 *
+	 * @param {string} mapName
+	 * @returns {Array<Object>} grouped monsters in that map
+	 */
+	static getNavigationMapMonsters(mapName) {
+		return NavigationSystem.getNavigationMapMonsters(...arguments);
+	}
+
 	/**
 	 * Search for NPCs or MOBs in the navigation tables
 	 *
@@ -3367,78 +2277,29 @@ class DB {
 	 * @returns {Array} Array of search results
 	 */
 	static searchNavigation(query, type) {
-		if (!query || query.length < 2) {
-			return [];
-		}
+		return NavigationSystem.searchNavigation(...arguments);
+	}
 
-		query = query.toLowerCase();
-		const results = [];
+	/**
+	 * Get the default navigation point for a map.
+	 * Used by the World Map and MAP search results to route to a map even
+	 * when there is no exact NPC/monster coordinate.
+	 *
+	 * @param {string} mapName
+	 * @returns {{x:number,y:number}|null}
+	 */
+	static getNaviMapPoint(mapName) {
+		return NavigationSystem.getNaviMapPoint(...arguments);
+	}
 
-		// Search NPCs if type is ALL or NPC
-		if (type === 'ALL' || type === 'NPC') {
-			// NaviNpcTable structure: [["map_name", npc_id, npc_type, class_id, "npc_name", "", x, y], ...]
-			for (let i = 0; i < NaviNpcTable.length; i++) {
-				const npc = NaviNpcTable[i];
-				const mapName = npc[0];
-				const npcId = npc[1];
-				const npcName = npc[4] || '';
-
-				// Skip if no name
-				if (!npcName) {
-					continue;
-				}
-
-				// Check if the NPC name contains the query
-				if (npcName.toLowerCase().indexOf(query) !== -1) {
-					results.push({
-						type: 'NPC',
-						id: npcId,
-						name: npcName,
-						mapName: mapName,
-						x: npc[6],
-						y: npc[7]
-					});
-				}
-			}
-		}
-
-		// Search MOBs if type is ALL or MOB
-		if (type === 'ALL' || type === 'MOB') {
-			// NaviMobTable structure: [["map_name", spawn_id, mob_type, mob_class, "mob_name", "sprite_name", level, mob_info], ...]
-			for (let i = 0; i < NaviMobTable.length; i++) {
-				const mob = NaviMobTable[i];
-				const mapName = mob[0];
-				const mobId = mob[3]; // Using mob_class as the ID
-				const mobName = mob[4] || '';
-
-				// Skip if no name
-				if (!mobName) {
-					continue;
-				}
-
-				// Check if the MOB name contains the query
-				if (mobName.toLowerCase().indexOf(query) !== -1) {
-					// Note: mob_info might contain position data, but structure is unclear
-					// For now, we're not including x/y coordinates for mobs
-					results.push({
-						type: 'MOB',
-						id: mobId,
-						name: mobName,
-						mapName: mapName,
-						x: null,
-						y: null
-					});
-				}
-			}
-		}
-
-		// Sort results by name
-		results.sort(function (a, b) {
-			return a.name.localeCompare(b.name);
-		});
-
-		// Limit to 50 results to avoid performance issues
-		return results.slice(0, 50);
+	/**
+	 * Get a readable navigation map name when available.
+	 *
+	 * @param {string} mapName
+	 * @returns {string}
+	 */
+	static getNaviMapDisplayName(mapName) {
+		return NavigationSystem.getNaviMapDisplayName(...arguments);
 	}
 
 	/**
@@ -3447,7 +2308,7 @@ class DB {
 	 * @returns {Array} The NaviLinkTable
 	 */
 	static getNaviLinkTable() {
-		return NaviLinkTable;
+		return NavigationSystem.getNaviLinkTable(...arguments);
 	}
 
 	/**
@@ -3456,7 +2317,7 @@ class DB {
 	 * @returns {Array} The NaviLinkDistanceTable
 	 */
 	static getNaviLinkDistanceTable() {
-		return NaviLinkDistanceTable;
+		return NavigationSystem.getNaviLinkDistanceTable(...arguments);
 	}
 
 	/**
@@ -3465,307 +2326,19 @@ class DB {
 	 * @returns {Array} The NaviNpcDistanceTable
 	 */
 	static getNaviNpcDistanceTable() {
-		return NaviNpcDistanceTable;
+		return NavigationSystem.getNaviNpcDistanceTable(...arguments);
 	}
 
 	static createItemLink(item) {
-		if (!item) {
-			return null;
-		}
-
-		// Handle legacy formats (ITEMLINK and ITEM)
-		if (PACKETVER.value < 20151104) {
-			return `<ITEMLINK>${item.name}<INFO>${item.ITID}</INFO></ITEMLINK>`;
-		}
-
-		if (PACKETVER.value < 20160113) {
-			return `<ITEM>${item.name}<INFO>${item.ITID}</INFO></ITEM>`;
-		}
-
-		// Handle ITEML format (newest, most complex)
-		let data = '';
-
-		// Encode equipment location (5 chars)
-		data += Base62.encode(item.location || 0).padStart(5, '0');
-
-		// Encode is equipment flag (1 char)
-		const isEquip = item.type === 5 ? '1' : '0';
-		data += isEquip;
-
-		// Encode item ID (variable length)
-		data += Base62.encode(item.ITID || 512);
-
-		// Encode refine level (optional, starts with %)
-		if (item.RefiningLevel > 0) {
-			data += '%';
-			data += Base62.encode(item.RefiningLevel).padStart(2, '0');
-		}
-
-		// Encode item sprite number (optional, starts with &)
-		if (PACKETVER.value >= 20161116) {
-			data += '&';
-			const spriteNumber = item.wItemSpriteNumber ? item.wItemSpriteNumber : 0;
-			data += Base62.encode(spriteNumber).padStart(2, '0');
-		}
-
-		// Encode enchant grade (optional, starts with ')
-		if (PACKETVER.value >= 20200724 && item.enchantgrade > 0) {
-			data += "'";
-			data += Base62.encode(item.enchantgrade).padStart(2, '0');
-		}
-
-		// Determine separators based on packet version
-		let card_sep, optid_sep, optpar_sep, optval_sep;
-		if (PACKETVER.value >= 20200724) {
-			card_sep = ')';
-			optid_sep = '+';
-			optpar_sep = ',';
-			optval_sep = '-';
-		} else if (PACKETVER.value >= 20161116) {
-			card_sep = '(';
-			optid_sep = '*';
-			optpar_sep = '+';
-			optval_sep = ',';
-		} else {
-			card_sep = "'";
-			optid_sep = ')';
-			optpar_sep = '*';
-			optval_sep = '+';
-		}
-
-		// Encode cards (4 cards)
-		const cardKeys = ['card1', 'card2', 'card3', 'card4'];
-		for (let i = 0; i < 4; i++) {
-			const cardValue = item.slot?.[cardKeys[i]] || 0;
-			if (cardValue > 0) {
-				data += card_sep;
-				data += Base62.encode(cardValue).padStart(2, '0');
-			}
-		}
-
-		// Encode random options (up to 5)
-		if (item.Options) {
-			item.Options.forEach(option => {
-				if (option.index > 0) {
-					data += optid_sep;
-					data += Base62.encode(option.index).padStart(2, '0');
-					data += optpar_sep;
-					data += Base62.encode(option.param).padStart(2, '0');
-					data += optval_sep;
-					data += Base62.encode(option.value).padStart(2, '0');
-				}
-			});
-		}
-
-		return `<ITEML>${data}</ITEML>`;
+		return createItemLink(item);
 	}
 
-	// <ITEMLINK> (Oldest format)
-	// Used for NPC message item links in clients from 2010-01-01 to before 2015-11-04.
-	// example: <ITEMLINK>Display Name<INFO>Item ID</INFO></ITEMLINK>
-	// <ITEM> (Middle format)
-	// Used for NPC message item links in clients from 2015-11-04 onwards, replacing <ITEMLINK>.
-	// example: <ITEM>Display Name<INFO>Item ID</INFO></ITEM>
-	// <ITEML> (Newest format)
-	// Used for player-generated item links (like Shift+Click from inventory) in clients from 2016-01-13 onwards.
-	// example: <ITEML>encoded_item_data</ITEML>
 	static parseItemLink(itemLink) {
-		if (!itemLink) {
-			return null;
-		}
-
-		const item = {
-			ITID: 512,
-			name: 'Unknown Item',
-			type: 1,
-			location: 0,
-			slot: {
-				card1: 0,
-				card2: 0,
-				card3: 0,
-				card4: 0
-			},
-			nRandomOptionCnt: 0,
-			Options: [{ index: 0, value: 0, param: 0 }],
-			RefiningLevel: 0,
-			enchantgrade: 0,
-			IsIdentified: 1,
-			IsDamaged: 0,
-			wItemSpriteNumber: 0
-		};
-
-		let content = null;
-
-		// parse ITEMLINK and ITEM format
-		content = itemLink.match(/<(ITEMLINK|ITEM)>([\s\S]*?)<INFO>([\s\S]*?)<\/INFO><\/\1>/);
-		if (content) {
-			const [, , name, id] = content;
-			item.ITID = id;
-			item.name = name;
-			return item;
-		}
-
-		content = itemLink.match(/<ITEML>([\s\S]*?)<\/ITEML>/);
-		if (!content) {
-			return item;
-		}
-
-		const data = content[1];
-		let pos = 0;
-
-		try {
-			// Parse equipment location (5 chars)
-			item.location = Base62.decode(data.substr(pos, 5));
-			pos += 5;
-
-			// Parse is equipment flag (1 char)
-			const isEquip = data[pos] === '1';
-
-			// TODO: add equipment type
-			item.type = isEquip ? 5 : 0; // Default to armor type if equipment
-			pos += 1;
-
-			// Parse item ID (variable length until special char)
-			let itemIdStr = '';
-			while (pos < data.length && !"%&')(*+,-".includes(data[pos])) {
-				itemIdStr += data[pos];
-				pos++;
-			}
-			item.ITID = Base62.decode(itemIdStr);
-
-			// Parse refine level (optional, starts with %)
-			if (pos < data.length && data[pos] === '%') {
-				pos++; // Skip %
-				item.RefiningLevel = Base62.decode(data.substr(pos, 2));
-				pos += 2;
-			}
-
-			if (PACKETVER.value >= 20161116 && pos < data.length && data[pos] === '&') {
-				pos++; // Skip &
-				item.wItemSpriteNumber = Base62.decode(data.substr(pos, 2));
-				pos += 2;
-			}
-
-			if (PACKETVER.value >= 20200724 && pos < data.length && data[pos] === "'") {
-				pos++; // Skip '
-				item.enchantgrade = Base62.decode(data.substr(pos, 2));
-				pos += 2;
-			}
-
-			// Determine separators based on detected packet version
-			let card_sep, optid_sep, optpar_sep, optval_sep;
-			if (PACKETVER.value >= 20200724) {
-				card_sep = ')';
-				optid_sep = '+';
-				optpar_sep = ',';
-				optval_sep = '-';
-			} else if (PACKETVER.value >= 20161116) {
-				card_sep = '(';
-				optid_sep = '*';
-				optpar_sep = '+';
-				optval_sep = ',';
-			} else {
-				card_sep = "'";
-				optid_sep = ')';
-				optpar_sep = '*';
-				optval_sep = '+';
-			}
-
-			// Parse cards
-			const cardKeys = ['card1', 'card2', 'card3', 'card4'];
-			let cardIndex = 0;
-
-			while (cardIndex < 4 && pos < data.length) {
-				if (data[pos] !== card_sep) {
-					break;
-				} // não tem mais carta
-
-				pos++; // skip
-
-				// take all characters that are not card separators or random option separators
-				let cardStr = '';
-				while (pos < data.length) {
-					const c = data[pos];
-					// stop if next separator is a card separator or random option separator
-					if (c === card_sep || c === optid_sep) {
-						break;
-					}
-					// stop if next separator is a future separator (security)
-					if ("%&'()*+,-".includes(c)) {
-						break;
-					}
-					cardStr += c;
-					pos++;
-				}
-
-				// if nothing was taken, it's an empty card (0)
-				if (cardStr === '' || cardStr === '00') {
-					item.slot[cardKeys[cardIndex]] = 0;
-				} else {
-					item.slot[cardKeys[cardIndex]] = Base62.decode(cardStr);
-				}
-
-				cardIndex++;
-			}
-
-			// fill the cards that didn't exist with 0
-			while (cardIndex < 4) {
-				item.slot[cardKeys[cardIndex]] = 0;
-				cardIndex++;
-			}
-
-			// Parse random options (variable count)
-			let optionIdx = 0;
-			while (pos < data.length && data[pos] === optid_sep && optionIdx < 5) {
-				pos++; // Skip option ID separator
-				const optId = Base62.decode(data.substr(pos, 2));
-				pos += 2;
-
-				if (pos >= data.length || data[pos] !== optpar_sep) {
-					break;
-				}
-				pos++; // Skip param separator
-				const optParam = Base62.decode(data.substr(pos, 2));
-				pos += 2;
-
-				if (pos >= data.length || data[pos] !== optval_sep) {
-					break;
-				}
-				pos++; // Skip value separator
-				const optValue = Base62.decode(data.substr(pos, 2));
-				pos += 2;
-
-				item.Options.push({
-					index: optId,
-					value: optValue,
-					param: optParam
-				});
-				optionIdx++;
-			}
-
-			// Fill remaining option slots with zeros
-			while (item.Options.length < 5 + 1) {
-				item.Options.push({ index: 0, value: 0, param: 0 });
-			}
-
-			item.nRandomOptionCnt = optionIdx;
-
-			item.name = DB.getItemName(item);
-
-			return item;
-		} catch (error) {
-			console.error('Error parsing item link:', error);
-			return null;
-		}
+		return parseItemLink(itemLink, item => DB.getItemName(item));
 	}
 
 	static getItemNameFromLink(itemLink) {
-		if (!itemLink) {
-			return null;
-		}
-
-		const item = DB.parseItemLink(itemLink);
-		return item.name;
+		return getItemNameFromLink(itemLink, item => DB.parseItemLink(item));
 	}
 
 	/**
@@ -3775,17 +2348,7 @@ class DB {
 	 * @returns {string} Formatted date string (MM/DD HH:mm)
 	 */
 	static formatUnixDate(unixTimestamp) {
-		const d = new Date(unixTimestamp * 1000);
-
-		return (
-			String(d.getMonth() + 1).padStart(2, '0') +
-			'/' +
-			String(d.getDate()).padStart(2, '0') +
-			' ' +
-			String(d.getHours()).padStart(2, '0') +
-			':' +
-			String(d.getMinutes()).padStart(2, '0')
-		);
+		return formatUnixDate(unixTimestamp);
 	}
 
 	/**
@@ -3795,18 +2358,7 @@ class DB {
 	 * @returns {string} Message formatted to HTML
 	 */
 	static formatMsgToHtml(msg) {
-		let hasOpenSpan = false;
-
-		msg = msg.replace(/\^([0-9a-fA-F]{6})/g, (_, color) => {
-			const close = hasOpenSpan ? '</span>' : '';
-			hasOpenSpan = true;
-			return close + `<span style="color:#${color}">`;
-		});
-
-		if (hasOpenSpan) {
-			msg += '</span>';
-		}
-		return msg;
+		return formatMsgToHtml(msg);
 	}
 
 	/**
@@ -3816,7 +2368,7 @@ class DB {
 	 * @returns {?Object} Pet data or null if not found
 	 */
 	static getPetByJobID(jobID) {
-		return PetDBTable[jobID] || null;
+		return PetDatabase.getPetByJobID(...arguments);
 	}
 
 	/**
@@ -3826,8 +2378,7 @@ class DB {
 	 * @returns {?Object} Pet evolution data or null if not found
 	 */
 	static getPetEvolutionByJob(jobID) {
-		const pet = PetDBTable[jobID];
-		return pet && pet.Evolution ? pet.Evolution : null;
+		return PetDatabase.getPetEvolutionByJob(...arguments);
 	}
 
 	/**
@@ -3837,13 +2388,7 @@ class DB {
 	 * @returns {?Object} Pet data or null if not found
 	 */
 	static getPetByEggID(eggID) {
-		for (const jobID in PetDBTable) {
-			const pet = PetDBTable[jobID];
-			if (pet.PetEggID === Number(eggID)) {
-				return pet;
-			}
-		}
-		return null;
+		return PetDatabase.getPetByEggID(...arguments);
 	}
 
 	/**
@@ -3852,7 +2397,7 @@ class DB {
 	 * @returns {Object} Reputation group list
 	 */
 	static getReputeGroup() {
-		return ReputeGroup;
+		return systemDatabase.SystemDatabase.getReputeGroup(...arguments);
 	}
 
 	/**
@@ -3862,7 +2407,7 @@ class DB {
 	 * @returns {?Object} Reputation group list or null if not found
 	 */
 	static getReputeGroupList(repute_group) {
-		return ReputeGroup[repute_group].ReputeList || null;
+		return systemDatabase.SystemDatabase.getReputeGroupList(...arguments);
 	}
 
 	/**
@@ -3871,7 +2416,7 @@ class DB {
 	 * @returns {Object} Reputation information list
 	 */
 	static getReputeInfo() {
-		return ReputeInfo;
+		return systemDatabase.SystemDatabase.getReputeInfo(...arguments);
 	}
 
 	/**
@@ -3881,7 +2426,7 @@ class DB {
 	 * @returns {?Object} Reputation data or null if not found
 	 */
 	static getReputeData(repute_id) {
-		return ReputeInfo[repute_id] || null;
+		return systemDatabase.SystemDatabase.getReputeData(...arguments);
 	}
 
 	/**
@@ -3890,7 +2435,7 @@ class DB {
 	 * @returns {Object|null} Hateffect info or null if not found
 	 */
 	static getHatResource(id) {
-		return HatEffectInfo[id] || null;
+		return getHatResource(id);
 	}
 
 	/**
@@ -3899,555 +2444,26 @@ class DB {
 	 * @returns {Array} CashShopBannerTable
 	 */
 	static getCashShopBannerTable() {
-		return CashShopBannerTable;
+		return systemDatabase.SystemDatabase.getCashShopBannerTable(...arguments);
 	}
 }
 
-async function startLua() {
-	lua = await CLua.Lua.create({ customWasmUri: wasmUrl });
-	HO_AI = await CLua.Lua.create({ customWasmUri: wasmUrl });
-	MER_AI = await CLua.Lua.create({ customWasmUri: wasmUrl });
-	default_HO_AI = await CLua.Lua.create({ customWasmUri: wasmUrl });
-	default_MER_AI = await CLua.Lua.create({ customWasmUri: wasmUrl });
-}
+initialJobGroups = null;
+
+const {
+	EquipmentRules,
+	NavigationSystem,
+	ActorResourcePaths,
+	PetDatabase,
+	signBoards,
+	systemDatabase,
+	itemDatabase,
+	mapDatabase,
+	ownerNames,
+	emblemLoader,
+	bootstrap
+} = createDBServices(DB);
 
-function loadFontFromClient(fontPath) {
-	console.log('Loading file "' + fontPath + 'SCDream4.otf"...');
-	Client.loadFile(
-		fontPath + 'SCDream4.otf',
-		function (fontData4) {
-			const base64_4 = arrayBufferToBase64(fontData4);
-			const fontUrl4 = 'data:font/opentype;base64,' + base64_4;
-			console.log('Loading file "' + fontPath + 'SCDream6.otf"...');
-			Client.loadFile(
-				fontPath + 'SCDream6.otf',
-				function (fontData6) {
-					const base64_6 = arrayBufferToBase64(fontData6);
-					const fontUrl6 = 'data:font/opentype;base64,' + base64_6;
-
-					const style = document.createElement('style');
-					style.textContent = `  						
-							@font-face {  
-								font-family: 'SCDream';  
-								src: url('${fontUrl4}') format('opentype');  
-								font-weight: 400; /* Normal */  
-								font-style: normal;  
-							}  
-							
-							@font-face {  
-								font-family: 'SCDream';  
-								src: url('${fontUrl6}') format('opentype');  
-								font-weight: 700; /* Bold */  
-								font-style: normal;  
-							}
-						`;
-					document.head.appendChild(style);
-				},
-				function (error) {
-					console.warn('[loadFontFromClient] - Failed loading client font:', fontPath, '- Using Arial');
-					document.body.style.fontFamily = 'Arial, Helvetica, sans-serif';
-					document.body.style.fontSize = '10px';
-				}
-			);
-		},
-		function (error) {
-			console.warn('[loadFontFromClient] - Failed loading client font:', fontPath, '- Using Arial');
-			document.body.style.fontFamily = 'Arial, Helvetica, sans-serif';
-			document.body.style.fontSize = '10px';
-		}
-	);
-}
-
-// Helper function to convert ArrayBuffer to base64
-function arrayBufferToBase64(buffer) {
-	let binary = '';
-	const bytes = new Uint8Array(buffer);
-	const len = bytes.byteLength;
-	for (let i = 0; i < len; i++) {
-		binary += String.fromCharCode(bytes[i]);
-	}
-	return btoa(binary);
-}
-
-/**
- * get System folder variants
- */
-function getSystemAliases(basePath) {
-	basePath = basePath.replace(/\.(lub|lua)$/i, ''); // Prevents extension been passed
-
-	const suffixes = ['', '_true', '_sak', '_Sakray']; // Priority order
-	const extensions = ['.lub', '.lua'];
-	const fileList = [];
-
-	for (let s = 0; s < suffixes.length; s++) {
-		for (let e = 0; e < extensions.length; e++) {
-			fileList.push(basePath + suffixes[s] + extensions[e]);
-		}
-	}
-	return fileList;
-}
-
-/**
- * Load TXT table
- *
- * @param {string} filename to load
- * @param {string} item separator character
- * @param {number} size of each group
- * @param {function} callback to call for each group
- * @param {function} onEnd to run once the file is loaded
- */
-function loadTable(filename, separator, size, callback, onEnd, useCharPage = false) {
-	Client.loadFile(
-		filename,
-		function (buffer) {
-			console.log('Loading file "' + filename + '"...');
-
-			let data = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;
-			data = TextEncoding.decode(data, useCharPage ? userCharpage : null);
-
-			// Remove commented lines
-			const content = ('\n' + data).replace(/\n(\/\/[^\n]+)/g, '');
-			const elements = content.split(separator);
-			const count = elements.length;
-			const args = new Array(size + 1);
-
-			for (let i = 0; i < count; i++) {
-				if (i % size === 0) {
-					if (i) {
-						callback.apply(null, args);
-					}
-					args[i % size] = i;
-				}
-
-				args[(i % size) + 1] = elements[i].replace(/^\s+|\s+$/g, ''); // trim
-			}
-
-			onEnd();
-		},
-		onEnd
-	);
-}
-
-/**
- * Load CSV table with Base64-encoded columns
- * Can pick which columns to use for key/value
- * @param {string} filename - path to CSV
- * @param {object} targetTable - object to populate
- * @param {number} keyIndex - 0-based index of column to use as key
- * @param {number} valueIndex - 0-based index of column to use as value
- * @param {function} onEnd - callback when done
- */
-function loadCSV(filename, targetTable, keyIndex, valueIndex, onEnd) {
-	Client.loadFile(
-		filename,
-		function (data) {
-			console.log('Loading file "' + filename + '"...');
-
-			const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
-			let text = '';
-			let isBase64 = true;
-
-			// Convert buffer to a raw "binary string".
-			// This prevents atob() from throwing "outside latin1 range" errors.
-			for (let i = 0, count = bytes.length; i < count; i++) {
-				text += String.fromCharCode(bytes[i]);
-			}
-
-			// Check if the file is Base64 encoded
-			if (!text.trimEnd().endsWith('=')) {
-				text = TextEncoding.decode(bytes, 'utf-8');
-				isBase64 = false;
-			}
-
-			// Split lines
-			const lines = text.split(/\r?\n/);
-			let index = 0;
-			for (let i = 0; i < lines.length; i++) {
-				const line = lines[i].trim();
-				if (!line || line.startsWith('//')) {
-					continue;
-				}
-
-				const parts = isBase64 ? line.split(',') : line.split('\t');
-				if (parts.length <= Math.max(keyIndex, valueIndex)) {
-					continue;
-				}
-
-				try {
-					// Decode columns from Base64
-					const value = isBase64 ? base64DecodeUtf8(parts[valueIndex].trim()) : parts[valueIndex].trim();
-					targetTable[index] = value;
-					index++;
-				} catch (e) {
-					console.error('Base64 decode failed on line', i + 1, ':', line, e);
-				}
-			}
-			if (typeof onEnd === 'function') {
-				onEnd();
-			}
-		},
-		onEnd
-	);
-}
-
-/**
- * Decode a Base64 string as UTF-8
- * @param {string} str - Base64 encoded string
- * @returns {string} decoded UTF-8 string
- */
-function base64DecodeUtf8(str) {
-	try {
-		const bytes = Uint8Array.from(atob(str), c => c.charCodeAt(0));
-		return TextEncoding.decode(bytes, 'utf-8');
-	} catch (e) {
-		console.warn('Base64 UTF-8 decode failed:', str, e);
-		return str;
-	}
-}
-
-/**
- * Load ItemMoveInfoV5.txt and attach move info to ItemTable
- *
- * @param {function} onEnd
- */
-function loadMoveInfoTable(onEnd) {
-	Client.loadFile(
-		'data/ItemMoveInfoV5.txt',
-		function (file) {
-			console.log('Loading file "ItemMoveInfoV5.txt"...');
-
-			let data = file instanceof ArrayBuffer ? new Uint8Array(file) : file;
-			data = TextEncoding.decode(data, userCharpage);
-			const lines = data.split(/\r?\n/);
-
-			for (let line of lines) {
-				line = line.trim();
-				if (!line || line.startsWith('//')) {
-					continue;
-				}
-
-				// Remove inline comments
-				const commentIndex = line.indexOf('//');
-				if (commentIndex !== -1) {
-					line = line.slice(0, commentIndex).trim();
-				}
-
-				const cols = line.split(/\s+/);
-				if (cols.length < 9) {
-					console.warn('Invalid ItemMoveInfo line:', line);
-					continue;
-				}
-
-				const [key, drop, exchange, storage, cart, npcSale, mail, auction, guildStorage] = cols;
-
-				const item = ItemTable[key] || (ItemTable[key] = {});
-
-				item.moveInfo = {
-					Drop: drop === '1',
-					Exchange: exchange === '1',
-					Storage: storage === '1',
-					Cart: cart === '1',
-					NPCSale: npcSale === '1',
-					Mail: mail === '1',
-					Auction: auction === '1',
-					GuildStorage: guildStorage === '1'
-				};
-			}
-			onEnd();
-		},
-		onEnd
-	);
-}
-
-/**
- * LoadXML to json object
- *
- * @param {string} filename to load
- * @param {function} onEnd to run once the file is loaded
- *
- * @author MrUnzO
- */
-function loadXMLFile(filename, callback, onEnd) {
-	Client.loadFile(
-		filename,
-		async function (file) {
-			console.log('Loading file "' + filename + '"...');
-			let xml = file instanceof ArrayBuffer ? new Uint8Array(file) : file;
-			xml = TextEncoding.decode(xml, userCharpage);
-			xml = xml.replace(/^.*<\?xml/, '<?xml');
-			const parser = new DOMParser();
-			const parsedXML = parser.parseFromString(xml, 'application/xml');
-			const json = XmlParse.xml2json(parsedXML);
-			callback.call(null, json);
-			onEnd();
-		},
-		onEnd
-	);
-}
-
-/**
- * Load BSON to JS object / table
- *
- * @param {string} filename  File to load
- * @param {object|array} targetTable
- * @param {function} onEnd    Called when finished (success or error)
- *
- */
-function loadBSONFile(filename, targetTable, onEnd) {
-	Client.loadFile(
-		filename,
-		function (arrayBuffer) {
-			try {
-				console.log('Loading file "' + filename + '"...');
-
-				const bytes = new Uint8Array(arrayBuffer);
-				let offset = 0;
-
-				const docs = [];
-
-				while (offset < bytes.length) {
-					const size =
-						bytes[offset] |
-						(bytes[offset + 1] << 8) |
-						(bytes[offset + 2] << 16) |
-						(bytes[offset + 3] << 24);
-
-					const slice = bytes.slice(offset, offset + size);
-					docs.push(BSON.deserialize(slice));
-
-					offset += size;
-				}
-
-				// ---- AS-IS TABLE HANDLING ----
-
-				let data;
-				if (docs.length === 1) {
-					data = docs[0]; // single root document
-				} else {
-					data = docs; // true multi-doc BSON
-				}
-
-				// Clear target table
-				for (const k in targetTable) {
-					delete targetTable[k];
-				}
-
-				// If root has exactly ONE key, unwrap it
-				if (typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length === 1) {
-					const rootKey = Object.keys(data)[0];
-					data = data[rootKey];
-				}
-
-				// Copy AS-IS
-				Object.assign(targetTable, data);
-			} catch (e) {
-				console.error('BSON parse error:', e);
-			} finally {
-				if (onEnd) {
-					onEnd();
-				}
-			}
-		},
-		onEnd
-	);
-}
-
-/**
- * Mapping of effect name suffixes to SkillEffect field names.
- * Default is 'effectId'.
- */
-const SUFFIX_TO_FIELD = {
-	hit: 'hitEffectId',
-	hitsub: 'hitEffectId',
-	target: 'hitEffectId',
-	cast: 'effectId',
-	cast_bottom: 'effectId',
-	single: 'effectId',
-	bottom: 'effectId',
-	begin: 'effectId',
-	start: 'effectId',
-	end: 'effectId',
-	loop: 'effectId',
-	buff: 'effectId',
-	aura: 'effectId',
-	main: 'effectId',
-	sync: 'effectId'
-};
-
-/**
- * Hardcoded mapping for specific effect names that override suffix logic.
- */
-const HARDCODED_FIELD_MAPPING = {
-	broken_limit_buff: 'effectId',
-	abyss_flame_target: 'hitEffectId'
-};
-
-/**
- * Merge Ez2STREffect from BSON into EffectTable and SkillEffect
- */
-function mergeEz2Effects(EffectTable, SkillEffect) {
-	let count = 0;
-	let skillCount = 0;
-	const skillBaseToId = {};
-	const effectNameToId = {};
-	const effectMetadata = {};
-
-	// Pre-calculate SKID lookup maps for O(1) matching
-	const skidFuzzy = {};
-	for (const key in SKID) {
-		const upperKey = key.toUpperCase();
-		const val = SKID[key];
-		skidFuzzy[upperKey] = val;
-
-		let lastUnderscore = -1;
-		while ((lastUnderscore = upperKey.indexOf('_', lastUnderscore + 1)) !== -1) {
-			const suffix = upperKey.substring(lastUnderscore + 1);
-			if (suffix && !skidFuzzy[suffix]) {
-				skidFuzzy[suffix] = val;
-			}
-		}
-	}
-
-	// Optimized helper to find skill by name
-	function findFuzzySkillId(name) {
-		return skidFuzzy[name.toUpperCase()] || null;
-	}
-
-	// Phase 1: Pre-Analysis and Anchoring
-	for (const effectName in Ez2streffect) {
-		const entry = Ez2streffect[effectName];
-		let baseName = effectName;
-		let isSuffixed = false;
-
-		let targetField = entry.IsToGround || entry.IsFloor ? 'groundEffectId' : 'effectId';
-
-		for (const suffix in SUFFIX_TO_FIELD) {
-			if (effectName.endsWith('_' + suffix)) {
-				baseName = effectName.slice(0, -(suffix.length + 1));
-				isSuffixed = true;
-				targetField = SUFFIX_TO_FIELD[suffix];
-				break;
-			}
-		}
-
-		if (HARDCODED_FIELD_MAPPING[effectName]) {
-			targetField = HARDCODED_FIELD_MAPPING[effectName];
-		}
-
-		const filePath = entry.FilePath || '';
-		const soundPath = entry.SoundPath || '';
-		const pathParts = filePath ? filePath.split('\\') : [];
-		const lastSlashSound = soundPath.lastIndexOf('\\');
-		const soundFile = lastSlashSound !== -1 ? soundPath.substring(lastSlashSound + 1) : soundPath;
-		const soundBase = soundFile.replace(/\.wav$/i, '');
-
-		effectMetadata[effectName] = {
-			baseName: baseName,
-			isSuffixed: isSuffixed,
-			pathParts: pathParts,
-			soundBase: soundBase,
-			field: targetField
-		};
-
-		// Pass 1: Exact Name Match for Base
-		const skillId1 = findFuzzySkillId(baseName);
-		if (skillId1) {
-			effectNameToId[effectName] = skillId1;
-			continue;
-		}
-
-		// Pass 2: Base Anchoring from Path (Non-suffixed only)
-		if (!isSuffixed) {
-			for (let i = 0, len = pathParts.length; i < len; i++) {
-				const segment = pathParts[i];
-				if (segment) {
-					const skillId2 = skillBaseToId[segment] || findFuzzySkillId(segment);
-					if (skillId2) {
-						skillBaseToId[segment] = skillId2;
-						effectNameToId[effectName] = skillId2;
-						break;
-					}
-				}
-			}
-		}
-	}
-
-	// Phase 2: Inheritance and Assignments
-	for (const effectName in Ez2streffect) {
-		const entry = Ez2streffect[effectName];
-		const meta = effectMetadata[effectName];
-		let skillId = effectNameToId[effectName];
-
-		// Pass 3: Path Fallback for unmapped
-		if (!skillId) {
-			for (let i = 0; i < meta.pathParts.length; i++) {
-				const segment = meta.pathParts[i] || '';
-				if (segment) {
-					skillId = skillBaseToId[segment] || findFuzzySkillId(segment);
-					if (skillId) {
-						break;
-					}
-				}
-			}
-		}
-
-		// Pass 4: Sound Fallback
-		if (!skillId && meta.soundBase) {
-			skillId = findFuzzySkillId(meta.soundBase);
-		}
-
-		if (skillId) {
-			effectNameToId[effectName] = skillId;
-		}
-
-		// Pass 5: Suffix Inheritance
-		// Run this after all anchoring passes to ensure variants inherit from anchored bases
-		if (!skillId && meta.isSuffixed && effectNameToId[meta.baseName]) {
-			skillId = effectNameToId[meta.baseName];
-			effectNameToId[effectName] = skillId;
-		}
-
-		// Pass 5: EffectTable Assignment
-		const lastSlash = (entry.FilePath || '').lastIndexOf('\\');
-		const texturePath = lastSlash !== -1 ? entry.FilePath.substring(0, lastSlash + 1) : '';
-
-		EffectTable[effectName] = [
-			{
-				type: 'STR',
-				file: (entry.FilePath || '').replace(/\\/g, '/').replace(/\.str$/i, ''),
-				texturePath: texturePath,
-				renderBeforeEntities: entry.IsFloor ? false : true,
-				xOffset: entry.PosX || 0,
-				yOffset: entry.PosY || 0,
-				wav: entry.SoundPath ? entry.SoundPath.replace(/\\/g, '/').replace(/\.wav$/i, '') : null,
-				delayLate: entry.StartDelayTime || 0,
-				repeat: !!entry.IsInfinite,
-				attachedEntity: true
-			}
-		];
-		count++;
-
-		// Pass 6: SkillEffect Mapping with differentiated fields
-		if (skillId) {
-			const skillEntry = SkillEffect[skillId] || (SkillEffect[skillId] = {});
-			const field = meta.field;
-
-			if (skillEntry[field]) {
-				if (!Array.isArray(skillEntry[field])) {
-					skillEntry[field] = [skillEntry[field]];
-				}
-				if (skillEntry[field].indexOf(effectName) === -1) {
-					skillEntry[field].push(effectName);
-				}
-			} else {
-				skillEntry[field] = effectName;
-			}
-			skillCount++;
-		}
-	}
-
-	console.log(`[DBManager] Loaded ${count} effects and mapped ${skillCount} skills.`);
-}
 
 /**
  * Load CheckAttendance file to object
@@ -7505,4 +5521,5 @@ function updateMapTable() {
 /**
  * Export
  */
+
 export default DB;

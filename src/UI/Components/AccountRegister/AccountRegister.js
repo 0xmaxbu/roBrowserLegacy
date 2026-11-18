@@ -15,17 +15,21 @@
  * 注册成功回调 onRegisterSuccess(username, password)
  * 由 WinLoginCommon 接管实现自动登录。
  *
+ * 2026-11-19: 迁移到新 GUIComponent 基类（上游 #1591 删除了旧 UIComponent）。
+ *
  * This file is part of ROBrowser, (http://www.robrowser.com/).
  */
 
 import Renderer from 'Renderer/Renderer.js';
 import KEYS from 'Controls/KeyEventHandler.js';
 import UIManager from 'UI/UIManager.js';
-import UIComponent from 'UI/UIComponent.js';
+import GUIComponent from 'UI/GUIComponent.js';
 import htmlText from './AccountRegister.html?raw';
 import cssText from './AccountRegister.css?raw';
 
-const AccountRegister = new UIComponent('AccountRegister', htmlText, cssText);
+const AccountRegister = new GUIComponent('AccountRegister', cssText);
+
+AccountRegister.render = () => htmlText;
 
 const USERNAME_RE = /^[A-Za-z0-9]{4,23}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -33,6 +37,14 @@ const SEND_COOLDOWN = 60;
 
 let _timer = null;
 let _seconds = 0;
+
+/** 根元素查询快捷方式（Shadow DOM 内） */
+function q(selector) {
+	return AccountRegister.getRoot().querySelector(selector);
+}
+function qAll(selector) {
+	return AccountRegister.getRoot().querySelectorAll(selector);
+}
 
 /**
  * 注册成功回调：function (username, password)
@@ -101,49 +113,52 @@ function postForm(path, data, cb) {
  * Initialize UI
  */
 AccountRegister.init = function init() {
-	const ui = this.ui;
-	const get = name => ui.find('input[name=' + name + ']');
+	const get = name => q('input[name=' + name + ']');
 	const msg = text => {
-		const el = ui.find('.msg');
-		el.toggleClass('ok', /^注册成功/.test(text));
-		el.text(text);
+		const el = q('.msg');
+		if (!el) return;
+		el.classList.toggle('ok', /^注册成功/.test(text));
+		el.textContent = text;
 	};
 
-	this.ui.css({
-		top: Math.max(16, Math.floor((Renderer.height - 272) / 2)),
-		left: Math.floor((Renderer.width - 280) / 2)
-	});
+	// 窗口居中（Shadow DOM host 定位）
+	this._host.style.top = Math.max(16, Math.floor((Renderer.height - 272) / 2)) + 'px';
+	this._host.style.left = Math.floor((Renderer.width - 280) / 2) + 'px';
 
 	// 仅标题栏可拖（游戏内窗口行为）
-	this.draggable(this.ui.find('.titlebar'));
+	this.draggable('.titlebar');
 
-	// 标题栏关闭钮（sys_close 位图，data-* 由 parseHTML 处理）
-	this.ui.find('.titlebar .close').on('click', () => closeWindow());
+	// 标题栏关闭钮（sys_close 位图，data-* 由 DataAttrs 处理）
+	q('.titlebar .close').addEventListener('click', () => closeWindow());
 
 	// 性别选择（单选）
-	this.ui.find('.sexbtn').on('click', function () {
-		ui.find('.sexbtn').removeClass('active');
-		this.classList.add('active');
+	qAll('.sexbtn').forEach(btn => {
+		btn.addEventListener('click', function () {
+			qAll('.sexbtn').forEach(b => b.classList.remove('active'));
+			this.classList.add('active');
+		});
 	});
 
 	// 发送验证码：验证码发往邮箱，优先校验邮箱（是否输入/格式），其次帐号（服务端发码需要）；
 	// 不校验密码——用户可先发码后填密码
-	this.ui.find('.send').on('click', () => {
-		const sendBtn = ui.find('.send');
-		if (sendBtn.prop('disabled')) return;
-		const email = get('email').val().trim();
-		const username = get('username').val().trim();
+	q('.send').addEventListener('click', () => {
+		const sendBtn = q('.send');
+		if (sendBtn.disabled) return;
+		const email = get('email').value.trim();
+		const username = get('username').value.trim();
 		if (!email) return msg('请输入邮箱');
 		if (!EMAIL_RE.test(email)) return msg('邮箱格式不正确');
 		if (!username) return msg('请输入帐号');
 		if (!USERNAME_RE.test(username)) return msg('帐号须为 4-23 位字母或数字');
 
 		msg('正在发送验证码…');
-		sendBtn.prop('disabled', true).addClass('disabled');
+		sendBtn.disabled = true;
+		sendBtn.classList.add('disabled');
 		postForm('/api/register/send', { username: username, email: email }, res => {
 			if (!res.ok) {
 				msg(res.err || '发送失败');
-				sendBtn.prop('disabled', false).removeClass('disabled');
+				sendBtn.disabled = false;
+				sendBtn.classList.remove('disabled');
 				if (res.retryAfter) startCountdown(res.retryAfter);
 				return;
 			}
@@ -153,13 +168,13 @@ AccountRegister.init = function init() {
 	});
 
 	// 注册提交：本地初步验证（空值 → 格式 → 一致性 → 验证码），全部通过才发请求
-	this.ui.find('.register').on('click', () => {
-		const username = get('username').val().trim();
-		const email = get('email').val().trim();
-		const password = get('password').val();
-		const password2 = get('password2').val();
-		const code = get('code').val().trim();
-		const sex = ui.find('.sexbtn.female').hasClass('active') ? 'F' : 'M';
+	q('.register').addEventListener('click', () => {
+		const username = get('username').value.trim();
+		const email = get('email').value.trim();
+		const password = get('password').value;
+		const password2 = get('password2').value;
+		const code = get('code').value.trim();
+		const sex = q('.sexbtn.female').classList.contains('active') ? 'F' : 'M';
 
 		if (!username) return msg('请输入帐号');
 		if (!USERNAME_RE.test(username)) return msg('帐号须为 4-23 位字母或数字');
@@ -187,7 +202,7 @@ AccountRegister.init = function init() {
 	});
 
 	// 取消
-	this.ui.find('.cancel').on('click', () => closeWindow());
+	q('.cancel').addEventListener('click', () => closeWindow());
 };
 
 /**
@@ -195,9 +210,10 @@ AccountRegister.init = function init() {
  * 按钮是位图（btn_ok），无文字层：禁用态用灰阶滤镜表达，冷却结束恢复
  */
 function startCountdown(seconds) {
-	const btn = AccountRegister.ui.find('.send');
+	const btn = q('.send');
 	_seconds = seconds;
-	btn.prop('disabled', true).addClass('disabled');
+	btn.disabled = true;
+	btn.classList.add('disabled');
 	if (_timer) clearInterval(_timer);
 	_timer = setInterval(() => updateCountdown(btn), 1000);
 	updateCountdown(btn);
@@ -205,7 +221,8 @@ function startCountdown(seconds) {
 
 function updateCountdown(btn) {
 	if (_seconds <= 0) {
-		btn.prop('disabled', false).removeClass('disabled');
+		btn.disabled = false;
+		btn.classList.remove('disabled');
 		if (_timer) {
 			clearInterval(_timer);
 			_timer = null;
@@ -219,8 +236,13 @@ function updateCountdown(btn) {
  * Once append to body
  */
 AccountRegister.onAppend = function onAppend() {
-	this.ui.find('input[name=username]').val('').focus();
-	this.ui.find('.msg').text('');
+	const username = q('input[name=username]');
+	if (username) {
+		username.value = '';
+		username.focus();
+	}
+	const msgEl = q('.msg');
+	if (msgEl) msgEl.textContent = '';
 };
 
 /**
@@ -238,7 +260,8 @@ AccountRegister.onRemove = function onRemove() {
  * Key Handler: ESC 关闭
  */
 AccountRegister.onKeyDown = function onKeyDown(event) {
-	if ((event.which === KEYS.ESCAPE || event.key === 'Escape') && this.ui.is(':visible')) {
+	const visible = !!this._host && this._host.getClientRects().length > 0;
+	if ((event.which === KEYS.ESCAPE || event.key === 'Escape') && visible) {
 		event.stopImmediatePropagation();
 		closeWindow();
 		return false;

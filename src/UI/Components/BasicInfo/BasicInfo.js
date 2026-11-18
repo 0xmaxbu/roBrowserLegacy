@@ -9,7 +9,7 @@
  *
  */
 
-import BasicInfo from './BasicInfo/BasicInfo.js';
+import BasicInfoV1 from './BasicInfoV1/BasicInfoV1.js';
 import BasicInfoV0 from './BasicInfoV0/BasicInfoV0.js';
 import BasicInfoV3 from './BasicInfoV3/BasicInfoV3.js';
 import BasicInfoV4 from './BasicInfoV4/BasicInfoV4.js';
@@ -26,7 +26,7 @@ const versionInfo = {
 		20191223: BasicInfoV6, // Phase 12-03: PACKETVER 20191223 -> BasicInfoV6 rewrite (D-21)
 		20180124: BasicInfoV4,
 		20160101: BasicInfoV3,
-		20090601: BasicInfo
+		20090601: BasicInfoV1
 	},
 	re: {},
 	prere: {},

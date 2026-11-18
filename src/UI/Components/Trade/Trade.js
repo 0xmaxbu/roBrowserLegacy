@@ -17,6 +17,7 @@ import InputBox from 'UI/Components/InputBox/InputBox.js';
 import ItemInfo from 'UI/Components/ItemInfo/ItemInfo.js';
 import Inventory from 'UI/Components/Inventory/Inventory.js';
 import ChatBox from 'UI/Components/ChatBox/ChatBox.js';
+import { InventoryItemTransferPriority } from 'UI/Components/Inventory/InventoryItemTransfer.js';
 import htmlText from './Trade.html?raw';
 import cssText from './Trade.css?raw';
 
@@ -71,7 +72,7 @@ function escapeHtml(text) {
  * Initialize UI
  */
 Trade.init = function init() {
-	const root = this._shadow || this._host;
+	const root = this.getRoot();
 
 	// Bind buttons
 	const okBtn = root.querySelector('.ok.enabled');
@@ -144,10 +145,7 @@ Trade.init = function init() {
  * Guard keyboard input for the zeny <input> inside Shadow DOM
  */
 Trade.onKeyDown = function onKeyDown(event) {
-	const shadow = this._shadow || this._host;
-	const focused = shadow.activeElement;
-
-	if (focused && focused.tagName && focused.tagName.match(/input|select|textarea/i)) {
+	if (this.isEditableFocused()) {
 		event.stopImmediatePropagation();
 		return true;
 	}
@@ -162,7 +160,7 @@ Trade.onAppend = function onAppend() {
 	// Clean up (interface)
 	resetUI.call(this);
 
-	const root = this._shadow || this._host;
+	const root = this.getRoot();
 	const titleEl = root.querySelector('.titlebar .title');
 	if (titleEl) {
 		titleEl.textContent = this.title;
@@ -189,7 +187,7 @@ function resetUI() {
 	_recv.length = 0;
 	_send.length = 0;
 
-	const root = this._shadow || this._host;
+	const root = Trade.getRoot();
 
 	const overlay = root.querySelector('.overlay');
 	if (overlay) {
@@ -249,7 +247,7 @@ Trade.addItemFromInventory = function addItemFromInventory(index, success) {
 		return;
 	}
 
-	const root = this._shadow || this._host;
+	const root = Trade.getRoot();
 
 	// ZENY
 	if (index === 0) {
@@ -260,7 +258,7 @@ Trade.addItemFromInventory = function addItemFromInventory(index, success) {
 		return;
 	}
 
-	const inventoryItem = Inventory.getUI().removeItem(index, _tmpCount[index]);
+	const inventoryItem = Inventory.removeItem(index, _tmpCount[index]);
 	const item = Object.assign({}, inventoryItem);
 	const it = DB.getItemInfo(item.ITID);
 	const idx = _send.push(item) - 1;
@@ -293,7 +291,7 @@ Trade.addItemFromInventory = function addItemFromInventory(index, success) {
  * @param {object} item
  */
 Trade.addItem = function addItem(item) {
-	const root = this._shadow || this._host;
+	const root = Trade.getRoot();
 
 	// ZENY
 	if (item.ITID === 0) {
@@ -361,13 +359,24 @@ function onRequestAddItem(index, count) {
 	Trade.reqAddItem(index, count);
 }
 
+Trade.inventoryTransferPriority = InventoryItemTransferPriority.TRADE;
+Trade.receiveInventoryItemStack = function receiveInventoryItemStack(item) {
+	const sendBox = Trade.getRoot().querySelector('.box.send');
+	if (!item || !sendBox || sendBox.classList.contains('disabled')) {
+		return false;
+	}
+
+	onRequestAddItem(item.index, item.count || 1);
+	return true;
+};
+
 /**
  * Conclude a part of the trade
  *
  * @param {string} element - 'send' or 'recv'
  */
 Trade.conclude = function conclude(element) {
-	const root = this._shadow || this._host;
+	const root = Trade.getRoot();
 
 	const box = root.querySelector(`.box.${element}`);
 	if (box) {
@@ -423,7 +432,7 @@ function onCancel() {
  * Conclude our part
  */
 function onConclude() {
-	const root = Trade._shadow || Trade._host;
+	const root = Trade.getRoot();
 	const zenySend = root.querySelector('.zeny.send');
 	let zeny = parseInt(zenySend ? zenySend.value : '0', 10) || 0;
 	zeny = Math.min(Math.max(0, zeny), Session.zeny);
@@ -437,7 +446,7 @@ function onConclude() {
  */
 function onTrade() {
 	Trade.onTradeSubmit();
-	const root = Trade._shadow || Trade._host;
+	const root = Trade.getRoot();
 	const tradeEnabled = root.querySelector('.trade.enabled');
 	const tradeDisabled = root.querySelector('.trade.disabled');
 	if (tradeEnabled) {
@@ -508,7 +517,7 @@ function onItemOver(itemEl) {
 		return;
 	}
 
-	const root = Trade._shadow || Trade._host;
+	const root = Trade.getRoot();
 	const overlay = root.querySelector('.overlay');
 	if (!overlay) {
 		return;
@@ -536,7 +545,7 @@ function onItemOver(itemEl) {
  * Hide the item title when mouse is not over anymore
  */
 function onItemOut() {
-	const root = Trade._shadow || Trade._host;
+	const root = Trade.getRoot();
 	const overlay = root.querySelector('.overlay');
 	if (overlay) {
 		overlay.style.display = 'none';

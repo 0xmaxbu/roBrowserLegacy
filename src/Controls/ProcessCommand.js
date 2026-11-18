@@ -23,6 +23,7 @@ import MapPreferences from 'Preferences/Map.js';
 import CameraPreferences from 'Preferences/Camera.js';
 import Renderer from 'Renderer/Renderer.js';
 import Configs from 'Core/Configs.js';
+import PerfProbe from 'Core/PerfProbe.js';
 import EffectConst from 'DB/Effects/EffectConst.js';
 import StatusState from 'DB/Status/StatusState.js';
 import EntityManager from 'Renderer/EntityManager.js';
@@ -45,7 +46,6 @@ import CloudWeatherEffect from 'Renderer/Effects/CloudWeatherEffect.js';
 import ChatBox from 'UI/Components/ChatBox/ChatBox.js';
 import Navigation from 'UI/Components/Navigation/Navigation.js';
 import RankingTypes from 'DB/Jobs/RankingTypes.js';
-import LoginEngine from 'Engine/LoginEngine.js';
 
 let aliases = {};
 
@@ -100,6 +100,21 @@ const CommandStore = {
 			this.addText(DB.getMessage(317 + MapPreferences.miss), this.TYPE.INFO, this.FILTER.PUBLIC_LOG);
 			MapPreferences.miss = !MapPreferences.miss;
 			MapPreferences.save();
+			return;
+		}
+	},
+	li: {
+		description: 'Toggles the chat announcements when a friend or a guild member connects or disconnects',
+		callback: function () {
+			// The client reports the state it is switching *to*, which reading the
+			// flag before flipping it gives.
+			const line = UIPreferences.li
+				? DB.getMessage(1045, 'Do not display online status of friends in Chat Window.  [/li OFF]')
+				: DB.getMessage(1044, 'Display online status of friends in Chat Window. [/li ON]');
+
+			this.addText(line, this.TYPE.INFO, this.FILTER.PUBLIC_LOG);
+			UIPreferences.li = !UIPreferences.li;
+			UIPreferences.save();
 			return;
 		}
 	},
@@ -430,6 +445,51 @@ const CommandStore = {
 		}
 	},
 
+	ex: {
+		description: 'Blocks whispers from <Character Name>, or lists the blocked characters',
+		callback: function (text) {
+			const matches = text.match(/^ex\s+(.*\S)/);
+			if (matches) {
+				requestWhisperSetting(matches[1], 0);
+				return;
+			}
+
+			const pkt = new PACKET.CZ.REQ_WHISPER_LIST();
+			Network.sendPacket(pkt);
+		}
+	},
+
+	in: {
+		description: 'Allows whispers from <Character Name>',
+		callback: function (text) {
+			const matches = text.match(/^in\s+(.*\S)/);
+			if (matches) {
+				requestWhisperSetting(matches[1], 1);
+				return;
+			}
+
+			this.addText(DB.getMessage(44), this.TYPE.INFO, this.FILTER.PUBLIC_LOG);
+		}
+	},
+
+	exall: {
+		description: 'Blocks whispers from everyone',
+		callback: function () {
+			const pkt = new PACKET.CZ.SETTING_WHISPER_STATE();
+			pkt.type = 0;
+			Network.sendPacket(pkt);
+		}
+	},
+
+	inall: {
+		description: 'Allows whispers from everyone',
+		callback: function () {
+			const pkt = new PACKET.CZ.SETTING_WHISPER_STATE();
+			pkt.type = 1;
+			Network.sendPacket(pkt);
+		}
+	},
+
 	guild: {
 		description: "Creates a guild named <Guild Name>. This requires an Emperium to be in the creator's inventory",
 		callback: function (text) {
@@ -438,6 +498,19 @@ const CommandStore = {
 				Guild.createGuild(matches[2]);
 				return;
 			}
+		}
+	},
+
+	guildinvite: {
+		description: 'Invites the specified player to your guild',
+		callback: function (text) {
+			const matches = text.match(/^guildinvite\s+(.+)/);
+			if (matches && matches[1]) {
+				Guild.requestPlayerInvitationByName(matches[1]);
+				return;
+			}
+
+			this.addText('Usage: /guildinvite <Character Name>', this.TYPE.INFO, this.FILTER.PUBLIC_LOG);
 		}
 	},
 
@@ -784,18 +857,22 @@ const CommandStore = {
 		}
 	},
 	navi: {
-		description: 'Navigate to a map location. Usage: /navi mapname x y',
+		description: 'Navigate to a map location. Usage: /navi mapname x y (use -1 -1 for map center)',
 		callback: function (text) {
-			const matches = text.match(/^navi\s+(\S+)\s+(\d+)\s+(\d+)/);
+			const matches = text.match(/^navi\s+(\S+)\s+(-?\d+)\s+(-?\d+)/);
 			if (matches) {
+				const x = parseInt(matches[2], 10);
+				const y = parseInt(matches[3], 10);
+				if (!((x === -1 && y === -1) || (x >= 0 && y >= 0))) return;
+
 				Navigation.append();
 				Navigation.navigateTo({
 					startMap: MapRenderer.currentMap,
 					startX: Session.Entity.position[0] | 0,
 					startY: Session.Entity.position[1] | 0,
 					endMap: matches[1],
-					endX: parseInt(matches[2], 10),
-					endY: parseInt(matches[3], 10),
+					endX: x,
+					endY: y,
 					displayName: matches[1] + ' (' + matches[2] + ', ' + matches[3] + ')'
 				});
 				return;
@@ -958,6 +1035,61 @@ if (Configs.get('development')) {
 	};
 }
 
+// Performance probe readout, when the configuration switches the probe on (Core/PerfProbe.js)
+if (Configs.get('perfProbe')) {
+	CommandStore.perf = {
+		description: 'Performance probe. Usage: /perf [reset|slow|overlay on|off]',
+		callback: function (text) {
+			const args = text.trim().split(/\s+/).slice(1);
+			const mode = (args[0] || '').toLowerCase();
+
+			if (!PerfProbe.enabled) {
+				this.addText('The performance probe is not running.', this.TYPE.INFO, this.FILTER.PUBLIC_LOG);
+				return;
+			}
+
+			if (!mode || mode === 'stats') {
+				const stats = PerfProbe.stats();
+				console.log('[PerfProbe] stats', stats);
+				this.addText(
+					`${stats.fps} fps over ${stats.drawingSeconds} s of drawing: frame p50 ${stats.frameMs.p50} / p99 ${stats.frameMs.p99} ms, ` +
+						`work ${stats.workMs.avg} ms, ${stats.drawCalls.avg} draws, ${stats.hitches} hitches`,
+					this.TYPE.INFO,
+					this.FILTER.PUBLIC_LOG
+				);
+				return;
+			}
+
+			if (mode === 'reset') {
+				PerfProbe.reset();
+				this.addText('Performance probe reset.', this.TYPE.INFO, this.FILTER.PUBLIC_LOG);
+				return;
+			}
+
+			if (mode === 'slow') {
+				const slow = PerfProbe.slowFrames();
+				const total = PerfProbe.stats().slowFrames;
+				console.table(slow);
+				this.addText(
+					total > slow.length
+						? `${total} frames over 33 ms since the last reset; the first ${slow.length} are listed.`
+						: `${slow.length} frames over 33 ms since the last reset.`,
+					this.TYPE.INFO,
+					this.FILTER.PUBLIC_LOG
+				);
+				return;
+			}
+
+			if (mode === 'overlay') {
+				PerfProbe.overlay((args[1] || 'on').toLowerCase() !== 'off');
+				return;
+			}
+
+			this.addText('Usage: /perf [reset|slow|overlay on|off]', this.TYPE.INFO, this.FILTER.PUBLIC_LOG);
+		}
+	};
+}
+
 /**
  * Load aliases
  */
@@ -972,6 +1104,22 @@ function loadAliases() {
 }
 
 loadAliases();
+
+/**
+ * Block or allow whispers from a character
+ *
+ * @param {string} name
+ * @param {number} type - 0 block, 1 allow
+ */
+function requestWhisperSetting(name, type) {
+	const pkt = new PACKET.CZ.SETTING_WHISPER_PC();
+	pkt.name = name;
+	pkt.type = type;
+	Network.sendPacket(pkt);
+
+	// The reply does not carry the name, and replies come back in request order
+	ChatBox.PrivateMessageStorage.blockNicks.push(name);
+}
 
 /**
  * Process command
@@ -1071,10 +1219,10 @@ const AtCommandStore = {
 			const parts = text.split(' ');
 			const arg = parts[1] && parts[1].trim().toLowerCase();
 			if (arg === 'chn') {
-				LoginEngine.setPlayerLang('zh');
+				import('Engine/LoginEngine.js').then(m => m.default.setPlayerLang('zh'));
 				return true;
 			} else if (arg === 'english' || arg === 'eng') {
-				LoginEngine.setPlayerLang('en');
+				import('Engine/LoginEngine.js').then(m => m.default.setPlayerLang('en'));
 				return true;
 			}
 			return false;

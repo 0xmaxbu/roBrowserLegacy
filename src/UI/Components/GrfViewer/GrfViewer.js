@@ -39,17 +39,10 @@ let _thread = 0;
 let _actionID = 0;
 
 /**
- * Helper to get shadow root
- */
-function _getRoot() {
-	return Viewer._shadow || Viewer._host;
-}
-
-/**
  * Initialize Component
  */
 Viewer.init = function init() {
-	const root = _getRoot();
+	const root = Viewer.getRoot();
 
 	Thread.hook('THREAD_READY', () => {
 		const remoteClient = Configs.get('remoteClient');
@@ -160,7 +153,7 @@ Viewer.onAppend = function onAppend() {
  * Initialize tool bar
  */
 function initToolBar() {
-	const root = _getRoot();
+	const root = Viewer.getRoot();
 
 	// Path submit
 	root.querySelector('#path').addEventListener('keydown', function (event) {
@@ -214,7 +207,7 @@ function initToolBar() {
  * @param {object} event
  */
 function showContextMenu(iconElement, event) {
-	const root = _getRoot();
+	const root = Viewer.getRoot();
 	const contextmenu = root.querySelector('#contextmenu');
 	const overlay = root.querySelector('.overlay');
 	const header = contextmenu.querySelector('.header');
@@ -314,7 +307,7 @@ function moveToDirectory(path, save) {
  * @param {object} event
  */
 function processGRF(event) {
-	const root = _getRoot();
+	const root = Viewer.getRoot();
 	root.querySelector('#progress').style.display = 'block';
 
 	Client.onFilesLoaded = () => {
@@ -341,7 +334,7 @@ function showDirectory(path) {
 		path = path.substr(1);
 	}
 
-	const root = _getRoot();
+	const root = Viewer.getRoot();
 	const directory = path.replace(/\//g, '\\\\');
 	const reg = `${directory}([^(\\0|\\\\)]+)`;
 
@@ -376,7 +369,7 @@ function showDirectory(path) {
 function search(keyword) {
 	const escapedSearch = keyword.replace(/(\.|\\|\+|\*|\?|\[|\^|\]|\$|\(|\)|\{|\}|\=|\!|<|>|\||\:|\-)/g, '\\$1');
 	const reg = `data\\\\([^(\\0\\)]+)?${escapedSearch}([^(\\0|\\\\)]+)?`;
-	const root = _getRoot();
+	const root = Viewer.getRoot();
 	const actionID = ++_actionID;
 
 	root.querySelectorAll('.icon').forEach(el => el.remove());
@@ -421,7 +414,7 @@ function sortFiles(a, b) {
  * @param {Array} list of files and directories
  */
 function renderFiles(list) {
-	const root = _getRoot();
+	const root = Viewer.getRoot();
 	root.querySelector('#progress').style.display = 'none';
 
 	if (!list.length) {
@@ -534,7 +527,7 @@ function displayImagesThumbnail() {
 			return;
 		}
 
-		const root = _getRoot();
+		const root = Viewer.getRoot();
 		const nodes = Array.from(root.querySelectorAll('.img')).slice(0, 5);
 		let load = 0;
 		const total = nodes.length;
@@ -632,7 +625,7 @@ function onDirectoryClick(iconEl) {
  * User click on an audio file, play it
  */
 function onAudioClick(iconEl) {
-	const root = _getRoot();
+	const root = Viewer.getRoot();
 	const path = iconEl.getAttribute('data-path');
 	const box = root.querySelector('#preview .box');
 	const progress = root.querySelector('#progress');
@@ -670,7 +663,7 @@ function onAudioClick(iconEl) {
  * User click on an image, render it
  */
 function onImageClick(iconEl) {
-	const root = _getRoot();
+	const root = Viewer.getRoot();
 	const path = iconEl.getAttribute('data-path');
 	const box = root.querySelector('#preview .box');
 	const progress = root.querySelector('#progress');
@@ -760,7 +753,6 @@ const onObjectClick = (() => {
 		if (App) return true;
 		if (typeof ROBrowser === 'undefined') return false;
 		App = new ROBrowser({
-			// eslint-disable-line no-undef
 			target: element,
 			type: ROBrowser.TYPE.FRAME, // eslint-disable-line no-undef
 			application: ROBrowser.APP.MODELVIEWER, // eslint-disable-line no-undef
@@ -810,7 +802,7 @@ const onObjectClick = (() => {
 
 	return iconEl => {
 		if (!initApp()) return;
-		const root = _getRoot();
+		const root = Viewer.getRoot();
 		const path = iconEl.getAttribute('data-path').replace(/\\/g, '/');
 		const box = root.querySelector('#preview .box');
 		const preview = root.querySelector('#preview');
@@ -863,7 +855,6 @@ const onEffectClick = (() => {
 		if (App) return true;
 		if (typeof ROBrowser === 'undefined') return false;
 		App = new ROBrowser({
-			// eslint-disable-line no-undef
 			target: element,
 			type: ROBrowser.TYPE.FRAME, // eslint-disable-line no-undef
 			application: ROBrowser.APP.STRVIEWER, // eslint-disable-line no-undef
@@ -913,7 +904,7 @@ const onEffectClick = (() => {
 
 	return iconEl => {
 		if (!initApp()) return;
-		const root = _getRoot();
+		const root = Viewer.getRoot();
 		const path = iconEl.getAttribute('data-path').replace(/\\/g, '/');
 		const box = root.querySelector('#preview .box');
 		const preview = root.querySelector('#preview');
@@ -961,11 +952,13 @@ const onWorldClick = (() => {
 	let App = null;
 	const element = document.createElement('div');
 
+	// The worker tags map events with this frame's request id; the preview waits on its own
+	const previewRequests = {};
+
 	function initApp() {
 		if (App) return true;
 		if (typeof ROBrowser === 'undefined') return false;
 		App = new ROBrowser({
-			// eslint-disable-line no-undef
 			target: element,
 			type: ROBrowser.TYPE.FRAME, // eslint-disable-line no-undef
 			application: ROBrowser.APP.MAPVIEWER, // eslint-disable-line no-undef
@@ -993,8 +986,9 @@ const onWorldClick = (() => {
 			case 'CLEAN_GRF':
 				return;
 
-			default:
-				Thread.send(event.data.type, event.data.data, function () {
+			default: {
+				const request = Thread.send(event.data.type, event.data.data, function () {
+					delete previewRequests[request];
 					App._APP.postMessage(
 						{
 							arguments: Array.prototype.slice.call(arguments, 0),
@@ -1003,15 +997,18 @@ const onWorldClick = (() => {
 						location.origin
 					);
 				});
+				previewRequests[request] = event.data.uid;
+			}
 		}
 	}
 
 	function threadRedirect(type) {
-		Thread.hook(type, data => {
+		Thread.hook(type, (data, request) => {
 			App._APP.postMessage(
 				{
 					type: type,
-					data: data
+					data: data,
+					request: previewRequests[request]
 				},
 				location.origin
 			);
@@ -1027,7 +1024,7 @@ const onWorldClick = (() => {
 
 	return iconEl => {
 		if (!initApp()) return;
-		const root = _getRoot();
+		const root = Viewer.getRoot();
 		const path = iconEl.getAttribute('data-path').replace(/\\/g, '/');
 		const progress = root.querySelector('#progress');
 		const box = root.querySelector('#preview .box');
@@ -1085,7 +1082,7 @@ const onWorldClick = (() => {
  * User click on text, display it
  */
 function onTextClick(iconEl) {
-	const root = _getRoot();
+	const root = Viewer.getRoot();
 	const path = iconEl.getAttribute('data-path');
 	const progress = root.querySelector('#progress');
 	const box = root.querySelector('#preview .box');
@@ -1135,7 +1132,6 @@ const onGrannyClick = (() => {
 		if (App) return true;
 		if (typeof ROBrowser === 'undefined') return false;
 		App = new ROBrowser({
-			// eslint-disable-line no-undef
 			target: element,
 			type: ROBrowser.TYPE.FRAME, // eslint-disable-line no-undef
 			application: ROBrowser.APP.GRANNYMODELVIEWER, // eslint-disable-line no-undef
@@ -1148,8 +1144,7 @@ const onGrannyClick = (() => {
 		return true;
 	}
 
-	// Ressource sharing (Currently unused, preserved for future development)
-	function _onMessage(event) {
+	function onMessage(event) {
 		if (typeof event.data !== 'object') {
 			return;
 		}
@@ -1177,22 +1172,17 @@ const onGrannyClick = (() => {
 		}
 	}
 
-	// Wait for synchronisation with frame (Currently unused, preserved for future development)
-	function _synchronise() {
+	function synchronise() {
 		if (!ready) {
 			App._APP.postMessage({ type: 'init' }, location.origin);
-			setTimeout(_synchronise, 100);
+			setTimeout(synchronise, 100);
 		}
 	}
 
-	return _iconEl => {
+	return iconEl => {
 		if (!initApp()) return;
-		alert('This module is under development.');
-		return;
-
-		/*
-		const root = _getRoot();
-		const path = _iconEl.getAttribute('data-path').replace(/\\/g, '/');
+		const root = Viewer.getRoot();
+		const path = iconEl.getAttribute('data-path').replace(/\\/g, '/');
 		const box = root.querySelector('#preview .box');
 		const preview = root.querySelector('#preview');
 
@@ -1201,14 +1191,18 @@ const onGrannyClick = (() => {
 
 		preview.style.display = 'block';
 
-		preview.addEventListener('click', () => {
-			preview.style.display = 'none';
-			element.style.display = 'none';
-			App._APP.postMessage({ type: 'stop' }, location.origin);
-			window.removeEventListener('message', _onMessage, false);
-		}, { once: true });
+		preview.addEventListener(
+			'click',
+			() => {
+				preview.style.display = 'none';
+				element.style.display = 'none';
+				App._APP.postMessage({ type: 'stop' }, location.origin);
+				window.removeEventListener('message', onMessage, false);
+			},
+			{ once: true }
+		);
 
-		window.addEventListener('message', _onMessage, false);
+		window.addEventListener('message', onMessage, false);
 
 		if (!ready) {
 			box.appendChild(element);
@@ -1217,7 +1211,7 @@ const onGrannyClick = (() => {
 			App.onReady = () => {
 				App._APP.frameElement.style.border = '1px solid grey';
 				App._APP.frameElement.style.backgroundColor = '#45484d';
-				_synchronise();
+				synchronise();
 			};
 			App.onload = () => {
 				App._APP.postMessage({ type: 'load', data: path }, location.origin);
@@ -1225,7 +1219,6 @@ const onGrannyClick = (() => {
 		} else {
 			App._APP.postMessage({ type: 'load', data: path }, location.origin);
 		}
-		*/
 	};
 })();
 

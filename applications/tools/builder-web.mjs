@@ -2,11 +2,13 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
+import aliasConfig from '../../aliases.json' with { type: 'json' };
+import { getCustomAliases } from '../../vite/custom-aliases.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const require = createRequire(import.meta.url);
+const projectRoot = path.resolve(__dirname, '../../');
+
 const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url)));
 
 const startTime = Date.now();
@@ -16,24 +18,15 @@ const buildDate = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '')
 const dist = './dist/';
 const platform = 'Web';
 
-// Aliases (same as vite.config.js)
-const aliases = {
-	jquery: path.resolve(__dirname, '../../src/Vendors/jquery-1.9.1.js'),
-	App: path.resolve(__dirname, '../../src/App'),
-	Audio: path.resolve(__dirname, '../../src/Audio'),
-	Controls: path.resolve(__dirname, '../../src/Controls'),
-	Core: path.resolve(__dirname, '../../src/Core'),
-	DB: path.resolve(__dirname, '../../src/DB'),
-	Engine: path.resolve(__dirname, '../../src/Engine'),
-	Loaders: path.resolve(__dirname, '../../src/Loaders'),
-	Network: path.resolve(__dirname, '../../src/Network'),
-	Plugins: path.resolve(__dirname, '../../src/Plugins'),
-	Preferences: path.resolve(__dirname, '../../src/Preferences'),
-	Renderer: path.resolve(__dirname, '../../src/Renderer'),
-	UI: path.resolve(__dirname, '../../src/UI'),
-	Utils: path.resolve(__dirname, '../../src/Utils'),
-	Vendors: path.resolve(__dirname, '../../src/Vendors')
-};
+const customAliases = getCustomAliases(projectRoot);
+if (customAliases.length) {
+	console.log('[custom] overrides:');
+	for (const a of customAliases) console.log(' ', a.specifier, '→', a.replacement);
+}
+const aliases = [
+	...customAliases,
+	...aliasConfig.dirs.map(d => ({ find: d, replacement: path.resolve(projectRoot, 'src', d) }))
+];
 
 const header = [
 	'/*',
@@ -71,9 +64,9 @@ const entryMap = {
 		H: { path: '/index.html', action: () => createHTML(false, args, isAll) },
 		PWA: {
 			path: '/index.html',
-			action: () => {
+			action: async () => {
 				createHTML(true, args, isAll);
-				copyPwaFiles();
+				await copyPwaFiles();
 			}
 		}
 	};
@@ -507,8 +500,7 @@ window.ROConfigBase = {
     saveFiles: true,  
     ThirdPersonCamera: false,  
     transitionDuration: 500,  
-    restoreChatFocus: false,  
-    useSystemFolderFont: false  
+    restoreChatFocus: false
 };  
 `;
 	fs.writeFileSync(dist + platform + '/Config.js', configContent, { encoding: 'utf8' });
@@ -678,12 +670,20 @@ function createApiHTML() {
 	fs.copyFileSync('./applications/api/api.js', dist + platform + '/api.js');
 }
 
-function copyPwaFiles() {
+async function copyPwaFiles() {
 	const start = Date.now();
+	const sharp = (await import('sharp')).default;
+	const bgPath = './src/UI/Components/Intro/images/background.jpg';
 	fs.copyFileSync('./applications/pwa/icon.png', dist + platform + '/icon.png');
 	fs.copyFileSync('./applications/pwa/manifest.webmanifest', dist + platform + '/manifest.webmanifest');
-	fs.copyFileSync('./applications/pwa/screenshotwide.png', dist + platform + '/screenshotwide.png');
-	fs.copyFileSync('./applications/pwa/screenshotnarrow.png', dist + platform + '/screenshotnarrow.png');
+	await sharp(bgPath)
+		.resize(1920, 1080)
+		.png()
+		.toFile(dist + platform + '/screenshotwide.png');
+	await sharp(bgPath)
+		.resize(390, 844)
+		.png()
+		.toFile(dist + platform + '/screenshotnarrow.png');
 	console.log('PWA files copied', Date.now() - start, 'ms.');
 }
 

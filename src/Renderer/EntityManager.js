@@ -17,7 +17,21 @@ import KEYS from 'Controls/KeyEventHandler.js';
 import PathFinding from 'Utils/PathFinding.js';
 import GraphicsSettings from 'Preferences/Graphics.js';
 import Altitude from 'Renderer/Map/Altitude.js';
+import GR2ModelRenderer from 'Renderer/GR2/GR2ModelRenderer.js';
+import EntityComposer from 'Renderer/Entity/EntityComposer.js';
 const _list = [];
+
+/**
+ * Release an entity's GR2 model instance (if any) at the true-removal sites, so a
+ * removed mob leaves no ghost in the renderer's instance list. Idempotent.
+ * @param {Entity} entity
+ */
+function releaseGr2(entity) {
+	if (entity.gr2Model) {
+		GR2ModelRenderer.detach(entity.gr2Model);
+		entity.gr2Model = null;
+	}
+}
 
 // O(1) GID lookup map
 const _gidMap = new Map();
@@ -89,7 +103,7 @@ function getEntity(gid) {
 	//   this check speed up the process.
 	// - When you load a map, the main character is not in the list yet
 	//   so we skip a lot of vital informations
-	if (Session.Entity.GID === gid) {
+	if (Session.Entity && Session.Entity.GID === gid) {
 		return Session.Entity;
 	}
 
@@ -124,7 +138,7 @@ function storePendingTransform(aid, key, value) {
  * @returns {object} Entity
  */
 function getEntityByCID(aid) {
-	if (Session.Entity.AID === aid) {
+	if (Session.Entity && Session.Entity.AID === aid) {
 		return Session.Entity;
 	}
 
@@ -156,10 +170,25 @@ function addEntity(entity) {
  * Clean up entities from list
  */
 function free() {
-	_list.forEach(entity => entity.clean());
+	// Iterate a snapshot: Entity.clean() may call removeEntity() on companions
+	// (cart/falcon/wug), which splices _list. Entities already released that way
+	// (no longer in _list) are skipped so each is released exactly once.
+	const snapshot = _list.slice();
+	const live = new Set(snapshot);
+	for (let i = 0; i < snapshot.length; ++i) {
+		const entity = snapshot[i];
+		if (!live.has(entity) || !_list.includes(entity)) {
+			continue;
+		}
+		releaseGr2(entity);
+		EntityComposer.remove(entity);
+		entity.clean();
+		live.delete(entity);
+	}
 
 	_list.length = 0;
 	_gidMap.clear();
+	_over = null;
 	_pickList.length = 0;
 	_renderSortDirty = true;
 	_pickSortDirty = true;
@@ -183,6 +212,20 @@ function removeEntity(gid) {
 	const entity = _gidMap.get(gid);
 
 	if (entity) {
+		if (entity.cart) {
+			removeEntity(entity.cart.GID);
+			entity.cart = null;
+		}
+		if (entity.falcon) {
+			removeEntity(entity.falcon.GID);
+			entity.falcon = null;
+		}
+		if (entity.wug) {
+			removeEntity(entity.wug.GID);
+			entity.wug = null;
+		}
+		releaseGr2(entity);
+		EntityComposer.remove(entity);
 		entity.clean();
 		_gidMap.delete(gid);
 		const index = _list.indexOf(entity);
@@ -259,8 +302,10 @@ function setFocusEntity(entity) {
  * @param {Entity} b
  */
 function sort(a, b) {
-	const aDepth = a.depth + (a.GID % 100) / 1000;
-	const bDepth = b.depth + (b.GID % 100) / 1000;
+	const aGID = typeof a.GID === 'number' ? a.GID : parseInt(a.GID, 10) || 0;
+	const bGID = typeof b.GID === 'number' ? b.GID : parseInt(b.GID, 10) || 0;
+	const aDepth = a.depth + (aGID % 100) / 1000;
+	const bDepth = b.depth + (bGID % 100) / 1000;
 
 	return bDepth - aDepth;
 }
@@ -300,6 +345,74 @@ function sortByPriority(a, b) {
 }
 
 /**
+ * Player-relative view-area culling parameters (performance mode only)
+ *
+ * @returns {object|null} { x, y, viewAreaSq } or null when culling is off
+ */
+function getCulling() {
+	if (!GraphicsSettings.performanceMode || !Session.Entity || !Session.Entity.position) {
+		return null;
+	}
+
+	return {
+		x: Session.Entity.position[0],
+		y: Session.Entity.position[1],
+		viewAreaSq: GraphicsSettings.viewArea * GraphicsSettings.viewArea
+	};
+}
+
+/**
+ * @param {object|null} culling from getCulling()
+ * @param {Entity} entity
+ * @returns {boolean} true when the entity is outside the view area
+ */
+function isCulled(culling, entity) {
+	if (!culling) {
+		return false;
+	}
+
+	const dx = entity.position[0] - culling.x;
+	const dy = entity.position[1] - culling.y;
+	return dx * dx + dy * dy > culling.viewAreaSq;
+}
+
+/**
+ * Hide the entity overlays while culled, show them back once drawn
+ *
+ * @param {Entity} entity
+ * @param {boolean} culled
+ */
+function setCulled(entity, culled) {
+	if (entity.culled === culled) {
+		return;
+	}
+
+	entity.culled = culled;
+
+	const display = culled ? 'none' : '';
+	entity.life.canvas.style.display = display;
+	entity.emblem.canvas.style.display = display;
+	entity.display.canvas.style.display = display;
+	entity.dialog.canvas.style.display = display;
+	entity.cast.canvas.style.display = display;
+	if (entity.room.node) {
+		entity.room.node.ui[0].style.display = display;
+	}
+}
+
+/**
+ * Decide, once per frame and before any pass draws, which entities are out of
+ * the view area: their overlays are hidden and every pass skips them
+ */
+function cull() {
+	const culling = getCulling();
+
+	for (let i = 0, count = _list.length; i < count; ++i) {
+		setCulled(_list[i], isCulled(culling, _list[i]));
+	}
+}
+
+/**
  * Render all entities (picking or not)
  *
  * @param {object} gl webgl context
@@ -311,11 +424,13 @@ function sortByPriority(a, b) {
  * Infos: RO Game doesn't seems to render ambiant and diffuse on Sprites
  */
 function render(gl, modelView, projection, fog, renderEffects) {
-	let i, count;
 	const tick = Date.now();
 
 	// Stop rendering if no units to render (should never happened...)
 	if (!_list.length) {
+		// Nothing is drawn, but the composites of the entities that just left
+		// still have to be released.
+		EntityComposer.endFrame(gl);
 		return;
 	}
 
@@ -330,17 +445,29 @@ function render(gl, modelView, projection, fog, renderEffects) {
 
 	// Use program
 	SpriteRenderer.bind3DContext(gl, modelView, projection, fog);
-
-	// Pre-compute culling values outside the loop
-	const doCulling = GraphicsSettings.performanceMode;
-	let playerX, playerY, viewAreaSq;
-	if (doCulling && Session.Entity && Session.Entity.position) {
-		playerX = Session.Entity.position[0];
-		playerY = Session.Entity.position[1];
-		viewAreaSq = GraphicsSettings.viewArea * GraphicsSettings.viewArea;
-	}
+	SpriteRenderer.beginBatch(gl);
 
 	// Rendering
+	try {
+		renderList(modelView, projection, renderEffects, tick);
+	} finally {
+		SpriteRenderer.endBatch();
+
+		// The batch has been drawn: the composite textures that are not used
+		// anymore can be released safely now.
+		EntityComposer.endFrame(gl);
+	}
+
+	// Clean program
+	SpriteRenderer.unbind(gl);
+}
+
+/**
+ * The entity loop of render()
+ */
+function renderList(modelView, projection, renderEffects, tick) {
+	let i, count;
+
 	for (i = 0, count = _list.length; i < count; ++i) {
 		if (
 			(_list[i].objecttype != _list[i].constructor.TYPE_EFFECT && !renderEffects) ||
@@ -356,6 +483,10 @@ function render(gl, modelView, projection, fog, renderEffects) {
 				}
 
 				_gidMap.delete(_list[i].GID);
+				releaseGr2(_list[i]);
+				// The batch is still recording here: the composite texture is
+				// released after the flush, not now.
+				EntityComposer.remove(_list[i]);
 				_list[i].clean();
 				_list.splice(i, 1);
 				i--;
@@ -363,19 +494,12 @@ function render(gl, modelView, projection, fog, renderEffects) {
 				_pickSortDirty = true;
 				continue;
 			}
-			if (doCulling) {
-				const dx = _list[i].position[0] - playerX;
-				const dy = _list[i].position[1] - playerY;
-				if (dx * dx + dy * dy > viewAreaSq) {
-					continue;
-				}
+			if (_list[i].culled) {
+				continue;
 			}
 			_list[i].render(modelView, projection);
 		}
 	}
-
-	// Clean program
-	SpriteRenderer.unbind(gl);
 }
 
 /**
@@ -420,6 +544,16 @@ function intersect() {
 			if (dx * dx + dy * dy > viewAreaSq) {
 				continue;
 			}
+		}
+
+		// Non-pickable entities
+		if (
+			entity.objecttype === Entity.TYPE_EFFECT ||
+			entity.objecttype === Entity.TYPE_FALCON ||
+			entity.objecttype === Entity.TYPE_WUG ||
+			entity.objecttype === Entity.TYPE_CART
+		) {
+			continue;
 		}
 
 		// No picking on dead entites
@@ -599,6 +733,7 @@ const EntityManager = {
 	removeLife: removeLife,
 	clearLifeCache: clearLifeCache,
 
+	cull: cull,
 	render: render,
 	intersect: intersect,
 	setSupportPicking: setSupportPicking,

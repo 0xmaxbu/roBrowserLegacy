@@ -139,7 +139,65 @@ function onSkillToGround(pkt) {
 	position[1] = pkt.yPos;
 	position[2] = Altitude.getCellHeight(pkt.xPos, pkt.yPos);
 
-	EffectManager.spamSkill(pkt.SKID, pkt.AID, position, null, pkt.AID);
+	EffectManager.spamSkill(pkt.SKID, pkt.AID, position, null, pkt.AID, pkt.level);
+
+	// Ground Truth / Canonical C++ (GameActorMsgHandler.cpp line 1069):
+	// Relocation skills on ground: SKID_MO_BODYRELOCATION, SKID_NJ_SHADOWJUMP, SKID_RL_FALLEN_ANGEL, SKID_SU_LOPE
+	switch (pkt.SKID) {
+		case SkillId.MO_BODYRELOCATION: {
+			const entity = EntityManager.get(pkt.AID);
+			if (entity && entity.fastMoveTo(pkt.xPos, pkt.yPos, 15, null, false)) {
+				entity._fastMoveTrail = true;
+				if (entity.objecttype === entity.constructor.TYPE_PC) {
+					entity.setAction({
+						action: entity.ACTION.ATTACK,
+						frame: 0,
+						repeat: false,
+						play: false
+					});
+				}
+			}
+			break;
+		}
+		case SkillId.NJ_SHADOWJUMP: {
+			const entity = EntityManager.get(pkt.AID);
+			if (entity && entity.fastMoveTo(pkt.xPos, pkt.yPos, 15, null, false)) {
+				entity._fastMoveTrail = true;
+				entity.setAction({
+					action: entity.ACTION.SKILL,
+					frame: 0,
+					repeat: false,
+					play: false
+				});
+			}
+			break;
+		}
+		case SkillId.RL_FALLEN_ANGEL: {
+			const entity = EntityManager.get(pkt.AID);
+			if (entity && entity.fastMoveTo(pkt.xPos, pkt.yPos, 15, null, false)) {
+				entity._fastMoveTrail = true;
+				entity.setAction({
+					action: entity.ACTION.SKILL,
+					frame: 0,
+					repeat: false,
+					play: false
+				});
+			}
+			break;
+		}
+		case SkillId.SU_LOPE: {
+			const entity = EntityManager.get(pkt.AID);
+			if (entity && entity.fastMoveTo(pkt.xPos, pkt.yPos, 15, null, false)) {
+				entity.setAction({
+					action: entity.ACTION.SKILL,
+					frame: 0,
+					repeat: false,
+					play: true
+				});
+			}
+			break;
+		}
+	}
 }
 
 /**
@@ -217,6 +275,9 @@ function onSkillResult(pkt) {
 			case 13:
 				error = 1398;
 				break;
+			case 71:
+				error = 1536;
+				break;
 			case 83:
 				error = 661;
 				break;
@@ -224,7 +285,16 @@ function onSkillResult(pkt) {
 	}
 
 	if (error) {
-		ChatBox.addText(DB.getMessage(error), ChatBox.TYPE.ERROR, ChatBox.FILTER.SKILL_FAIL);
+		if (pkt.itemId > 0 && pkt.NUM > 0 && error === 1536) {
+			// USESKILL_FAIL_NEED_ITEM — pkt.itemId + pkt.NUM
+			const itemInfo = DB.getItemInfo(pkt.itemId);
+			const itemName = itemInfo.identifiedDisplayName || itemInfo.unidentifiedDisplayName || `Item ${pkt.itemId}`;
+			const msg = DB.getMessage(error)
+				.replace('%s', itemName)
+				.replace('%d', pkt.NUM || 1);
+			ChatBox.addText(msg, ChatBox.TYPE.ERROR, ChatBox.FILTER.SKILL_FAIL);
+		} else ChatBox.addText(DB.getMessage(error), ChatBox.TYPE.ERROR, ChatBox.FILTER.SKILL_FAIL);
+
 		// all skills fails that i tested not executed skill action
 		// maybe there is some edge case that i missed
 		// so i'm commenting out for now
@@ -249,7 +319,7 @@ function onSkillResult(pkt) {
  * @param {object} pkt - PACKET_ZC_SKILLINFO_LIST
  */
 function onSkillList(pkt) {
-	SkillWindow.getUI().setSkills(pkt.skillList);
+	SkillWindow.setSkills(pkt.skillList);
 }
 
 /**
@@ -258,7 +328,7 @@ function onSkillList(pkt) {
  * @param {object} pkt - PACKET.ZC.SKILLINFO_UPDATE
  */
 function onSkillUpdate(pkt) {
-	SkillWindow.getUI().updateSkill(pkt);
+	SkillWindow.updateSkill(pkt);
 }
 
 /**
@@ -279,7 +349,7 @@ function onShortCutList(pkt) {
  * @param {object} pkt - PACKET.ZC.ADD_SKILL
  */
 function onSkillAdded(pkt) {
-	SkillWindow.getUI().addSkill(pkt.data);
+	SkillWindow.addSkill(pkt.data);
 }
 
 /**
@@ -288,7 +358,7 @@ function onSkillAdded(pkt) {
  * @param {object} pkt - PACKET.ZC.AUTORUN_SKILL
  */
 function onAutoCastSkill(pkt) {
-	SkillWindow.getUI().useSkill(pkt.data);
+	SkillWindow.useSkill(pkt.data);
 }
 
 /**
@@ -330,12 +400,12 @@ function onIdentifyResult(pkt) {
 			ChatBox.addText(DB.getMessage(491), ChatBox.TYPE.BLUE, ChatBox.FILTER.ITEM);
 
 			// Remove old item
-			const item = Inventory.getUI().removeItem(pkt.index, 1);
+			const item = Inventory.removeItem(pkt.index, 1);
 
 			// Add new item updated
 			if (item) {
 				item.IsIdentified = true;
-				Inventory.getUI().addItem(item);
+				Inventory.addItem(item);
 			}
 			break;
 		}
@@ -607,8 +677,8 @@ function onUseSkill(id, level, targetID) {
 	let entity;
 	let range;
 
-	const isHomun = id > SkillId.HOMUN_BEGIN && id < SkillId.HOMUN_LAST;
-	const isMerc = id > SkillId.MERCENARY_BEGIN && id < SkillId.MERCENARY_LAST;
+	const isHomun = id >= SkillId.HOMUN_BEGIN && id <= SkillId.HOMUN_LAST;
+	const isMerc = id >= SkillId.MERCENARY_BEGIN && id <= SkillId.MERCENARY_LAST;
 
 	// Not used so far
 	//var isElem = (id > SkillId.ELEMENTAL_BEGIN && id < SkillId.ELEMENTAL_LAST);
@@ -633,7 +703,7 @@ function onUseSkill(id, level, targetID) {
 	}
 
 	const target = EntityManager.get(targetID) || entity;
-	const skill = SkillWindow.getUI().getSkillById(id);
+	const skill = SkillWindow.getSkillById(id);
 	const out = [];
 
 	if (skill) {
@@ -719,10 +789,13 @@ SkillTargetSelection.onUseSkillToPos = function onUseSkillToPos(id, level, x, y)
 	let entity;
 	let range;
 
-	const isHomun = id > 8000 && id < 8044;
+	const isHomun = id >= SkillId.HOMUN_BEGIN && id <= SkillId.HOMUN_LAST;
+	const isMerc = id >= SkillId.MERCENARY_BEGIN && id <= SkillId.MERCENARY_LAST;
 
 	if (isHomun) {
 		entity = EntityManager.get(Session.homunId);
+	} else if (isMerc) {
+		entity = EntityManager.get(Session.mercId);
 	} else {
 		entity = Session.Entity;
 		if (entity.isOverWeight) {
@@ -738,7 +811,7 @@ SkillTargetSelection.onUseSkillToPos = function onUseSkillToPos(id, level, x, y)
 	}
 
 	const pos = entity.position;
-	const skill = SkillWindow.getUI().getSkillById(id);
+	const skill = SkillWindow.getSkillById(id);
 	const out = [];
 
 	if (skill) {
@@ -785,6 +858,9 @@ SkillTargetSelection.onUseSkillToPos = function onUseSkillToPos(id, level, x, y)
 	if (isHomun) {
 		pkt = new PACKET.CZ.REQUEST_MOVENPC();
 		pkt.GID = Session.homunId;
+	} else if (isMerc) {
+		pkt = new PACKET.CZ.REQUEST_MOVENPC();
+		pkt.GID = Session.mercId;
 	} else {
 		if (PACKETVER.value >= 20180307) {
 			pkt = new PACKET.CZ.REQUEST_MOVE2();
@@ -803,21 +879,17 @@ function onSpiritSphere(pkt) {
 	if (pkt.num > 0) {
 		const entity = EntityManager.get(pkt.AID);
 		if (entity) {
-			const isMonk = entity._job && [15, 4016, 4038, 4070, 4077, 4106].includes(entity._job); //Monk classes
-			const isGS = entity._job && [24, 4215, 4216, 4228, 4229].includes(entity._job); //Gunslinger classes
-			const isRG = entity._job && [4066, 4082, 4083, 4102, 4110].includes(entity._job); //Royal Guard
-
 			const EF_Init_Par = {
 				effectId: EffectConst.EF_CHOOKGI,
 				ownerAID: pkt.AID,
 				spiritNum: pkt.num
 			};
 
-			if (isMonk) {
+			if (DB.isMonk(entity._job)) {
 				EF_Init_Par.effectId = EffectConst.EF_CHOOKGI2;
-			} else if (isGS) {
+			} else if (DB.isGunslinger(entity._job)) {
 				EF_Init_Par.effectId = EffectConst.EF_CHOOKGI3;
-			} else if (isRG) {
+			} else if (DB.isRoyalGuard(entity._job)) {
 				EF_Init_Par.effectId = EffectConst.EF_CHOOKGI_N;
 			}
 
@@ -878,8 +950,8 @@ function onSense(pkt) {
 }
 
 function hookSkillWindow() {
-	SkillWindow.getUI().onIncreaseSkill = onIncreaseSkill;
-	SkillWindow.getUI().onUseSkill = onUseSkill;
+	SkillWindow.onIncreaseSkill = onIncreaseSkill;
+	SkillWindow.onUseSkill = onUseSkill;
 }
 
 /**
@@ -892,7 +964,10 @@ export default function SkillEngine() {
 	Network.hookPacket(PACKET.ZC.SKILLINFO_LIST2, onSkillList);
 	Network.hookPacket(PACKET.ZC.SKILLINFO_UPDATE, onSkillUpdate);
 	Network.hookPacket(PACKET.ZC.SKILLINFO_UPDATE2, onSkillUpdate);
+	Network.hookPacket(PACKET.ZC.SKILLINFO_UPDATE3, onSkillUpdate);
 	Network.hookPacket(PACKET.ZC.ADD_SKILL, onSkillAdded);
+	Network.hookPacket(PACKET.ZC.ADD_SKILL2, onSkillAdded);
+	Network.hookPacket(PACKET.ZC.ADD_SKILL3, onSkillAdded);
 	Network.hookPacket(PACKET.ZC.SHORTCUT_KEY_LIST, onShortCutList);
 	Network.hookPacket(PACKET.ZC.SHORTCUT_KEY_LIST_V2, onShortCutList);
 	Network.hookPacket(PACKET.ZC.SHORTCUT_KEY_LIST_V3, onShortCutList);

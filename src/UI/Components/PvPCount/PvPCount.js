@@ -15,6 +15,7 @@ import Entity from 'Renderer/Entity/Entity.js';
 import Sound from 'Audio/SoundManager.js';
 import htmlText from './PvPCount.html?raw';
 import cssText from './PvPCount.css?raw';
+import whenDrawn from 'UI/WhenDrawn.js';
 
 const PvPCount = new GUIComponent('PvPCount', cssText);
 
@@ -53,25 +54,25 @@ let ranking = 0;
 let total = 0;
 
 /**
- * Helper to get the shadow root
- */
-function _getRoot() {
-	return PvPCount._shadow || PvPCount._host;
-}
-
-/**
  * Initialize UI
  */
 PvPCount.init = function init() {
-	Client.loadFiles(
+	// Fetched when the window is first drawn, not on entering the map
+	// (UI/WhenDrawn.js).
+	const loadFiles = (files, callback) => whenDrawn(this._host, () => Client.loadFiles(files, callback));
+	loadFiles(
 		['data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/rankfont.act', 'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/rankfont.spr'],
 		(rAct, rSpr) => {
 			_rankfontAct = rAct;
 			_rankfontSpr = rSpr;
+			// setData may have come first, while the font was loading
+			if (total > 0) {
+				renderRankText(`${ranking}/${total}`);
+			}
 		}
 	);
 
-	const root = _getRoot();
+	const root = this.getRoot();
 	_rankCanvas = root.querySelector('.pvp-rank-canvas');
 
 	if (!_rankCanvas) {

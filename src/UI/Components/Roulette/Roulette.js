@@ -13,19 +13,22 @@ import Client from 'Core/Client.js';
 import Preferences from 'Core/Preferences.js';
 import Renderer from 'Renderer/Renderer.js';
 import UIManager from 'UI/UIManager.js';
-import UIComponent from 'UI/UIComponent.js';
-import MiniMap from 'UI/Components/MiniMap/MiniMap.js';
+import GUIComponent from 'UI/GUIComponent.js';
 import Network from 'Network/NetworkManager.js';
 import PACKET from 'Network/PacketStructure.js';
 import PACKETVER from 'Network/PacketVerManager.js';
-import jQuery from 'Utils/jquery.js';
 import htmlText from './Roulette.html?raw';
 import cssText from './Roulette.css?raw';
 
 /**
  * Create Component
  */
-const Roulette = new UIComponent('Roulette', htmlText, cssText);
+const Roulette = new GUIComponent('Roulette', cssText);
+
+/**
+ * Render HTML
+ */
+Roulette.render = () => htmlText;
 
 /**
  * @var {Preferences} structure
@@ -62,29 +65,31 @@ let _isSpinning = false;
  * Initialize UI
  */
 Roulette.init = function init() {
-	this.ui.find('.close').click(function () {
+	const root = this.getRoot();
+
+	root.querySelector('.close').addEventListener('click', () => {
 		Roulette.onClose();
 	});
 
-	this.ui.find('.btn-close').click(function () {
-		// Get Prize：有未领取奖品时先发 CZ 0xA21 领取（服务端发货后回 0xA22），再关窗
+	root.querySelector('.btn-close').addEventListener('click', () => {
+		// Get Prize：有未领取奖品时先发 CZ 0xA21 领取（服务端发货后回 0xA22），再关窗（fork 逻辑）
 		if (_rouletteInfo.idx !== undefined && _rouletteInfo.idx > -1) {
 			Roulette.requestReceiveItem(0);
 		}
 		Roulette.onClose();
 	});
 
-	this.ui.find('.btn-spin').click(function () {
+	root.querySelector('.btn-spin').addEventListener('click', () => {
 		if (!_isSpinning) {
 			Roulette.onSpin();
 		}
 	});
 
-	this.ui.find('.btn-info').click(function () {
+	root.querySelector('.btn-info').addEventListener('click', () => {
 		Roulette.onInfo();
 	});
 
-	this.draggable(this.ui.find('.titlebar'));
+	this.draggable('.titlebar');
 };
 
 /**
@@ -108,20 +113,20 @@ function _getItemIconPath(itemId) {
  * Click on roulette icon
  */
 function onClickIcon() {
+	if (Roulette._host.style.display !== 'none') {
+		Roulette.onClose();
+		return;
+	}
+
 	const pkt = new PACKET.CZ.REQ_OPEN_ROULETTE();
 	Network.sendPacket(pkt);
 
-	// Clear any existing timeout
 	if (_responseTimeout) {
 		clearTimeout(_responseTimeout);
 	}
 
-	// Set timeout: if no response in 2 seconds, assume server uses NPC mod
-	// Standard rAthena: sends ZC_ACK_OPEN_ROULETTE → opens window (timeout cleared)
-	// Modified server: no response → timeout expires → server handles via NPC script
-	_responseTimeout = setTimeout(function () {
+	_responseTimeout = setTimeout(() => {
 		_responseTimeout = null;
-		// Server didn't respond - likely using NPC mod, no action needed
 	}, 2000);
 }
 
@@ -129,84 +134,74 @@ function onClickIcon() {
  * Once append to the DOM
  */
 Roulette.onAppend = function onAppend() {
-	this.ui.css({
-		top: Math.min(Math.max(0, _preferences.y), Renderer.height - this.ui.height()),
-		left: Math.min(Math.max(0, _preferences.x), Renderer.width - this.ui.width())
-	});
+	this._host.style.top = Math.min(Math.max(0, _preferences.y), Renderer.height - this._host.offsetHeight) + 'px';
+	this._host.style.left = Math.min(Math.max(0, _preferences.x), Renderer.width - this._host.offsetWidth) + 'px';
 
 	if (!_preferences.show) {
-		this.ui.hide();
+		this._host.style.display = 'none';
 	}
-	// Check if roulette is enabled in ROConfig
+
 	if (ROConfig.enableRoulette === false) {
 		return;
 	}
 
-	// Check if PACKETVER >= 20141008 (Roulette requires this version)
 	if (PACKETVER.value < 20141008) {
 		return;
 	}
 
-	// Try to add button with retry logic
-	let attempts = 0;
-	const maxAttempts = 20;
-
-	const tryAddButton = function () {
-		attempts++;
-		const miniMapComponent = MiniMap.getUI();
-
-		if (miniMapComponent && miniMapComponent.ui) {
-			clearTimeout(retryTimeout);
-			addButtonToMiniMap(miniMapComponent.ui);
-		} else if (attempts < maxAttempts) {
-			retryTimeout = setTimeout(tryAddButton, 500);
-		}
-	};
-
-	let retryTimeout = setTimeout(tryAddButton, 100);
+	addRouletteIcon();
 };
 
 /**
- * Add button to MiniMap UI element
+ * @var {HTMLButtonElement|null} Standalone roulette icon (light DOM)
  */
-function addButtonToMiniMap(miniMapUI) {
-	try {
-		// Check if button already exists
-		if (miniMapUI.find('.rouletteIcon').length === 0) {
-			miniMapUI.append('<button class="rouletteIcon"></button>');
-			miniMapUI.on('click', '.rouletteIcon', onClickIcon);
+let _iconBtn = null;
 
-			// Load roulette icon
-			const iconPath = 'basic_interface/roullette/RoulletteIcon.bmp';
-
-			Client.loadFile(DB.INTERFACE_PATH + iconPath, function (data) {
-				const btn = miniMapUI.find('.rouletteIcon');
-				btn.css({
-					backgroundImage: 'url(' + data + ')',
-					backgroundSize: 'contain',
-					backgroundRepeat: 'no-repeat',
-					backgroundPosition: 'center',
-					position: 'absolute',
-					top: '57px',
-					left: '-45px',
-					width: '43px',
-					height: '43px',
-					border: 'none'
-				});
-			});
-		}
-	} catch (e) {
-		console.error('[Roulette] Failed to add button:', e);
+/**
+ * Create the roulette icon as a standalone light-DOM button.
+ */
+function addRouletteIcon() {
+	if (_iconBtn) {
+		return;
 	}
+	_iconBtn = document.createElement('button');
+	_iconBtn.className = 'rouletteIcon';
+	Object.assign(_iconBtn.style, {
+		position: 'absolute',
+		top: '74px',
+		right: '145px',
+		width: '43px',
+		height: '43px',
+		border: 'none',
+		backgroundColor: 'transparent',
+		backgroundRepeat: 'no-repeat',
+		backgroundSize: 'contain',
+		backgroundPosition: 'center',
+		zIndex: '50',
+		cursor: 'pointer'
+	});
+	_iconBtn.addEventListener('mousedown', e => e.stopImmediatePropagation());
+	_iconBtn.addEventListener('click', onClickIcon);
+	document.body.appendChild(_iconBtn);
+	const iconPath = 'basic_interface/roullette/RoulletteIcon.bmp';
+	Client.loadFile(DB.INTERFACE_PATH + iconPath, function (data) {
+		if (_iconBtn) {
+			_iconBtn.style.backgroundImage = `url(${data})`;
+		}
+	});
 }
 
 /**
  * Remove from DOM
  */
 Roulette.onRemove = function onRemove() {
-	_preferences.show = this.ui.is(':visible');
-	_preferences.x = parseInt(this.ui.css('left'), 10);
-	_preferences.y = parseInt(this.ui.css('top'), 10);
+	if (_iconBtn) {
+		_iconBtn.remove();
+		_iconBtn = null;
+	}
+	_preferences.show = this._host.style.display !== 'none';
+	_preferences.x = parseInt(this._host.style.left, 10);
+	_preferences.y = parseInt(this._host.style.top, 10);
 	_preferences.save();
 };
 
@@ -223,18 +218,17 @@ Roulette.onOpen = function onOpen(pkt) {
 		_rouletteInfo.additionItemID = pkt.additionItemID || 0;
 	}
 
-	Roulette.ui.show();
-	Roulette.updateUI();
-	Roulette.focus();
+	this._host.style.display = '';
+	this.updateUI();
+	this.focus();
 };
 
 /**
  * Close Roulette Window
  */
 Roulette.onClose = function onClose() {
-	Roulette.ui.hide();
+	Roulette._host.style.display = 'none';
 
-	// Send close packet to server
 	const pkt = new PACKET.CZ.REQ_CLOSE_ROULETTE();
 	Network.sendPacket(pkt);
 };
@@ -247,7 +241,6 @@ Roulette.onSpin = function onSpin() {
 		return;
 	}
 
-	// Send spin request packet to server
 	const pkt = new PACKET.CZ.REQ_GENERATE_ROULETTE();
 	Network.sendPacket(pkt);
 };
@@ -261,7 +254,6 @@ Roulette.onRouletteInfo = function onRouletteInfo(pkt) {
 		_rouletteInfo.serial = pkt.serial;
 	}
 
-	// Update wheel with new items
 	Roulette.generateWheelSlots();
 };
 
@@ -276,41 +268,45 @@ Roulette.onInfo = function onInfo() {
  * Update UI with current roulette data
  */
 Roulette.updateUI = function updateUI() {
-	// Update points display (if available)
-	// this.ui.find('.points-value').text(_rouletteInfo.count || 0);
+	const root = this.getRoot();
 
-	// Generate wheel slots
 	this.generateWheelSlots();
 
-	// Update button states
-	this.ui.find('.btn-spin').prop('disabled', _isSpinning);
+	const btnSpin = root.querySelector('.btn-spin');
+	if (btnSpin) {
+		btnSpin.disabled = _isSpinning;
+	}
 };
 
 /**
  * Generate wheel slots from items
  */
 Roulette.generateWheelSlots = function generateWheelSlots() {
-	const wheelSlots = this.ui.find('.wheel-slots');
-	wheelSlots.empty();
+	const root = this.getRoot();
+	const wheelSlots = root.querySelector('.wheel-slots');
+	if (!wheelSlots) {
+		return;
+	}
+	wheelSlots.innerHTML = '';
 
 	const items = _rouletteInfo.items || [];
-	const numSlots = items.length || 10; // Default 10 slots
+	const numSlots = items.length || 10;
 
 	for (let i = 0; i < numSlots; i++) {
 		const angle = (360 / numSlots) * i;
-		const distance = 120; // Distance from center
+		const distance = 120;
 		const radian = (angle - 90) * (Math.PI / 180);
 
 		const x = distance * Math.cos(radian);
 		const y = distance * Math.sin(radian);
 
-		const slot = jQuery('<div class="wheel-slot"></div>');
-		slot.attr('data-index', i);
-		slot.css({
-			transform: 'translate(' + x + 'px, ' + y + 'px) rotate(' + angle + 'deg)'
+		const slot = document.createElement('div');
+		slot.className = 'wheel-slot';
+		slot.setAttribute('data-index', i);
+		Object.assign(slot.style, {
+			transform: `translate(${x}px, ${y}px) rotate(${angle}deg)`
 		});
 
-		// Add item icon if available
 		if (items[i]) {
 			const itemId = items[i].itemId || items[i].item_id || items[i].ItemID;
 			if (itemId) {
@@ -325,7 +321,7 @@ Roulette.generateWheelSlots = function generateWheelSlots() {
 			}
 		}
 
-		wheelSlots.append(slot);
+		wheelSlots.appendChild(slot);
 	}
 };
 
@@ -338,24 +334,34 @@ Roulette.startSpin = function startSpin(resultIndex) {
 	}
 
 	_isSpinning = true;
-	this.ui.find('.btn-spin').prop('disabled', true);
+	const root = this.getRoot();
+	const btnSpin = root.querySelector('.btn-spin');
+	if (btnSpin) {
+		btnSpin.disabled = true;
+	}
 
-	const wheelSlots = this.ui.find('.wheel-slots');
+	const wheelSlots = root.querySelector('.wheel-slots');
+	if (!wheelSlots) {
+		_isSpinning = false;
+		if (btnSpin) {
+			btnSpin.disabled = false;
+		}
+		return;
+	}
 	const numSlots = _rouletteInfo.items.length || 10;
 	const degreesPerSlot = 360 / numSlots;
 
-	// Calculate final rotation
-	// Add multiple full rotations (5) plus the target slot
 	const targetRotation = 360 * 5 + resultIndex * degreesPerSlot;
 
-	wheelSlots.css({
-		transform: 'translate(-50%, -50%) rotate(' + targetRotation + 'deg)'
-	});
+	wheelSlots.style.transform = `translate(-50%, -50%) rotate(${targetRotation}deg)`;
 
-	// After animation completes
-	setTimeout(function () {
+	setTimeout(() => {
 		_isSpinning = false;
-		Roulette.ui.find('.btn-spin').prop('disabled', false);
+		const r = Roulette.getRoot();
+		const btn = r.querySelector('.btn-spin');
+		if (btn) {
+			btn.disabled = false;
+		}
 		Roulette.showResult(resultIndex);
 	}, 3000);
 };
@@ -364,8 +370,12 @@ Roulette.startSpin = function startSpin(resultIndex) {
  * Show result after spin
  */
 Roulette.showResult = function showResult(resultIndex) {
-	const resultDisplay = this.ui.find('.result-item');
-	resultDisplay.empty();
+	const root = this.getRoot();
+	const resultDisplay = root.querySelector('.result-item');
+	if (!resultDisplay) {
+		return;
+	}
+	resultDisplay.innerHTML = '';
 
 	if (_rouletteInfo.items[resultIndex]) {
 		const item = _rouletteInfo.items[resultIndex];
@@ -373,7 +383,7 @@ Roulette.showResult = function showResult(resultIndex) {
 
 		if (itemId) {
 			Client.loadFile(_getItemIconPath(itemId), function (data) {
-				resultDisplay.css('backgroundImage', 'url(' + data + ')');
+				resultDisplay.style.backgroundImage = `url(${data})`;
 			});
 		}
 	}
@@ -391,7 +401,6 @@ Roulette.onResult = function onResult(pkt) {
 		_rouletteInfo.idx = pkt.idx;
 	}
 
-	// Update points remaining
 	if (pkt.remainGold !== undefined) {
 		_rouletteInfo.goldPoint = pkt.remainGold;
 	}
@@ -402,7 +411,6 @@ Roulette.onResult = function onResult(pkt) {
 		_rouletteInfo.bronzePoint = pkt.remainBronze;
 	}
 
-	// Start spinning to the result
 	if (pkt.idx !== undefined) {
 		Roulette.startSpin(pkt.idx);
 	}
@@ -411,12 +419,8 @@ Roulette.onResult = function onResult(pkt) {
 /**
  * Handle item received from server
  */
-Roulette.onItemReceived = function onItemReceived(pkt) {
-	// Update UI to show item was received
+Roulette.onItemReceived = function onItemReceived(_pkt) {
 	Roulette.updateUI();
-
-	// Optionally show a notification
-	// ChatBox.addText( 'Roulette item received!', ChatBox.TYPE.INFO, ChatBox.FILTER.PUBLIC_LOG );
 };
 
 /**
@@ -424,7 +428,7 @@ Roulette.onItemReceived = function onItemReceived(pkt) {
  */
 Roulette.requestReceiveItem = function requestReceiveItem(condition) {
 	const pkt = new PACKET.CZ.RECV_ROULETTE_ITEM();
-	pkt.condition = condition || 0; // 0 = normal, 1 = losing
+	pkt.condition = condition || 0;
 	Network.sendPacket(pkt);
 };
 

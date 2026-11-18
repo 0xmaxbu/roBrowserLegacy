@@ -14,6 +14,7 @@ import KEYS from 'Controls/KeyEventHandler.js';
 import UIManager from 'UI/UIManager.js';
 import GUIComponent from 'UI/GUIComponent.js';
 import AccountRegister from 'UI/Components/AccountRegister/AccountRegister.js';
+import PerfProbe from 'Core/PerfProbe.js';
 import 'UI/Elements/Elements.js';
 
 export function createWinLogin({ name, htmlText, cssText }) {
@@ -30,7 +31,7 @@ export function createWinLogin({ name, htmlText, cssText }) {
 	Component.init = function init() {
 		this.draggable();
 
-		const root = this._shadow || this._host;
+		const root = this.getRoot();
 		// Save element references
 		_inputUsername = root.querySelector('.user');
 		_inputPassword = root.querySelector('.pass');
@@ -58,6 +59,33 @@ export function createWinLogin({ name, htmlText, cssText }) {
 		root.querySelector('.signup').addEventListener('click', signup);
 		root.querySelector('.connect').addEventListener('click', connect);
 		root.querySelector('.exit').addEventListener('click', exit);
+
+		// Replay Upload, only present on the UI versions supporting replays
+		const replayUpload = root.querySelector('.replay-upload');
+		const replayButton = root.querySelector('.replay');
+
+		if (!replayUpload || !replayButton) {
+			return;
+		}
+
+		replayButton.addEventListener('click', () => {
+			replayUpload.click();
+		});
+		replayUpload.addEventListener('change', function () {
+			if (!this.files || !this.files.length) {
+				return;
+			}
+
+			const file = this.files[0];
+			this.value = ''; // reset so we can select same file again
+
+			if (!file.name || !file.name.toLowerCase().endsWith('.rrf')) {
+				UIManager.showMessageBox('Please select a Ragnarok replay file (.rrf).', 'ok');
+				return;
+			}
+
+			loadReplay(file);
+		});
 	};
 
 	Component.onAppend = function onAppend() {
@@ -130,6 +158,10 @@ export function createWinLogin({ name, htmlText, cssText }) {
 		}
 
 		Component.placeOnTop();
+
+		if (PerfProbe.enabled) {
+			PerfProbe.loginShown();
+		}
 	};
 
 	Component.onKeyDown = function onKeyDown(event) {
@@ -184,6 +216,21 @@ export function createWinLogin({ name, htmlText, cssText }) {
 		_preferences.save();
 		Component.onConnectionRequest(user, pass);
 		return false;
+	}
+
+	async function loadReplay(file) {
+		try {
+			// Loaded on demand, the replay stack pulls in the whole map engine
+			const { default: ReplayPlayer } = await import('Engine/Replay/ReplayPlayer.js');
+			const replay = new ReplayPlayer();
+
+			await replay.load(file);
+			Component.remove();
+			replay.start();
+		} catch (err) {
+			console.error('[Replay] Error loading replay', err);
+			UIManager.showMessageBox(`Could not load the replay file.\n${err.message || err}`, 'ok');
+		}
 	}
 
 	function signup() {

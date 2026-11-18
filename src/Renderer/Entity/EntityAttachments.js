@@ -30,8 +30,9 @@ const _position = new Int32Array(2);
 /**
  * AttachmentManager class
  *
- * @constructor
- * @param {object} entity attached
+ * @class AttachmentManager
+ * @property {Array<Object>} list List of active entity attachments (sprites, str effects)
+ * @property {Entity} entity Target attached entity
  */
 class AttachmentManager {
 	constructor(entity) {
@@ -45,11 +46,11 @@ class AttachmentManager {
 	 * @param {object} attachment options
 	 */
 	add(attachment) {
-		if (attachment.uid) {
+		if (attachment.uid && !attachment.stackable) {
 			this.remove(attachment.uid);
 		}
 
-		attachment.startTick = Date.now();
+		attachment.startTick = attachment.startTick || Renderer.tick || Date.now();
 		attachment.opacity = !isNaN(attachment.opacity) ? attachment.opacity : 1.0;
 		attachment.direction = attachment.hasOwnProperty('frame') ? false : true;
 		attachment.frame = attachment.frame || 0;
@@ -69,7 +70,7 @@ class AttachmentManager {
 		}
 
 		attachment.repeat = attachment.repeat || false;
-		attachment.duplicate = attachment.duplicate || 0;
+		attachment.duration = attachment.duration || 0;
 		attachment.stopAtEnd = attachment.stopAtEnd || false;
 		attachment.delay = attachment.delay || false;
 		attachment.renderBefore = attachment.renderBefore || false;
@@ -110,6 +111,7 @@ class AttachmentManager {
 		Client.loadFile(
 			attachment.spr,
 			function onLoad() {
+				attachment.startTick = Renderer.tick || Date.now();
 				this.list.push(attachment);
 			}.bind(this),
 			null,
@@ -255,6 +257,8 @@ class AttachmentManager {
 				}
 
 				if (gl) {
+					// Sprites batched so far go first, as they would have drawn first
+					SpriteRenderer.flushBatch();
 					// Pass true for disableDepthTest since this is an entity attachment
 					StrEffect.beforeRender(gl, Camera.modelView, Camera.projection, _defaultFog, tick, true);
 					strEffect.render(gl, tick);
@@ -302,9 +306,13 @@ class AttachmentManager {
 
 		frame = attachment.direction ? (Camera.direction + this.entity.direction + 8) % 8 : attachment.frame;
 		frame %= act.actions.length;
-		const animations = act.actions[frame].animations;
-		const delay = attachment.delay || act.actions[frame].delay;
+		const action = act.actions[frame];
+		const animations = action.animations;
+		const delay = Math.max(1, attachment.delay || action.delay || 100);
 		SpriteRenderer.depth = attachment.depth || 0;
+
+		const elapsed = Math.max(0, tick - attachment.startTick);
+		const animIndex = Math.floor(elapsed / delay);
 
 		// pause
 		if ('animationId' in attachment) {
@@ -313,21 +321,15 @@ class AttachmentManager {
 
 		// repeat animation
 		else if (attachment.repeat) {
-			layers = animations[Math.floor((tick - attachment.startTick) / delay) % animations.length].layers;
-		}
-
-		// repeat duplicate times
-		else if (attachment.duplicate > 0) {
-			const index = Math.floor((tick - attachment.startTick) / delay) % animations.length;
-			layers = animations[index].layers;
-			if (index == animations.length - 1) {
-				attachment.duplicate--;
+			if (attachment.duration > 0 && elapsed >= attachment.duration) {
+				return true; // duration expired, remove attachment
 			}
+			layers = animations[animIndex % animations.length].layers;
 		}
 
 		// stop at end
 		else {
-			animation = Math.min(Math.floor((tick - attachment.startTick) / delay), animations.length - 1);
+			animation = Math.min(animIndex, animations.length - 1);
 			layers = animations[animation].layers;
 
 			if (animation === animations.length - 1 && !attachment.stopAtEnd) {

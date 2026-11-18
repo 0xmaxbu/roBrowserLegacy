@@ -8,10 +8,11 @@
  * @author Vincent Thibault
  */
 
-import UIComponent from 'UI/UIComponent.js';
 import GUIComponent from 'UI/GUIComponent.js';
+import CommonCSS from 'UI/Common.css?raw';
 import UIVersionManager from 'UI/UIVersionManager.js';
 import KEYS from 'Controls/KeyEventHandler.js';
+import ClampToViewport from 'UI/ClampToViewport.js';
 
 /**
  * Centralize popup position
@@ -29,7 +30,7 @@ function _popupPosition() {
  * Create a button with data-attributes for parseHTML to process
  * @param {string} name - button name (ex: 'ok', 'cancel')
  * @param {function} onClick - click callback (fires once)
- * @param {function} parseHTML - reference to UIComponent.prototype.parseHTML
+ * @param {function} parseHTML - reference to GUIComponent.processDataAttrs
  * @returns {HTMLButtonElement}
  */
 function _createButton(name, onClick) {
@@ -61,6 +62,20 @@ function _createOverlay() {
 	document.body.appendChild(overlay);
 	return overlay;
 }
+
+// Common CSS must live in a global <style> tag so document-level rules
+// (body font-size/family, focus reset) apply to light DOM and are inherited
+// by every component's Shadow DOM. UIComponent.js used to inject this at load;
+// it now lives here since UIManager is always loaded.
+(function injectCommonCSS() {
+	let style = document.querySelector('style[data-common]');
+	if (!style) {
+		style = document.createElement('style');
+		style.setAttribute('data-common', '');
+		style.textContent = CommonCSS;
+		document.head.appendChild(style);
+	}
+})();
 
 // Overlay CSS must live in the global <style> tag because overlay divs
 // are appended to document.body (light DOM), not inside any Shadow DOM.
@@ -106,10 +121,10 @@ class UIManager {
 	/**
 	 * Store a component in the manager
 	 *
-	 * @param {UIComponent} component object
+	 * @param {GUIComponent} component object
 	 */
 	static addComponent(component) {
-		if (!(component instanceof UIComponent) && !(component instanceof GUIComponent)) {
+		if (!(component instanceof GUIComponent)) {
 			throw new Error('UIManager::addComponent() - Invalid type of component');
 		}
 
@@ -122,7 +137,7 @@ class UIManager {
 	 * Get component stored in manager
 	 *
 	 * @param {string} component name
-	 * @return {UIComponent} object
+	 * @return {GUIComponent} object
 	 */
 	static getComponent(name) {
 		const versionAlias = UIVersionManager.getUIAlias(name);
@@ -160,34 +175,11 @@ class UIManager {
 	 */
 	static fixResizeOverflow(WIDTH, HEIGHT) {
 		const keys = Object.keys(this.components);
-
 		for (let i = 0; i < keys.length; ++i) {
 			const component = this.components[keys[i]];
-
 			const el = component.ui ? component.ui[0] : null;
 			if (!el) continue;
-
-			const rect = el.getBoundingClientRect();
-			const x = rect.left;
-			const y = rect.top;
-			const width = rect.width;
-			const height = rect.height;
-
-			if (y + height > HEIGHT) {
-				el.style.top = `${HEIGHT - Math.min(height, HEIGHT)}px`;
-			}
-			if (x + width > WIDTH) {
-				el.style.left = `${WIDTH - Math.min(width, WIDTH)}px`;
-			}
-
-			// Magnet
-			if (component.magnet.BOTTOM) {
-				el.style.top = `${HEIGHT - height}px`;
-			}
-			if (component.magnet.RIGHT) {
-				el.style.left = `${WIDTH - width}px`;
-			}
-
+			ClampToViewport(el, WIDTH, HEIGHT, component.magnet);
 			if (component.onResize) {
 				component.onResize();
 			}
@@ -201,6 +193,9 @@ class UIManager {
 	 * @param {string} error message
 	 */
 	static showErrorBox(text) {
+		// The game ends with this box: a skill waiting for its target would keep the cursor on it
+		this.components.SkillTargetSelection?.remove();
+
 		const WinError = this.getComponent('WinPopup').clone('WinError');
 		// eslint-disable-next-line
 		let overlay;
@@ -329,7 +324,7 @@ class UIManager {
 	 * @param {string} newCssText
 	 */
 	static reloadCSS(componentName, newCssText) {
-		UIComponent.reloadCSS(componentName, newCssText);
+		GUIComponent.reloadCSS(componentName, newCssText);
 	}
 }
 /**

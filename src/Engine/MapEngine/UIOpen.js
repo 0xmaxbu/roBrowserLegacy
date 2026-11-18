@@ -38,7 +38,7 @@ function openCheckAttendance(data) {
 	CheckAttendance.cleanUI();
 	CheckAttendance.append();
 	CheckAttendance.ui.show();
-	CheckAttendance.ui.focus();
+	CheckAttendance.focus();
 }
 
 /**

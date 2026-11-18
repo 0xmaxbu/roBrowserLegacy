@@ -8,7 +8,6 @@
  * @author Vincent Thibault
  */
 
-import jQuery from 'Utils/jquery.js';
 import Client from 'Core/Client.js';
 import MemoryManager from 'Core/MemoryManager.js';
 import Graphics from 'Preferences/Graphics.js';
@@ -59,6 +58,16 @@ let _lastY = 0;
  * @type {Array} css style list
  */
 let _compiledStyle = [];
+
+/**
+ * @type {boolean} the scene render loop draws the cursor
+ */
+let _sceneDriven = false;
+
+/**
+ * @type {number} standalone render loop handle
+ */
+let _loopId = 0;
 
 /**
  * @type {Sprite} sprite
@@ -147,6 +156,7 @@ class Cursor {
 			bindMouseEvents();
 			preCompiledAnimations();
 			createSpriteSheet();
+			Cursor.setSceneDriven(_sceneDriven);
 			fn();
 		});
 	}
@@ -183,6 +193,22 @@ class Cursor {
 	 */
 	static getActualType() {
 		return _type;
+	}
+
+	/**
+	 * Let the scene render loop draw the cursor after its frame, or draw it on its own while the scene is stopped
+	 *
+	 * @param {boolean} value
+	 */
+	static setSceneDriven(value) {
+		_sceneDriven = value;
+
+		if (value) {
+			cancelAnimationFrame(_loopId);
+			_loopId = 0;
+		} else if (!_loopId && _compiledStyle.length) {
+			_loopId = requestAnimationFrame(renderLoop);
+		}
 	}
 
 	/**
@@ -301,13 +327,21 @@ ActionInformations[Cursor.ACTION.NOWALK] = { drawX: 13, drawY: 25, startX: 14, s
  */
 function bindMouseEvents() {
 	const cursorCSS = `
+		.custom-cursor { --ro-game-cursor: on; }
 		.custom-cursor * { cursor: none!important; }
 		.custom-cursor .cursor { display: block; }
+		.ro-touch-input .cursor { display: none !important; }
 		.cursor { pointer-events: none; z-index: 9999; position: fixed; width: 50px; height: 50px; overflow: hidden; display: none; }
 		.cursor__sprite { position: absolute; top: 0; left: 0; }
 	`;
-	jQuery('head').append(`<style type="text/css">${cursorCSS}</style>`);
-	jQuery('body').append('<div class="cursor"></div>');
+	const styleEl = document.createElement('style');
+	styleEl.type = 'text/css';
+	styleEl.textContent = cursorCSS;
+	document.head.appendChild(styleEl);
+
+	const cursorDiv = document.createElement('div');
+	cursorDiv.className = 'cursor';
+	document.body.appendChild(cursorDiv);
 	_selector = document.querySelector('.cursor');
 
 	const CLICKABLE_SELECTOR = [
@@ -421,16 +455,24 @@ function bindMouseEvents() {
 		}
 	});
 
-	window.addEventListener(
-		'pointermove',
-		e => {
-			Cursor.x = e.pageX;
-			Cursor.y = e.pageY;
-			_selector.style.left = `${e.pageX}px`;
-			_selector.style.top = `${e.pageY}px`;
-		},
-		true
-	);
+	const followPointer = e => {
+		Cursor.x = e.pageX;
+		Cursor.y = e.pageY;
+		_selector.style.left = `${e.pageX}px`;
+		_selector.style.top = `${e.pageY}px`;
+	};
+
+	window.addEventListener('pointermove', followPointer, true);
+	// A native drag fires no pointermove. Captured, as drop targets stop it.
+	window.addEventListener('dragover', followPointer, true);
+}
+
+/**
+ * Keep the cursor animated while the scene render loop is stopped (login, server list)
+ */
+function renderLoop() {
+	Cursor.render(Date.now());
+	_loopId = requestAnimationFrame(renderLoop);
 }
 
 /**
@@ -551,11 +593,20 @@ function createSpriteSheet() {
 		const spriteSheetBlobURL = URL.createObjectURL(blob);
 
 		// Append the sprite sheet to the DOM
-		const imageElem = jQuery('<img class="cursor__sprite" src="' + spriteSheetBlobURL + '">');
-		imageElem.one('load', function (e) {
-			URL.revokeObjectURL(e.target.src);
-		});
-		jQuery('.cursor').append(imageElem);
+		const imageElem = document.createElement('img');
+		imageElem.className = 'cursor__sprite';
+		imageElem.src = spriteSheetBlobURL;
+		imageElem.addEventListener(
+			'load',
+			e => {
+				URL.revokeObjectURL(e.target.src);
+			},
+			{ once: true }
+		);
+		const cursorEl = document.querySelector('.cursor');
+		if (cursorEl) {
+			cursorEl.appendChild(imageElem);
+		}
 	}
 
 	for (let i = 0; i < totalSprites; i++) {

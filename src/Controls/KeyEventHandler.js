@@ -8,8 +8,6 @@
  * @author Vincent Thibault
  */
 
-import jQuery from 'Utils/jquery.js';
-
 /**
  * Keys Constants
  */
@@ -212,19 +210,40 @@ Object.defineProperty(KEYS, 'getKeyIdString', {
 /**
  * Keys CTRL/ALT/SHIFT Manager
  */
-jQuery(window).bind('keydown keyup', function (event) {
+const onKeyEvent = event => {
 	KEYS.SHIFT = !!event.shiftKey;
 	KEYS.CTRL = !!event.ctrlKey;
 	KEYS.ALT = !!event.altKey;
-});
+};
+window.addEventListener('keydown', onKeyEvent);
+window.addEventListener('keyup', onKeyEvent);
 
 /**
  * Reset keys state when window got focused
  */
-jQuery(window).on('focus', function (event) {
+window.addEventListener('focus', () => {
 	KEYS.SHIFT = false;
 	KEYS.CTRL = false;
 	KEYS.ALT = false;
+});
+
+/**
+ * Get the actual focused element, piercing through Shadow DOM boundaries.
+ * In Light DOM, document.activeElement returns the focused element directly.
+ * In Shadow DOM, it returns the host element; this helper traverses into
+ * shadow roots to find the real focused element (e.g., an <input> inside
+ * a GUIComponent's shadow root).
+ */
+Object.defineProperty(KEYS, 'getDeepActiveElement', {
+	writable: false,
+	enumerable: false,
+	value: function getDeepActiveElement() {
+		let el = document.activeElement;
+		while (el?.shadowRoot?.activeElement) {
+			el = el.shadowRoot.activeElement;
+		}
+		return el;
+	}
 });
 
 /**

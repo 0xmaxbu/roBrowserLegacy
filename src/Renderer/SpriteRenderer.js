@@ -10,7 +10,9 @@
 
 import WebGL from 'Utils/WebGL.js';
 import glMatrix from 'Utils/gl-matrix.js';
+import Configs from 'Core/Configs.js';
 import Camera from './Camera.js';
+import SpriteBatch from './SpriteBatch.js';
 import _vertexShader from './SpriteRenderer.vs?raw';
 import _fragmentShader from './SpriteRenderer.fs?raw';
 
@@ -19,12 +21,20 @@ import _fragmentShader from './SpriteRenderer.fs?raw';
  */
 const mat4 = glMatrix.mat4;
 
+const MAX_COLORS_PER_PALETTE = 8;
+
 /**
  * Render in 3D mode
  */
 function RenderCanvas3D(isBlendModeOne) {
 	// Nothing to render ?
 	if (!this.image.texture || !this.color[3]) {
+		return;
+	}
+
+	// Inside a batch (the entity pass): record it, SpriteBatch draws it later
+	if (SpriteBatch.active) {
+		RecordCanvas3D.call(this, isBlendModeOne);
 		return;
 	}
 
@@ -68,7 +78,9 @@ function RenderCanvas3D(isBlendModeOne) {
 		gl.uniform1i(uniform.uDisableDepthCorrection, disableDepthCorrection);
 	}
 
+	gl.uniform1i(uniform.uIgnoreZindexCap, this.ignoreDepthMinCap);
 	gl.uniform1f(uniform.uSpriteRendererZindex, this.zIndex++);
+
 	// Rotate
 	if (this.angle !== _angle) {
 		_angle = this.angle;
@@ -89,7 +101,7 @@ function RenderCanvas3D(isBlendModeOne) {
 	gl.uniform4fv(uniform.uSpriteRendererColor, this.color);
 	gl.uniform2fv(uniform.uSpriteRendererSize, _size);
 	gl.uniform2fv(uniform.uSpriteRendererOffset, _offset);
-	gl.uniform1i(uniform.uIsRGBA, this.sprite.type);
+	gl.uniform1i(uniform.uIsRGBA, this.sprite ? this.sprite.type : 1);
 
 	// Avoid binding the new texture 150 times if it's the same.
 	if (_groupId !== _lastGroupId || _texture !== this.image.texture) {
@@ -100,16 +112,239 @@ function RenderCanvas3D(isBlendModeOne) {
 }
 
 /**
+ * Record a sprite into the open batch: the same values RenderCanvas3D
+ * uploads as uniforms, and the state it would have drawn with.
+ */
+function RecordCanvas3D(isBlendModeOne) {
+	// Blend follows the same rule as RenderCanvas3D: a boolean sets it,
+	// undefined keeps what the previous sprite used.
+	if (isBlendModeOne === true || isBlendModeOne === false) {
+		_blendOne = isBlendModeOne;
+	}
+
+	const image = this.image;
+	let texture = image.texture;
+	let palette = image.palette;
+	let source = SpriteBatch.SOURCE_OWN;
+	let paletteRow = palette ? SpriteBatch.PALETTE_OWN : SpriteBatch.PALETTE_NONE;
+	let layer = 0;
+	let u0 = 0,
+		v0 = 0,
+		u1 = 1,
+		v1 = 1;
+
+	// A frame of a sprite file (set by Entity.renderLayer) is drawn from the
+	// shared atlas, and its palette from the palette atlas, so the next layer
+	// and the next entity, whatever files they use, can share the run.
+	if (image.frame && image.spr && image.frame.texture === texture) {
+		const rect = SpriteBatch.atlasFor(image.spr, image.frame);
+
+		// RGBA frames have no palette, palette frames always have one
+		if (rect && rect.rgba === !palette) {
+			source = rect.rgba ? SpriteBatch.SOURCE_RGBA : SpriteBatch.SOURCE_INDEX;
+			texture = null;
+			layer = rect.layer;
+			u0 = rect.u0;
+			v0 = rect.v0;
+			u1 = rect.u1;
+			v1 = rect.v1;
+
+			if (palette) {
+				const row = SpriteBatch.paletteRow(palette, this.palette);
+				if (row >= 0) {
+					paletteRow = row;
+					palette = null;
+				}
+			}
+		}
+	}
+	image.frame = null;
+	image.spr = null;
+
+	const data = SpriteBatch.record(
+		this.shadowQueue ? SpriteBatch.SHADOW : SpriteBatch.MAIN,
+		texture,
+		palette,
+		image.size[0],
+		image.size[1],
+		_blendOne,
+		_depthTest,
+		_depthMask,
+		!!this.disableDepthCorrection
+	);
+	let o = SpriteBatch.offset;
+
+	data[o++] = this.position[0];
+	data[o++] = this.position[1];
+	data[o++] = this.position[2];
+	data[o++] = this.zIndex++;
+	data[o++] = (this.offset[0] / 175.0) * this.xSize;
+	data[o++] = (this.offset[1] / 175.0) * this.ySize - 0.5;
+	data[o++] = (this.size[0] / 175.0) * this.xSize;
+	data[o++] = (this.size[1] / 175.0) * this.ySize;
+	data[o++] = this.color[0];
+	data[o++] = this.color[1];
+	data[o++] = this.color[2];
+	data[o++] = this.color[3];
+	data[o++] = u0;
+	data[o++] = v0;
+	data[o++] = u1;
+	data[o++] = v1;
+	data[o++] = this.angle;
+	data[o++] = this.depth;
+	data[o++] = this.shadow;
+	data[o++] = this.ignoreDepthMinCap ? 1 : 0;
+	data[o++] = source;
+	data[o++] = layer;
+	data[o] = paletteRow;
+}
+
+/**
+ * Convert a sprite frame (RGBA or palette-indexed) into canvas ImageData,
+ * applying the layer color modulation.
+ */
+function fillImageData(imageData, frame, pal, color) {
+	let x, y, r, g, b, a, inRow, outRow;
+	const width = frame.width;
+	const height = frame.height;
+	const input = frame.data; // color: [r, g, b, a] as floats 0..1
+	const outputWidth = width;
+
+	// Use 32-bit view for the output buffer (ImageData)
+	// WHY: Writing a single 32-bit value per pixel is faster than 4 separate byte writes.
+	const output32 = new Uint32Array(imageData.data.buffer);
+
+	// Pre-calculate color multipliers for 32-bit assembly
+	// Avoid repeated array lookups inside the inner loop.
+	const r_mul = color[0],
+		g_mul = color[1],
+		b_mul = color[2],
+		a_mul = color[3];
+
+	// Fast path: no color modulation (identity)
+	const isColorIdentity = r_mul === 1 && g_mul === 1 && b_mul === 1 && a_mul === 1;
+
+	// RGBA images
+	if (frame.type === 1) {
+		/**
+		 * OLD LOGIC: Per-channel RGBA modulation using byte array access.
+		 *            4 loads + 4 stores + multiplications per pixel.
+		 * NEW LOGIC: Reads and writes pixels as a single 32-bit integer.
+		 *            Uses bitwise extraction and assembly with optional color modulation.
+		 *            1 load + 1 store per pixel in the fast path.
+		 * Reduces memory writes and bounds checks inside the inner loop.
+		 */
+		const input32 = new Uint32Array(input.buffer);
+
+		for (y = 0; y < height; ++y) {
+			outRow = y * outputWidth;
+			inRow = y * width;
+
+			for (x = 0; x < width; ++x) {
+				const pixel = input32[inRow + x];
+				if (pixel === 0) {
+					// Transparent skip behavior due n*0 = 0
+					output32[outRow + x] = 0;
+					continue;
+				}
+
+				if (isColorIdentity) {
+					// Fast path: no color modulation.
+					// Copy the precompiled RGBA pixel directly due n*1 = n.
+					output32[outRow + x] = pixel;
+				} else {
+					// Extract RGBA components from packed 32-bit pixel.
+					// Note: In Little Endian, 0xAABBGGRR is stored as [R, G, B, A] in memory.
+					r = (pixel & 0xff) * r_mul;
+					g = ((pixel >> 8) & 0xff) * g_mul;
+					b = ((pixel >> 16) & 0xff) * b_mul;
+					a = ((pixel >> 24) & 0xff) * a_mul;
+					output32[outRow + x] = (a << 24) | (b << 16) | (g << 8) | r;
+				}
+			}
+		}
+	}
+
+	// Palettes
+	else {
+		// Pre-calculate a color-modulated 32-bit palette for this frame.
+		// WHY: Avoid per-pixel palette lookups and color multiplications.
+		// Cost: O(256) setup, O(pixels) usage.
+		const pal32 = new Uint32Array(256);
+		for (let i = 0; i < 256; i++) {
+			if (i === 0) {
+				// Transparent skip behavior due n*0 = 0
+				pal32[i] = 0;
+				continue;
+			}
+			const pIdx = i * 4;
+			r = (pal[pIdx + 0] * r_mul) | 0;
+			g = (pal[pIdx + 1] * g_mul) | 0;
+			b = (pal[pIdx + 2] * b_mul) | 0;
+			a = (255 * a_mul) | 0;
+			// Store in LE format [R, G, B, A] -> 0xAABBGGRR
+			pal32[i] = (a << 24) | (b << 16) | (g << 8) | r;
+		}
+
+		for (y = 0; y < height; ++y) {
+			outRow = y * outputWidth;
+			inRow = y * width;
+			for (x = 0; x < width; ++x) {
+				// Fast palette lookup: single array access and single 32-bit write.
+				// OLD: Per-channel palette reads and multiplications per pixel.
+				// NEW: O(1) lookup using precomputed 32-bit palette.
+				output32[outRow + x] = pal32[input[inRow + x]];
+			}
+		}
+	}
+}
+
+export function getFrameCanvas(_cache, frame, pal, color) {
+	let entry = _cache.get(frame);
+
+	if (!entry) {
+		entry = { rgba: new Map(), byPalette: new WeakMap() };
+		_cache.set(frame, entry);
+	}
+	let byColor;
+	if (frame.type === 1 || !pal) {
+		byColor = entry.rgba;
+	} else {
+		byColor = entry.byPalette.get(pal);
+		if (!byColor) {
+			byColor = new Map();
+			entry.byPalette.set(pal, byColor);
+		}
+	}
+	const colorKey = `${color[0]},${color[1]},${color[2]},${color[3]}`;
+	let canvas = byColor.get(colorKey);
+	if (!canvas) {
+		// Fading/tinted sprites produce many colors: keep only the most recent few
+		if (byColor.size >= MAX_COLORS_PER_PALETTE) {
+			byColor.delete(byColor.keys().next().value);
+		}
+		canvas = document.createElement('canvas');
+		canvas.width = frame.width;
+		canvas.height = frame.height;
+		const ctx = canvas.getContext('2d');
+		const imageData = ctx.createImageData(frame.width, frame.height);
+		fillImageData(imageData, frame, pal, color);
+		ctx.putImageData(imageData, 0, 0);
+		byColor.set(colorKey, canvas);
+	}
+	return canvas;
+}
+
+/**
  * Render in 2D
  */
 const RenderCanvas2D = (function RenderCanvas2DClosure() {
-	let imageData;
-
-	const canvas = document.createElement('canvas');
-	const ctx = canvas.getContext('2d');
-	canvas.width = 20;
-	canvas.height = 20;
-	imageData = ctx.createImageData(canvas.width, canvas.height);
+	// One canvas per (frame, palette, color) instead of a single shared scratch canvas.
+	// WHY: Safari defers drawImage() from a canvas source, so reusing one scratch canvas for
+	// every layer of a frame made layers pick up each other's pixels (duplicated heads, grey
+	// boxes in the character previews). Caching also avoids re-converting pixels every frame.
+	// frame -> { rgba: Map(colorKey -> canvas), byPalette: WeakMap(palette -> Map(colorKey -> canvas)) }
+	const _cache = new WeakMap();
 
 	return function () {
 		// Nothing to render
@@ -118,8 +353,6 @@ const RenderCanvas2D = (function RenderCanvas2DClosure() {
 		}
 
 		let scale_x, scale_y;
-		let x, y;
-		let r, g, b, a, inRow, outRow;
 
 		scale_x = 1.0;
 		scale_y = 1.0;
@@ -143,107 +376,7 @@ const RenderCanvas2D = (function RenderCanvas2DClosure() {
 			_size[1] *= -1;
 		}
 
-		// Resize canvas from memory
-		if (width > canvas.width || height > canvas.height) {
-			canvas.width = width;
-			canvas.height = height;
-			imageData = ctx.createImageData(width, height);
-		}
-
-		const input = frame.data;
-		const color = this.color; // [r, g, b, a] as floats 0..1
-		const outputWidth = canvas.width;
-
-		// Use 32-bit view for the output buffer (ImageData)
-		// WHY: Writing a single 32-bit value per pixel is faster than 4 separate byte writes.
-		const output32 = new Uint32Array(imageData.data.buffer);
-
-		// Pre-calculate color multipliers for 32-bit assembly
-		// Avoid repeated array lookups inside the inner loop.
-		const r_mul = color[0],
-			g_mul = color[1],
-			b_mul = color[2],
-			a_mul = color[3];
-
-		// Fast path: no color modulation (identity)
-		const isColorIdentity = r_mul === 1 && g_mul === 1 && b_mul === 1 && a_mul === 1;
-
-		// RGBA images
-		if (this.sprite.type === 1) {
-			/**
-			 * OLD LOGIC: Per-channel RGBA modulation using byte array access.
-			 *            4 loads + 4 stores + multiplications per pixel.
-			 * NEW LOGIC: Reads and writes pixels as a single 32-bit integer.
-			 *            Uses bitwise extraction and assembly with optional color modulation.
-			 *            1 load + 1 store per pixel in the fast path.
-			 * Reduces memory writes and bounds checks inside the inner loop.
-			 */
-			const input32 = new Uint32Array(input.buffer);
-
-			for (y = 0; y < height; ++y) {
-				outRow = y * outputWidth;
-				inRow = y * width;
-
-				for (x = 0; x < width; ++x) {
-					const pixel = input32[inRow + x];
-					if (pixel === 0) {
-						// Transparent skip behavior due n*0 = 0
-						output32[outRow + x] = 0;
-						continue;
-					}
-
-					if (isColorIdentity) {
-						// Fast path: no color modulation.
-						// Copy the precompiled RGBA pixel directly due n*1 = n.
-						output32[outRow + x] = pixel;
-					} else {
-						// Extract RGBA components from packed 32-bit pixel.
-						// Note: In Little Endian, 0xAABBGGRR is stored as [R, G, B, A] in memory.
-						r = (pixel & 0xff) * r_mul;
-						g = ((pixel >> 8) & 0xff) * g_mul;
-						b = ((pixel >> 16) & 0xff) * b_mul;
-						a = ((pixel >> 24) & 0xff) * a_mul;
-						output32[outRow + x] = (a << 24) | (b << 16) | (g << 8) | r;
-					}
-				}
-			}
-		}
-
-		// Palettes
-		else {
-			// Pre-calculate a color-modulated 32-bit palette for this frame.
-			// WHY: Avoid per-pixel palette lookups and color multiplications.
-			// Cost: O(256) setup, O(pixels) usage.
-			const pal32 = new Uint32Array(256);
-			for (let i = 0; i < 256; i++) {
-				if (i === 0) {
-					// Transparent skip behavior due n*0 = 0
-					pal32[i] = 0;
-					continue;
-				}
-				const pIdx = i * 4;
-				r = (pal[pIdx + 0] * r_mul) | 0;
-				g = (pal[pIdx + 1] * g_mul) | 0;
-				b = (pal[pIdx + 2] * b_mul) | 0;
-				a = (255 * a_mul) | 0;
-				// Store in LE format [R, G, B, A] -> 0xAABBGGRR
-				pal32[i] = (a << 24) | (b << 16) | (g << 8) | r;
-			}
-
-			for (y = 0; y < height; ++y) {
-				outRow = y * outputWidth;
-				inRow = y * width;
-				for (x = 0; x < width; ++x) {
-					// Fast palette lookup: single array access and single 32-bit write.
-					// OLD: Per-channel palette reads and multiplications per pixel.
-					// NEW: O(1) lookup using precomputed 32-bit palette.
-					output32[outRow + x] = pal32[input[inRow + x]];
-				}
-			}
-		}
-
-		// Insert into the canvas
-		ctx.putImageData(imageData, 0, 0, 0, 0, width, height);
+		const canvas = getFrameCanvas(_cache, frame, pal, this.color);
 
 		// Render sprite in context
 		_ctx.save();
@@ -316,6 +449,11 @@ let _depthMask = true;
 let _depthTest = true;
 
 /**
+ * @type {boolean|null} blend of the last sprite recorded in a batch (null: not set yet)
+ */
+let _blendOne = null;
+
+/**
  * @type {object} last texture used
  */
 let _texture = null;
@@ -346,9 +484,79 @@ const _size = new Float32Array(2);
 const _offset = new Float32Array(2);
 
 /**
+ * Set the depth test and depth write. Inside a batch only the state is kept:
+ * each recorded sprite carries it, and SpriteBatch sets it when it draws.
+ *
+ * @param {boolean} depthTest
+ * @param {boolean} depthMask
+ */
+function setDepth(depthTest, depthMask) {
+	const direct = !SpriteBatch.active;
+
+	if (_depthTest !== depthTest) {
+		_depthTest = depthTest;
+
+		if (direct) {
+			if (depthTest) {
+				_gl.enable(_gl.DEPTH_TEST);
+			} else {
+				_gl.disable(_gl.DEPTH_TEST);
+			}
+		}
+	}
+
+	if (_depthMask !== depthMask) {
+		_depthMask = depthMask;
+
+		if (direct) {
+			_gl.depthMask(depthMask);
+		}
+	}
+}
+
+/**
+ * After a batch drew with its own program: put this program back and forget
+ * the bound texture.
+ */
+function syncAfterBatch() {
+	_gl.useProgram(_program);
+	_gl.activeTexture(_gl.TEXTURE0);
+	_texture = null;
+	_groupId++;
+}
+
+/**
  * Sprite Renderer NameSpace
  */
 class SpriteRenderer {
+	static get gl() {
+		return _gl;
+	}
+
+	static get is2D() {
+		return this.render === RenderCanvas2D;
+	}
+
+	static renderCanvas(canvas) {
+		if (this.render !== RenderCanvas2D) {
+			return false;
+		}
+
+		_ctx.save();
+		_ctx.translate(_pos[0] + this.offset[0], _pos[1] + this.offset[1] - 17.5);
+		_ctx.rotate((this.angle / 180) * Math.PI);
+		_ctx.scale(Math.sign(this.size[0]) || 1, Math.sign(this.size[1]) || 1);
+		_ctx.drawImage(
+			canvas,
+			-Math.abs(this.size[0]) / 2,
+			-Math.abs(this.size[1]) / 2,
+			Math.abs(this.size[0]),
+			Math.abs(this.size[1])
+		);
+		_ctx.restore();
+		return true;
+	}
+
 	/**
 	 * @type {function} functions to use to render
 	 */
@@ -395,8 +603,17 @@ class SpriteRenderer {
 	static image = {
 		texture: null,
 		palette: null,
-		size: new Float32Array(2)
+		size: new Float32Array(2),
+		// The sprite file and frame the texture belongs to, when known; lets a
+		// batch draw it from the file's atlas. Cleared by every draw.
+		spr: null,
+		frame: null
 	};
+
+	/**
+	 * @type {boolean} the sprite is a shadow: a batch draws it before the other sprites
+	 */
+	static shadowQueue = false;
 
 	/**
 	 * @type {object} sprite imageData (for 2D context)
@@ -417,6 +634,11 @@ class SpriteRenderer {
 	 * @type {boolean} disable depth correction (ray-plane) for current draw
 	 */
 	static disableDepthCorrection = false;
+
+	/**
+	 * @type {boolean} cached depth test state
+	 */
+	static ignoreDepthMinCap = false;
 
 	/**
 	 * @type {number} width unity
@@ -449,6 +671,9 @@ class SpriteRenderer {
 		if (!_program) {
 			_program = WebGL.createShaderProgram(gl, _vertexShader, _fragmentShader);
 		}
+
+		// `spriteBatching: false` draws every sprite on its own, as before
+		SpriteBatch.enabled = Configs.get('spriteBatching', true) !== false;
 	}
 
 	/**
@@ -463,6 +688,14 @@ class SpriteRenderer {
 		const attribute = _program.attribute;
 		const uniform = _program.uniform;
 
+		// Rebinding inside a batch (after an STR attachment drew): what was
+		// recorded so far was meant for the previous uniforms.
+		if (SpriteBatch.active) {
+			this.flushBatch();
+			SpriteBatch.invalidate();
+		}
+		SpriteBatch.setFrame(modelView, projection, fog, Camera.zoom);
+
 		gl.useProgram(_program);
 		gl.uniformMatrix4fv(uniform.uProjectionMat, false, projection);
 		gl.uniformMatrix4fv(uniform.uModelViewMat, false, modelView);
@@ -474,7 +707,11 @@ class SpriteRenderer {
 		gl.uniform1f(uniform.uFogFar, fog.far);
 		gl.uniform3fv(uniform.uFogColor, fog.color);
 
-		// Textures
+		// Textures. Select unit 0 explicitly: uDiffuse samples it, but a previous
+		// pass may have left the active unit elsewhere, and only the palette path
+		// below happens to reset it - so palette-less sprites (clouds) would bind
+		// their texture to whatever unit was current.
+		gl.activeTexture(gl.TEXTURE0);
 		gl.uniform1i(uniform.uDiffuse, 0);
 		gl.uniform1i(uniform.uPalette, 1);
 
@@ -555,45 +792,56 @@ class SpriteRenderer {
 		const prevDepthMask = _depthMask;
 		const prevDepthCorrection = this.disableDepthCorrection;
 
-		if (_depthTest !== depthTest) {
-			_depthTest = depthTest;
-
-			if (depthTest) {
-				_gl.enable(_gl.DEPTH_TEST);
-			} else {
-				_gl.disable(_gl.DEPTH_TEST);
-			}
-		}
-
-		if (_depthMask !== depthMask) {
-			_depthMask = depthMask;
-			_gl.depthMask(depthMask);
-		}
+		setDepth(depthTest, depthMask);
 
 		if (this.disableDepthCorrection !== depthCorrection) {
 			this.disableDepthCorrection = depthCorrection;
 		}
 
-		fn();
+		try {
+			fn();
+		} finally {
+			setDepth(prevDepthTest, prevDepthMask);
 
-		if (_depthTest !== prevDepthTest) {
-			_depthTest = prevDepthTest;
-
-			if (prevDepthTest) {
-				_gl.enable(_gl.DEPTH_TEST);
-			} else {
-				_gl.disable(_gl.DEPTH_TEST);
+			if (this.disableDepthCorrection !== prevDepthCorrection) {
+				this.disableDepthCorrection = prevDepthCorrection;
 			}
 		}
+	}
 
-		if (_depthMask !== prevDepthMask) {
-			_depthMask = prevDepthMask;
-			_gl.depthMask(prevDepthMask);
+	/**
+	 * Record the sprites drawn from here to endBatch() and draw them in a few
+	 * instanced calls (see SpriteBatch.js). Call after bind3DContext.
+	 *
+	 * @param {WebGL2RenderingContext} gl
+	 */
+	static beginBatch(gl) {
+		if (SpriteBatch.open(gl, { depthTest: _depthTest, depthMask: _depthMask })) {
+			_blendOne = null;
 		}
+	}
 
-		if (this.disableDepthCorrection !== prevDepthCorrection) {
-			this.disableDepthCorrection = prevDepthCorrection;
+	/**
+	 * Draw what the batch recorded so far. Anything that draws with another
+	 * program in the middle of a batch calls this first, to keep the order.
+	 */
+	static flushBatch() {
+		if (!SpriteBatch.active) {
+			return;
 		}
+		SpriteBatch.flush({ depthTest: _depthTest, depthMask: _depthMask, blendOne: _blendOne });
+		syncAfterBatch();
+	}
+
+	/**
+	 * Draw what the batch recorded and go back to drawing sprites one by one.
+	 */
+	static endBatch() {
+		if (!SpriteBatch.active) {
+			return;
+		}
+		SpriteBatch.close({ depthTest: _depthTest, depthMask: _depthMask, blendOne: _blendOne });
+		syncAfterBatch();
 	}
 }
 

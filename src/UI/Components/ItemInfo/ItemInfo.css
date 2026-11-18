@@ -1,7 +1,10 @@
-.ItemInfo {
-	position: absolute;
+:host {
 	top: 0px;
 	left: 0px;
+}
+
+.ItemInfo {
+	position: relative;
 	width: 280px;
 	background-repeat: no-repeat;
 	background-color: transparent;
@@ -74,6 +77,7 @@
 }
 .ItemInfo .description .description-inner {
 	width: 150px;
+	white-space: pre-wrap;
 }
 .ItemInfo .extend {
 	position: absolute;

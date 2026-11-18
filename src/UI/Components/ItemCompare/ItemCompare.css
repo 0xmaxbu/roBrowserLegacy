@@ -1,7 +1,10 @@
-.ItemCompare {
-	position: absolute;
+:host {
 	top: 0px;
 	left: 0px;
+}
+
+.ItemCompare {
+	position: relative;
 	width: 280px;
 	background-repeat: no-repeat;
 	background-color: transparent;
@@ -75,6 +78,7 @@
 }
 .ItemCompare .description .description-inner {
 	width: 150px;
+	white-space: pre-wrap;
 }
 .ItemCompare .extend {
 	position: absolute;

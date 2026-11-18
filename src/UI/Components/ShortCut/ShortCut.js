@@ -11,6 +11,7 @@
 import DB from 'DB/DBManager.js';
 import ItemType from 'DB/Items/ItemType.js';
 import SkillInfo from 'DB/Skills/SkillInfo.js';
+import SkillId from 'DB/Skills/SkillConst.js';
 import Client from 'Core/Client.js';
 import Preferences from 'Core/Preferences.js';
 import Session from 'Engine/SessionStorage.js';
@@ -54,6 +55,11 @@ let _rowCount = 0;
 let _lastServerHotkeys = null;
 
 /**
+ * Cache for active animation frames
+ */
+const _activeAnimations = new Map();
+
+/**
  * @var {Preference} structure to save informations about shortcut
  */
 const _preferences = Preferences.get(
@@ -71,17 +77,10 @@ const _preferences = Preferences.get(
 );
 
 /**
- * Helper to get the shadow root
- */
-function _getRoot() {
-	return ShortCut._shadow || ShortCut._host;
-}
-
-/**
  * Initialize UI
  */
 ShortCut.init = function init() {
-	const root = _getRoot();
+	const root = ShortCut.getRoot();
 
 	const resizeBtn = root.querySelector('.resize');
 	if (resizeBtn) {
@@ -155,7 +154,7 @@ ShortCut.init = function init() {
 	// Add to item owner name update queue
 	DB.UpdateOwnerName.ShortCut = onUpdateOwnerName;
 
-	Inventory.getUI().onUpdateItem = onUpdateItem;
+	Inventory.onUpdateItem = onUpdateItem;
 };
 
 /**
@@ -172,7 +171,7 @@ ShortCut.onAppend = function onAppend() {
 	this.magnet.LEFT = _preferences.magnet_left;
 	this.magnet.RIGHT = _preferences.magnet_right;
 
-	SkillWindow.getUI().onUpdateSkill = onUpdateSkill;
+	SkillWindow.onUpdateSkill = onUpdateSkill;
 
 	// Initialize tooltips for empty slots
 	updateEmptySlotTooltips();
@@ -183,11 +182,17 @@ ShortCut.onAppend = function onAppend() {
  */
 ShortCut.onRemove = function onRemove() {
 	// Hide tooltip
-	const root = _getRoot();
+	const root = ShortCut.getRoot();
 	const tooltip = root.querySelector('.shortcut-tooltip');
 	if (tooltip) {
 		tooltip.classList.remove('show');
 	}
+
+	// Cancels all active animation loops defensively to prevent leaks in unattached elements
+	for (const [index, animationId] of _activeAnimations.entries()) {
+		cancelAnimationFrame(animationId);
+	}
+	_activeAnimations.clear();
 
 	// Save preferences
 	_preferences.y = parseInt(this._host.style.top, 10);
@@ -205,8 +210,14 @@ ShortCut.onRemove = function onRemove() {
  * Used only from MapEngine when exiting the game
  */
 ShortCut.clean = function clean() {
+	// Cancels all active animation loops immediately to prevent post-logout TypeError
+	for (const [index, animationId] of _activeAnimations.entries()) {
+		cancelAnimationFrame(animationId);
+	}
+	_activeAnimations.clear();
+
 	_list.length = 0;
-	const root = _getRoot();
+	const root = ShortCut.getRoot();
 	root.querySelectorAll('.container').forEach(el => {
 		el.innerHTML = '';
 	});
@@ -231,33 +242,31 @@ ShortCut.onShortCut = function onShortCut(key) {
 	}
 };
 
-ShortCut.useSkill = function useSkill(id, level) {
-	if (id > 10000 && id < 10100) {
-		Guild.useSkillID(id, level);
-	} else if (id > 8000 && id < 8044) {
-		// if one of them don't have the skill, it returns early
-		SkillListMH.mercenary.useSkillID(id, level);
-		SkillListMH.homunculus.useSkillID(id, level);
-	} else {
-		SkillWindow.getUI().useSkillID(id, level);
+/**
+ * Resolve which skill window owns a skill id
+ *
+ * @param {number} skill id
+ * @return {object} component exposing useSkillID / getSkillById
+ */
+function getSkillOwner(id) {
+	if (id >= SkillId.GD_APPROVAL && id <= SkillId.GD_LAST) {
+		return Guild;
 	}
+	if (id >= SkillId.HOMUN_BEGIN && id <= SkillId.HOMUN_LAST) {
+		return SkillListMH.homunculus;
+	}
+	if (id >= SkillId.MERCENARY_BEGIN && id <= SkillId.MERCENARY_LAST) {
+		return SkillListMH.mercenary;
+	}
+	return SkillWindow;
+}
+
+ShortCut.useSkill = function useSkill(id, level) {
+	getSkillOwner(id).useSkillID(id, level);
 };
 
 ShortCut.getSkillById = function getSkillById(id) {
-	let skill;
-
-	if (id > 10000 && id < 10100) {
-		skill = Guild.getSkillById(id);
-	} else if (id > 8000 && id < 8044) {
-		skill = SkillListMH.mercenary.getSkillById(id);
-		if (!skill) {
-			skill = SkillListMH.homunculus.getSkillById(id);
-		}
-	} else {
-		skill = SkillWindow.getUI().getSkillById(id);
-	}
-
-	return skill;
+	return getSkillOwner(id).getSkillById(id);
 };
 
 /**
@@ -267,7 +276,8 @@ ShortCut.getSkillById = function getSkillById(id) {
  */
 ShortCut.setList = function setList(list) {
 	let skill;
-	const root = _getRoot();
+	let needGuildSkills = false;
+	const root = ShortCut.getRoot();
 
 	root.querySelectorAll('.container').forEach(el => {
 		el.innerHTML = '';
@@ -278,6 +288,10 @@ ShortCut.setList = function setList(list) {
 	for (let i = 0, count = list.length; i < count; ++i) {
 		if (list[i].isSkill) {
 			skill = ShortCut.getSkillById(list[i].ID);
+
+			if (getSkillOwner(list[i].ID) === Guild) {
+				needGuildSkills = true;
+			}
 
 			if (skill && skill.level) {
 				ShortCut.addElement(i, true, list[i].ID, list[i].count || skill.level);
@@ -294,13 +308,22 @@ ShortCut.setList = function setList(list) {
 			ShortCut.addElement(i, list[i].isSkill, list[i].ID, list[i].count);
 		}
 	}
+
+	if (needGuildSkills) {
+		ShortCut.onRequestGuildSkills();
+	}
 };
+
+/**
+ * Hook: ask the server for the guild skill list (set by MapEngine/Guild)
+ */
+ShortCut.onRequestGuildSkills = function onRequestGuildSkills() {};
 
 /**
  * Update tooltip for empty slots with hotkey only
  */
 function updateEmptySlotTooltips() {
-	const root = _getRoot();
+	const root = ShortCut.getRoot();
 	const containers = root.querySelectorAll('.container');
 
 	for (let i = 0; i < containers.length; ++i) {
@@ -319,7 +342,7 @@ function updateEmptySlotTooltips() {
  * Called when hotkey settings change
  */
 ShortCut.updateAllTooltips = function updateAllTooltips() {
-	const root = _getRoot();
+	const root = ShortCut.getRoot();
 
 	for (let i = 0, size = _list.length; i < size; ++i) {
 		const container = root.querySelector(`.container[data-index="${i}"]`);
@@ -341,7 +364,7 @@ ShortCut.updateAllTooltips = function updateAllTooltips() {
 			if (_list[i].isSkill && SkillInfo[_list[i].ID]) {
 				name = SkillInfo[_list[i].ID].SkillName;
 			} else if (_list[i].ID) {
-				const item = Inventory.getUI().getItemById(_list[i].ID);
+				const item = Inventory.getItemById(_list[i].ID);
 				if (item) {
 					name = DB.getItemName(item);
 				}
@@ -444,7 +467,7 @@ function onContainerMouseEnter(event) {
 	const tooltipText = container.getAttribute('data-tooltip');
 
 	if (tooltipText) {
-		const root = _getRoot();
+		const root = ShortCut.getRoot();
 		const tooltip = root.querySelector('.shortcut-tooltip');
 		const host = ShortCut._host;
 		const hostRect = host.getBoundingClientRect();
@@ -479,7 +502,7 @@ function onContainerMouseEnter(event) {
  * Hide fixed tooltip on container leave
  */
 function onContainerMouseLeave() {
-	const root = _getRoot();
+	const root = ShortCut.getRoot();
 	const tooltip = root.querySelector('.shortcut-tooltip');
 	if (tooltip) {
 		tooltip.classList.remove('show');
@@ -548,8 +571,10 @@ function onResize(event) {
  */
 ShortCut.addElement = function addElement(index, isSkill, ID, count) {
 	let file, name;
-	const root = _getRoot();
+	const root = ShortCut.getRoot();
 	const ui = root.querySelector(`.container[data-index="${index}"]`);
+	if (!ui) return;
+	ui.innerHTML = '';
 
 	if (!_list[index]) {
 		_list[index] = {};
@@ -573,7 +598,7 @@ ShortCut.addElement = function addElement(index, isSkill, ID, count) {
 		}
 	} else {
 		_list[index].count = count;
-		const item = Inventory.getUI().getItemById(ID);
+		const item = Inventory.getItemById(ID);
 
 		// Do not display items not in inventory
 		if (!item) {
@@ -619,14 +644,20 @@ ShortCut.addElement = function addElement(index, isSkill, ID, count) {
  * @param {number} delay in ms
  */
 function setDelayOnIndex(index, delay) {
+	// Safety validation to ensure the index exists in the list
+	if (!_list[index]) {
+		return;
+	}
+
 	// do nothing, the new delay would end sooner.
 	if (_list[index].Delay && _list[index].Delay >= Renderer.tick + delay) {
 		return;
 	}
 
 	_list[index].Delay = Renderer.tick + delay;
-	const root = _getRoot();
+	const root = ShortCut.getRoot();
 	const ui = root.querySelector(`.container[data-index="${index}"]`);
+	if (!ui) return;
 	const existing = ui.querySelector('.cooldown-overlay');
 	if (existing) {
 		existing.remove();
@@ -643,17 +674,32 @@ function setDelayOnIndex(index, delay) {
 		}
 	}
 
-	let animationId;
+	// Cancel any previous animation frame scheduled for the same index
+	if (_activeAnimations.has(index)) {
+		cancelAnimationFrame(_activeAnimations.get(index));
+		_activeAnimations.delete(index);
+	}
 
 	function updateCooldown() {
+		// Safety check against post-destruction or logout leaks
+		if (!_list || !_list[index]) {
+			overlay.remove();
+			if (_activeAnimations.has(index)) {
+				cancelAnimationFrame(_activeAnimations.get(index));
+				_activeAnimations.delete(index);
+			}
+			return;
+		}
+
 		const now = Renderer.tick;
 		const remaining = _list[index].Delay - now;
 
 		if (remaining <= 0 || !_list[index].Delay) {
 			overlay.remove();
 			_list[index].Delay = 0;
-			if (animationId) {
-				cancelAnimationFrame(animationId);
+			if (_activeAnimations.has(index)) {
+				cancelAnimationFrame(_activeAnimations.get(index));
+				_activeAnimations.delete(index);
 			}
 			return;
 		}
@@ -662,10 +708,12 @@ function setDelayOnIndex(index, delay) {
 		const degrees = (1 - percentage) * 360;
 		overlay.style.background = `conic-gradient(transparent 0deg, transparent ${degrees}deg, rgba(0,0,0,0.75) ${degrees}deg)`;
 
-		animationId = requestAnimationFrame(updateCooldown);
+		const animationId = requestAnimationFrame(updateCooldown);
+		_activeAnimations.set(index, animationId);
 	}
 
-	animationId = requestAnimationFrame(updateCooldown);
+	const animationId = requestAnimationFrame(updateCooldown);
+	_activeAnimations.set(index, animationId);
 }
 
 /**
@@ -709,7 +757,7 @@ ShortCut.removeElement = function removeElement(isSkill, ID, row, amount) {
 		return;
 	}
 
-	const root = _getRoot();
+	const root = ShortCut.getRoot();
 
 	for (let i = row * 9, count = Math.min(_list.length, row * 9 + 9); i < count; ++i) {
 		if (_list[i] && _list[i].isSkill == isSkill && _list[i].ID === ID && (!isSkill || _list[i].count == amount)) {
@@ -853,7 +901,7 @@ function onElementInfo(event, icon) {
 
 		ItemInfo.append();
 		ItemInfo.uid = _list[index].ID;
-		ItemInfo.setItem(Inventory.getUI().getItemById(_list[index].ID));
+		ItemInfo.setItem(Inventory.getItemById(_list[index].ID));
 	}
 }
 
@@ -886,9 +934,9 @@ function clickElement(index) {
 	}
 	// Use the item
 	else {
-		const item = Inventory.getUI().getItemById(_list[index].ID);
+		const item = Inventory.getItemById(_list[index].ID);
 		if (item) {
-			Inventory.getUI().useItem(item);
+			Inventory.useItem(item);
 		}
 	}
 }
@@ -1146,10 +1194,19 @@ ShortCut.saveToServer = function saveToServer() {
 			webserverAddress = Configs.get('webserverAddress', 'http://127.0.0.1:8888');
 		}
 		xhr.open('POST', `${webserverAddress}/userconfig/save`, true);
+		xhr.timeout = 5000;
 		xhr.onload = () => {
 			if (xhr.status === 200) {
 				console.log('Hotkeys saved to server successfully');
+			} else {
+				console.warn('Hotkey save returned non-200 status:', xhr.status);
 			}
+		};
+		xhr.onerror = () => {
+			console.warn('Hotkey save failed: web-server unreachable');
+		};
+		xhr.ontimeout = () => {
+			console.warn('Hotkey save timed out');
 		};
 		xhr.send(formData);
 	}
@@ -1168,21 +1225,38 @@ ShortCut.loadFromServer = function loadFromServer(callback) {
 			webserverAddress = Configs.get('webserverAddress', 'http://127.0.0.1:8888');
 		}
 		xhr.open('POST', `${webserverAddress}/userconfig/load`, true);
+		xhr.timeout = 5000;
 		xhr.onload = () => {
 			if (xhr.status === 200) {
 				try {
 					const serverData = JSON.parse(xhr.responseText);
 					_lastServerHotkeys = JSON.parse(JSON.stringify(serverData));
 					convertHotkeysFromServerFormat(serverData);
-					if (callback) {
-						callback();
-					}
 				} catch (e) {
 					console.error('Error parsing server hotkeys:', e);
 				}
+			} else {
+				console.warn('Hotkey load returned non-200 status:', xhr.status);
+			}
+			if (callback) {
+				callback();
+			}
+		};
+		xhr.onerror = () => {
+			console.warn('Hotkey load failed: web-server unreachable');
+			if (callback) {
+				callback();
+			}
+		};
+		xhr.ontimeout = () => {
+			console.warn('Hotkey load timed out');
+			if (callback) {
+				callback();
 			}
 		};
 		xhr.send(formData);
+	} else if (callback) {
+		callback();
 	}
 };
 

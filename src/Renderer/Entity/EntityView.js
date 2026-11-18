@@ -1,11 +1,30 @@
 /**
  * Renderer/EntityView.js
  *
- * Manage Entity files (attachments) to load once a view change
+ * Entity view manager — resolves SPR/ACT asset paths and GR2 3D model paths
+ * for body, head, weapon, shield, headgears, garment, palettes, and mounts.
  *
  * This file is part of ROBrowser, (http://www.robrowser.com/).
  *
  * @author Vincent Thibault
+ */
+
+/**
+ * EntityView mixin
+ * Adds view property getters/setters (job, sex, head, weapon, shield, headpalette, bodypalette, etc.) to Entity.
+ *
+ * @mixin EntityView
+ * @property {number} job Entity job ID
+ * @property {number} sex Entity gender (0: female, 1: male)
+ * @property {number} head Entity head style
+ * @property {number} weapon Entity weapon ID
+ * @property {number} shield Entity shield ID
+ * @property {number} accessory Headgear 1 ID
+ * @property {number} accessory2 Headgear 2 ID
+ * @property {number} accessory3 Headgear 3 ID
+ * @property {number} headpalette Head palette index
+ * @property {number} bodypalette Body palette index
+ * @property {Object} files Asset paths container for sprite/action files
  */
 
 import Client from 'Core/Client.js';
@@ -16,6 +35,47 @@ import AllMountTable from 'DB/Jobs/AllMountTable.js';
 import EntityAction from './EntityAction.js';
 import PACKETVER from 'Network/PacketVerManager.js';
 import JobConst from 'DB/Jobs/JobConst.js';
+import GR2ModelRenderer from 'Renderer/GR2/GR2ModelRenderer.js';
+
+// Client directory the GR2 3D-mob models resolve against (GR2ModelRenderer fetches from here).
+const GR2_MODEL_ROOT = 'data/model/3dmob/';
+
+// Stand-in when a .gr2 model is absent from the GRF: render the Poring sprite instead of nothing
+// (job 1002). Consumed only after GR2ModelRenderer.isMissing flags the path (see UpdateBody).
+const GR2_FALLBACK_JOB = 1002;
+const MOUNTED_SPRITE_JOBS = new Set([...Object.values(MountTable), ...Object.values(AllMountTable)]);
+
+const CLASS_EQUIPMENT_EFFECTS = new Map([
+	[JobConst.TAEKWON, 1],
+	[JobConst.STAR, 1],
+	[JobConst.STAR2, 1],
+	[JobConst.TAEKWON_B, 1],
+	[JobConst.STAR_B, 1],
+	[JobConst.STAR2_B, 1],
+	[JobConst.STAR_EMPEROR, 1],
+	[JobConst.STAR_EMPEROR_B, 1],
+	[JobConst.STAR_EMPEROR2, 1],
+	[JobConst.STAR_EMPEROR2_B, 1],
+	[JobConst.SKY_EMPEROR, 1],
+	[JobConst.SKY_EMPEROR2, 1],
+	[JobConst.RANGER2, 0],
+	[JobConst.RANGER2_H, 0],
+	[JobConst.RANGER2_B, 0],
+	[JobConst.WINDHAWK, 0],
+	[JobConst.MECHANIC, 0],
+	[JobConst.MECHANIC_H, 0],
+	[JobConst.MECHANIC_B, 0],
+	[JobConst.MEISTER, 0],
+	[JobConst.MEISTER_RIDING, 0],
+	[JobConst.MEISTER2, 0]
+]);
+
+function getClassEquipmentEffectPath(job, sex) {
+	if (!CLASS_EQUIPMENT_EFFECTS.has(job)) {
+		return null;
+	}
+	return DB.getWeaponEffectPath(-1, job, sex, CLASS_EQUIPMENT_EFFECTS.get(job));
+}
 
 /**
  * Files to display a view
@@ -39,32 +99,13 @@ function View() {
 	this.head = new ViewFiles();
 	this.weapon = new ViewFiles();
 	this.weapon_trail = new ViewFiles();
+	this.weapon_effect = new ViewFiles();
 	this.shield = new ViewFiles();
 	this.accessory = new ViewFiles();
 	this.accessory2 = new ViewFiles();
 	this.accessory3 = new ViewFiles();
 	this.robe = new ViewFiles();
 	this.shadow = new ViewFiles('data/sprite/shadow.spr', 'data/sprite/shadow.act');
-
-	this.cart = [];
-	//Super novice
-	this.cart[0] = new ViewFiles(DB.getCartPath(0) + '.spr', DB.getCartPath(0) + '.act');
-
-	this.cart[1] = new ViewFiles(DB.getCartPath(1) + '.spr', DB.getCartPath(1) + '.act');
-	this.cart[2] = new ViewFiles(DB.getCartPath(2) + '.spr', DB.getCartPath(2) + '.act');
-	this.cart[3] = new ViewFiles(DB.getCartPath(3) + '.spr', DB.getCartPath(3) + '.act');
-	this.cart[4] = new ViewFiles(DB.getCartPath(4) + '.spr', DB.getCartPath(4) + '.act');
-	this.cart[5] = new ViewFiles(DB.getCartPath(5) + '.spr', DB.getCartPath(5) + '.act');
-	this.cart[6] = new ViewFiles(DB.getCartPath(6) + '.spr', DB.getCartPath(6) + '.act');
-	this.cart[7] = new ViewFiles(DB.getCartPath(7) + '.spr', DB.getCartPath(7) + '.act');
-	this.cart[8] = new ViewFiles(DB.getCartPath(8) + '.spr', DB.getCartPath(8) + '.act');
-	this.cart[9] = new ViewFiles(DB.getCartPath(9) + '.spr', DB.getCartPath(9) + '.act');
-	this.cart[10] = new ViewFiles(DB.getCartPath(10) + '.spr', DB.getCartPath(10) + '.act');
-	this.cart[11] = new ViewFiles(DB.getCartPath(11) + '.spr', DB.getCartPath(11) + '.act');
-	this.cart[12] = new ViewFiles(DB.getCartPath(12) + '.spr', DB.getCartPath(12) + '.act');
-	this.cart[13] = new ViewFiles(DB.getCartPath(13) + '.spr', DB.getCartPath(13) + '.act');
-
-	this.cart_shadow = new ViewFiles('data/sprite/shadow.spr', 'data/sprite/shadow.act');
 }
 
 /**
@@ -171,13 +212,20 @@ function refreshHeadState() {
  * @param {number} job id
  */
 function UpdateBody(job) {
-	let baseJob, path;
+	let baseJob;
 	// Capture sequence number for stale callback detection
 	const transformationSeq = this._transformationSeq || 0;
 
+	// job < 0 is a "no body update" sentinel: keep the current body state untouched, including
+	// this.gr2. Intentionally not cleared here -- same as the invisible-sprite branch below
+	// (job 111/139/45), which also retains this.gr2. Only the "no body at all" path === null
+	// branch clears this.gr2, because that path means the entity genuinely has no body sprite.
 	if (job < 0) {
 		return;
 	}
+
+	// The body style (if any) is applied again at the end, for the new job.
+	this._bodyStyleJob = null;
 
 	// Check if this is a transformation job (monster or form)
 	// If so, don't update _job - it should preserve the original job
@@ -186,14 +234,12 @@ function UpdateBody(job) {
 	// Avoid fuck*ng errors with mounts !
 	// Sometimes the server send us the job of the mount sprite instead
 	// of the base sprite + effect to have the mount.
-	// NOTE: do NOT clear this.costume here — the all-riding costume is
-	// applied via updateAllRidingState (this.costume = mount id) and must
-	// survive subsequent UpdateBody(this._job) re-syncs while riding;
-	// unmounting clears it through updateAllRidingState (costume = 0).
 	for (baseJob in MountTable) {
 		if (MountTable[baseJob] === job) {
 			this.costume = job;
-			job = baseJob;
+			// `for...in` yields string keys; coerce back to Number so
+			// downstream `_job` lookups (DB.isX, ===) don't miss.
+			job = +baseJob;
 			break;
 		}
 	}
@@ -201,7 +247,7 @@ function UpdateBody(job) {
 	for (baseJob in AllMountTable) {
 		if (AllMountTable[baseJob] === job) {
 			this.costume = job;
-			job = baseJob;
+			job = +baseJob;
 			break;
 		}
 	}
@@ -224,7 +270,11 @@ function UpdateBody(job) {
 	this.xSize = this.ySize = DB.isBaby(job) ? 4 : 5;
 
 	this.files.shadow.size = job in ShadowTable ? ShadowTable[job] : 1.0;
-	path = this.isAdmin ? DB.getAdminPath(this._sex) : DB.getBodyPath(job, this._sex);
+	// Don't force the GM/admin sprite when the entity is displaying a monster
+	// form (disguise or transformation) - otherwise a GM disguised as a monster
+	// shows the headless admin sprite instead of the monster.
+	const showAdminSprite = this.isAdmin && !shouldSuppressHead.call(this);
+	let path = showAdminSprite ? DB.getAdminPath(this._sex) : DB.getBodyPath(job, this._sex);
 	const Entity = this.constructor;
 
 	// Define Object type based on its id
@@ -286,24 +336,52 @@ function UpdateBody(job) {
 		return;
 	}
 
-	// granny model not supported yet :(
-	// Display a poring instead
-	if (path === null || path.match(/\.gr2$/i)) {
-		if (path.match(/aguardian90_8\.gr2$/i)) {
-			path = DB.getBodyPath(1276, this._sex);
-		} else if (path.match(/empelium90_0\.gr2$/i)) {
-			path = DB.getBodyPath(2080, this._sex);
-		} else if (path.match(/guildflag90_1\.gr2$/i)) {
-			path = DB.getBodyPath(1911, this._sex);
-		} else if (path.match(/kguardian90_7\.gr2$/i)) {
-			path = DB.getBodyPath(2691, this._sex);
-		} else if (path.match(/sguardian90_9\.gr2$/i)) {
-			path = DB.getBodyPath(1163, this._sex);
-		} else if (path.match(/treasurebox_2\.gr2$/i)) {
-			path = DB.getBodyPath(1191, this._sex);
-		} else {
-			path = DB.getBodyPath(1002, this._sex);
+	// getBodyPath returned null -> the entity has no body sprite at all (DBManager's
+	// "Not visible sprite" list: ANOPHELES 2337, ...). Not a GR2 case -- mirror the
+	// invisible branch above and return before the load. Keeps the .gr2 branch below
+	// strictly about genuine 3D models (no null.match() fall-through).
+	if (path === null) {
+		this.gr2 = null;
+		this.files.body.spr = null;
+		this.files.body.act = null;
+		return;
+	}
+
+	// GR2 3D body: a supported model is rendered by GR2ModelRenderer through the Entity path
+	// (EntityRender attaches an instance on this.gr2) -- record the model path, null the body
+	// sprite, return before the load. Unsupported or failed models fall through to a 2D Poring
+	// substitute instead (see the inner branch). The supported return also skips the
+	// bodypalette/weapon/shield refresh in the load callback below -- intentional: the GR2
+	// set is monsters/NPCs with no PC attachments. Revisit if a player-class GR2 model
+	// (e.g. a mount) is ever added.
+	if (path.match(/\.gr2$/i)) {
+		// Re-root the model under GR2_MODEL_ROOT: DB.getBodyPath always returns a directory-qualified
+		// path (data/sprite/<...>/name.gr2), so stripping to the basename and re-prefixing is safe.
+		const gr2Path = GR2_MODEL_ROOT + path.replace(/^.*\//, '');
+		// Enter the 3D path only for the supported roster whose file/decode hasn't failed. Everything
+		// else -- an unsupported model (dragon_5, Hugeling90_6, any future .gr2: rejected synchronously
+		// by isSupported, no I/O) or a supported model that later 404'd / failed to decode (isMissing) --
+		// falls through to the 2D Poring substitute below instead of rendering an invisible actor.
+		if (GR2ModelRenderer.isSupported(gr2Path) && !GR2ModelRenderer.isMissing(gr2Path)) {
+			// Tripwire: the current GR2 set is monsters/NPCs, so this never fires. If a player-class
+			// GR2 (e.g. a mount) is ever added, its weapon/shield/bodypalette refresh would be silently
+			// dropped by the early return -- make that loud instead of a hard-to-trace visual gap.
+			if (this.objecttype === Entity.TYPE_PC && (this._weapon || this._shield)) {
+				console.warn(
+					'[GR2] Player-class GR2 body (' +
+						path +
+						'): weapon/shield/bodypalette refresh is skipped -- see UpdateBody.'
+				);
+			}
+			this.gr2 = gr2Path;
+			this.files.body.spr = null;
+			this.files.body.act = null;
+			return;
 		}
+		this.gr2 = null;
+		path = DB.getBodyPath(GR2_FALLBACK_JOB, this._sex);
+	} else {
+		this.gr2 = null;
 	}
 
 	// Loading
@@ -500,6 +578,13 @@ function UpdateBodyStyle(look) {
 			}
 
 			path = this.isAdmin ? DB.getAdminPath(this._sex) : DB.getBodyPath(job, this._sex, look, cashMountCostume);
+
+			// The job whose sprite getBodyPath picked, so the palette can be the one made for it: a
+			// body style draws the `costume_1` body of `look`, mounted or not, and that body has
+			// palettes of its own. Null when the style draws the job's own body, and for an admin,
+			// whose body is the admin sprite whatever the style.
+			const styled = !this.isAdmin && PACKETVER.value > 20141022 && look > 0 && look !== job && !cashMountCostume;
+			this._bodyStyleJob = styled ? look : null;
 			Entity = this.constructor;
 
 			// Loading
@@ -526,9 +611,18 @@ function UpdateBodyStyle(look) {
 }
 
 /**
+ * Job ids of the halter-lead mounts, the values of AllMountTable.
+ */
+const AllMountJobs = {};
+for (const baseJob in AllMountTable) {
+	AllMountJobs[AllMountTable[baseJob]] = true;
+}
+
+/**
  * Update body palette
  *
  * @param {number} body palette number
+ * @see docs/reference/renderer/body-palette.md
  */
 function UpdateBodyPalette(pal) {
 	this._bodypalette = pal;
@@ -544,14 +638,26 @@ function UpdateBodyPalette(pal) {
 		return;
 	}
 
-	// Mount/costume forms: the dye palette must follow the rendered body
-	// sprite id, not the base job. E.g. a novice riding a poring renders
-	// the PORING_NOVICE sprite but with this._job still pointing at the
-	// novice, so the novice dye palette (초보자_남_X) got applied to poring
-	// sprite indices, filling most cloth pixels with the palette's magenta
-	// padding color (255,0,255). The kRO data ships matching palettes for
-	// mount variants (몸/노비스포링_남_X.pal), so prefer the costume id.
-	this.files.body.pal = DB.getBodyPalPath(this.costume || this._job, this._bodypalette, this._sex);
+	// The palette has to be the one for the sprite being drawn. A mounted
+	// Knight is drawn from the Peco Knight body, and its palettes are its own
+	// files, covering the mount's colours too; the Knight's palette on that
+	// sprite paints the whole peco magenta. The same holds for every mount and
+	// for the wedding, Xmas and summer outfits, which all arrive as `costume`,
+	// and for a body style, which draws the `costume_1` body (see UpdateBodyStyle).
+	const job = this._bodyStyleJob && !hasTransformation.call(this) ? this._bodyStyleJob : getEffectiveJob.call(this);
+	if (!AllMountJobs[job]) {
+		this.files.body.pal = DB.getBodyPalPath(job, this._bodypalette, this._sex);
+		return;
+	}
+
+	// A halter-lead mount has palette files of its own only in the newer
+	// archives; the older ones dye it with the rider's palette (the few
+	// mount files they ship hold the same colours). The entity may have
+	// changed by the time the archive answers: dye it as it is then.
+	const own = DB.hasMountPalettes(() => UpdateBodyPalette.call(this, this._bodypalette));
+	if (own !== undefined) {
+		this.files.body.pal = DB.getBodyPalPath(own ? job : this._job, pal, this._sex);
+	}
 }
 
 /**
@@ -615,9 +721,46 @@ function UpdateGeneric(type, func, fallback) {
 		let path;
 		const _this = this;
 		let _val = val;
+		// A later equipment, job, or sex update must own any asynchronous load callback.
+		const requestId = ((this._viewRequestSeq || (this._viewRequestSeq = {}))[type] || 0) + 1;
+		this._viewRequestSeq[type] = requestId;
+		const requestedJob = this.job;
+		const requestedSex = this._sex;
+		this['_' + type] = val > 0 ? val : 0;
+		const isCurrentRequest = () =>
+			_this._viewRequestSeq[type] === requestId && _this.job === requestedJob && _this._sex === requestedSex;
+		if (this.files[type]) {
+			this.files[type].spr = null;
+			this.files[type].act = null;
+			this.files[type].pal = null;
+		}
+		if (type === 'weapon' && this.files.weapon_trail) {
+			this.files.weapon_trail.spr = null;
+			this.files.weapon_trail.act = null;
+		}
+		if (type === 'weapon' && this.files.weapon_effect) {
+			this.files.weapon_effect.spr = null;
+			this.files.weapon_effect.act = null;
+		}
+		const classEffectPath = type === 'weapon' ? getClassEquipmentEffectPath(requestedJob, requestedSex) : null;
+		const loadEquipmentEffect = effectPath => {
+			if (!effectPath) {
+				return;
+			}
+			Client.loadFile(effectPath + '.act');
+			Client.loadFile(effectPath + '.spr', function () {
+				if (isCurrentRequest()) {
+					_this.files.weapon_effect.spr = effectPath + '.spr';
+					_this.files.weapon_effect.act = effectPath + '.act';
+				}
+			});
+		};
+		loadEquipmentEffect(classEffectPath);
+		// Set when a weapon look is drawn from its base type's sprite
+		let keepLook = false;
 
 		// Nothing to load
-		if (val <= 0) {
+		if (!val || val <= 0) {
 			this['_' + type] = 0;
 			return;
 		}
@@ -625,9 +768,11 @@ function UpdateGeneric(type, func, fallback) {
 		// Find file path
 		switch (type) {
 			case 'weapon':
-			case 'shield':
 			case 'robe':
 				path = DB[func](val, this.job, this._sex);
+				break;
+			case 'shield':
+				path = DB[func](val, this.job, this._sex, MOUNTED_SPRITE_JOBS.has(this.costume));
 				break;
 
 			default:
@@ -637,10 +782,6 @@ function UpdateGeneric(type, func, fallback) {
 
 		// No path found, remove current files used
 		if (!path) {
-			this.files[type].spr = null;
-			this.files[type].act = null;
-			this.files[type].pal = null;
-
 			// Load weapon sound
 			if (type === 'weapon') {
 				this.sound.attackFile = DB.getWeaponSound(val);
@@ -650,11 +791,72 @@ function UpdateGeneric(type, func, fallback) {
 		}
 
 		function LoadView(filepath, final) {
+			if (type === 'shield') {
+				let actReady = false;
+				let sprReady = false;
+				let settled = false;
+
+				const finishShieldLoad = () => {
+					if (settled) {
+						return;
+					}
+					if (actReady && sprReady) {
+						settled = true;
+						if (isCurrentRequest()) {
+							_this._shield = _val;
+							_this.files.shield.act = filepath + '.act';
+							_this.files.shield.spr = filepath + '.spr';
+						}
+					}
+				};
+
+				const retryGenericShield = () => {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					if (!final && isCurrentRequest()) {
+						const shieldView = DB.getShieldViewID(_val);
+						const fallbackPath = DB.getShieldPath(
+							shieldView,
+							requestedJob,
+							requestedSex,
+							MOUNTED_SPRITE_JOBS.has(_this.costume)
+						);
+						if (fallbackPath && fallbackPath !== filepath) {
+							LoadView(fallbackPath, true);
+						}
+					}
+				};
+
+				Client.loadFile(
+					filepath + '.act',
+					() => {
+						actReady = true;
+						finishShieldLoad();
+					},
+					retryGenericShield
+				);
+				Client.loadFile(
+					filepath + '.spr',
+					() => {
+						sprReady = true;
+						finishShieldLoad();
+					},
+					retryGenericShield
+				);
+				return;
+			}
+
 			Client.loadFile(filepath + '.act');
 			Client.loadFile(
 				filepath + '.spr',
 				function () {
-					_this['_' + type] = _val;
+					if (!isCurrentRequest()) {
+						return;
+					}
+					// Keep the look itself, so a later job change can draw its sprite
+					_this['_' + type] = keepLook ? val : _val;
 
 					// Head accessories should not be applied if they should be suppressed
 					const isAccessory = type === 'accessory' || type === 'accessory2' || type === 'accessory3';
@@ -668,11 +870,20 @@ function UpdateGeneric(type, func, fallback) {
 					if (type === 'weapon') {
 						_this.attackFile = DB.getWeaponSound(_val);
 
+						// Generic ACT layer 6 weapon glow. Item-specific effect names
+						// require the client's ReqWeaponNameByClassNum metadata.
+						if (!classEffectPath) {
+							loadEquipmentEffect(DB.getWeaponEffectPath(_val, _this.job, _this._sex, 0));
+						}
+
 						//Load weapon trail effect
 						const trail_file = DB.getWeaponTrail(_val, _this.job, _this._sex);
 						if (trail_file) {
 							Client.loadFile(trail_file + '.act');
 							Client.loadFile(trail_file + '.spr', function () {
+								if (!isCurrentRequest()) {
+									return;
+								}
 								_this.files['weapon_trail'].spr = trail_file + '.spr';
 								_this.files['weapon_trail'].act = trail_file + '.act';
 							});
@@ -682,9 +893,21 @@ function UpdateGeneric(type, func, fallback) {
 
 				// if weapon isn't loaded, try to load the default sprite for the weapon type
 				function () {
+					if (!isCurrentRequest()) {
+						return;
+					}
 					if (fallback && !final) {
 						_val = DB[fallback](val);
 						filepath = DB[func](_val, _this.job, _this._sex);
+						// An expansion look (Main Gauche 31, Mace 62, ...) is drawn from a sprite
+						// named after it, which only some jobs have: the Druid line has just the
+						// base-type sprites (kRO data.grf: druid_*_dagger, axe, two-handed axe,
+						// club). Draw the base weapon type for them instead of nothing.
+						if (type === 'weapon' && filepath === path) {
+							_val = DB.getWeaponType(val, true);
+							filepath = DB[func](_val, _this.job, _this._sex);
+							keepLook = true;
+						}
 						if (filepath) {
 							LoadView(filepath, true);
 						}

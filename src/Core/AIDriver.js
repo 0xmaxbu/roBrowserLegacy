@@ -1,14 +1,14 @@
-import DB from 'DB/DBManager.js';
 import Session from 'Engine/SessionStorage.js';
 import Network from 'Network/NetworkManager.js';
 import PACKET from 'Network/PacketStructure.js';
 import PACKETVER from 'Network/PacketVerManager.js';
 import SkillInfo from 'DB/Skills/SkillInfo.js';
 import EntityManager from 'Renderer/EntityManager.js';
-import Client from './Client.js';
-import Configs from './Configs.js';
+import Configs from 'Core/Configs.js';
+import LuaModuleLoader from 'Core/LuaModuleLoader.js';
 import UIManager from 'UI/UIManager.js';
 import TextEncoding from 'Utils/CodepageManager.js';
+import { HO_AI, MER_AI, default_HO_AI, default_MER_AI } from 'DB/Loaders/LuaRuntime.js';
 
 const msg = {};
 const resMsg = {};
@@ -16,11 +16,12 @@ const resMsg = {};
 class AIDriver {
 	static HOM_AGGRESSIVE = false;
 	static MER_AGGRESSIVE = false;
-	static HO_AI = null;
-	static MER_AI = null;
-	static default_HO_AI = null;
-	static default_MER_AI = null;
 	static ready = false;
+	static CustomAI = {
+		HO: false,
+		MER: false
+	};
+
 	// this is called in a code in someplace, left if here :u
 	static init() {}
 
@@ -50,26 +51,26 @@ class AIDriver {
 					return res[1], res[2]
 				end
 				return res
-			end	
-			function GetMsg(id)  
-				local res = GetMsgJS(id)  
-				local result = {}  
-				local i = 0  
-				while res[i] ~= nil do  
-					result[i + 1] = res[i]  
-					i = i + 1  
-				end  
-				return result  
-			end  
-			function GetResMsg(id)  
-				local res = GetResMsgJS(id)  
-				local result = {}  
-				local i = 0  
-				while res[i] ~= nil do  
-					result[i + 1] = res[i]  
-					i = i + 1  
-				end  
-				return result  
+			end
+			function GetMsg(id)
+				local res = GetMsgJS(id)
+				local result = {}
+				local i = 0
+				while res[i] ~= nil do
+					result[i + 1] = res[i]
+					i = i + 1
+				end
+				return result
+			end
+			function GetResMsg(id)
+				local res = GetResMsgJS(id)
+				local result = {}
+				local i = 0
+				while res[i] ~= nil do
+					result[i + 1] = res[i]
+					i = i + 1
+				end
+				return result
 			end
 		`);
 
@@ -216,7 +217,21 @@ class AIDriver {
 			function distance(x1, y1, x2, y2) {
 				const dx = x2 - x1;
 				const dy = y2 - y1;
-				return dx * dx + dy * dy;
+				return Math.sqrt(dx * dx + dy * dy);
+			}
+
+			function canUseAISkill(entity) {
+				if (!entity || entity.action === entity.ACTION.DIE || entity.action === entity.ACTION.HURT) {
+					return false;
+				}
+
+				return [
+					entity.ACTION.IDLE,
+					entity.ACTION.WALK,
+					entity.ACTION.ATTACK,
+					entity.ACTION.ATTACK2,
+					entity.ACTION.ATTACK3
+				].some(action => action >= 0 && action === entity.action);
 			}
 
 			ctx.GetActors = function () {
@@ -229,7 +244,7 @@ class AIDriver {
 				if (res.length > 3) {
 					if (isHoAI ? AIDriver.HOM_AGGRESSIVE : AIDriver.MER_AGGRESSIVE) {
 						let closest = 0;
-						let lastDist = 1000;
+						let lastDist = 32;
 						const thisentity = EntityManager.get(isHoAI ? Session.homunId : Session.mercId);
 						for (const item of res) {
 							if (
@@ -316,7 +331,7 @@ class AIDriver {
 						);
 						if (range >= dist) {
 							// check if homun is in a valid state to cast skill
-							if (homun && [0, 1, 4].includes(homun.action)) {
+							if (canUseAISkill(homun)) {
 								let pkt;
 								if (PACKETVER.value >= 20180307) {
 									pkt = new PACKET.CZ.USE_SKILL2();
@@ -406,191 +421,103 @@ class AIDriver {
 			};
 		}
 
-		addCTX(AIDriver.default_HO_AI, true);
-		addCTX(AIDriver.HO_AI, true);
-		addCTX(AIDriver.default_MER_AI, false);
-		addCTX(AIDriver.MER_AI, false);
+		addCTX(default_HO_AI, true);
+		addCTX(HO_AI, true);
+		addCTX(default_MER_AI, false);
+		addCTX(MER_AI, false);
 	}
 
 	static initAI = async onEnd => {
-		let loadedFiles = {};
-		let loadPromises = [];
 		AIDriver.ready = false;
-		function preloadFiles(fileList, lua) {
-			const ctx = lua.ctx;
+		AIDriver.CustomAI.HO = false;
+		AIDriver.CustomAI.MER = false;
+		const defaultAISearchPaths = [
+			'./?.lua',
+			'./?.lub',
+			'AI/?.lua',
+			'AI/?.lub',
+			'AI/USER_AI/?.lua',
+			'AI/USER_AI/?.lub',
+			...LuaModuleLoader.DEFAULT_SEARCH_PATHS
+		];
 
-			function customRequire(modulePath, isJS = false) {
-				const promise = new Promise((resolve, reject) => {
-					let filename;
-					if (!isJS) {
-						filename = TextEncoding.decode(modulePath);
-					} else {
-						filename = modulePath;
-					}
-
-					filename = filename
-						.replaceAll('\\\\', '/')
-						.replaceAll('\\', '/')
-						.replace('./', '')
-						.replace('pcall', '')
-						.replace('function', '')
-						.replace('.lua', '')
-						.trim();
-					if (filename.endsWith('end')) {
-						filename = filename.replace('end', '').trim();
-					}
-					filename = filename + '.lua';
-
-					// Timeouts and Agressive Relog are execution time file, it need to be created on demandtly, so we ignore them here
-					if (
-						filename.includes('Timeouts') ||
-						filename.includes('AggressiveRelogPath') ||
-						filename.startsWith('--')
-					) {
-						resolve();
-						return;
-					}
-
-					if (loadedFiles[filename]) {
-						resolve();
-						return;
-					}
-					loadedFiles[filename] = filename;
-
-					Client.loadFile(
-						filename,
-						function (file) {
-							try {
-								if (Configs.get('debugAI', false)) {
-									console.log(`Loading file "${filename}"...`);
-								}
-								const buffer = file instanceof ArrayBuffer ? new Uint8Array(file) : file;
-								const str = TextEncoding.decode(buffer);
-
-								const nestedPromises = [];
-								for (const line of str.split('\n')) {
-									if (line.includes('dofile')) {
-										const loadFile = line
-											.replace('dofile', '')
-											.replaceAll('(', '')
-											.replaceAll(')', '')
-											.replace(/['"]/g, '')
-											.trim();
-										const nestedPromise = customRequire(loadFile, true);
-										nestedPromises.push(nestedPromise);
-									}
-								}
-
-								Promise.all(nestedPromises)
-									.then(() => {
-										lua.mountFile('./' + filename, buffer);
-										resolve();
-									})
-									.catch(reject);
-							} catch (error) {
-								console.error('[require] : ', error);
-								reject(error);
-							}
-						},
-						reject
-					);
-				});
-				return promise;
-			}
-
-			ctx.require = customRequire;
-
-			// Preload AI files to ensure they are cached before execution
-			for (const filename of fileList) {
-				if (!loadedFiles[filename]) {
-					loadedFiles[filename] = filename;
-					const promise = new Promise((resolve, reject) => {
-						Client.loadFile(
-							filename,
-							function (file) {
-								try {
-									if (Configs.get('debugAI', false)) {
-										console.log('Loading file "' + filename + '"...');
-									}
-									const buffer = file instanceof ArrayBuffer ? new Uint8Array(file) : file;
-									const text = TextEncoding.decode(buffer);
-
-									const nestedPromises = [];
-									for (const line of text.split('\n')) {
-										if (line.includes('dofile')) {
-											const loadFile = line
-												.replace('dofile', '')
-												.replaceAll('(', '')
-												.replaceAll(')', '')
-												.replace(/['"]/g, '')
-												.trim();
-											const nestedPromise = customRequire(loadFile, true);
-											nestedPromises.push(nestedPromise);
-										}
-									}
-
-									Promise.all(nestedPromises)
-										.then(() => {
-											lua.mountFile('./' + filename, buffer);
-											resolve();
-										})
-										.catch(reject);
-								} catch (error) {
-									console.error('[prepareAIFiles] : ', error);
-									reject(error);
-								}
-							},
-							reject
-						);
-					});
-					loadPromises.push(promise);
-				}
-			}
-		}
-
-		async function doFiles(fileList, lua) {
-			await Promise.all(loadPromises);
-			for (const key in fileList) {
-				await lua.doFileSync(fileList[key]);
-			}
-		}
+		const customAISearchPaths = [
+			'./?.lua',
+			'./?.lub',
+			'AI/USER_AI/?.lua',
+			'AI/USER_AI/?.lub',
+			'AI/?.lua',
+			'AI/?.lub',
+			...LuaModuleLoader.DEFAULT_SEARCH_PATHS
+		];
 
 		try {
-			AIDriver.HO_AI = DB.getHOAI_VM();
-			AIDriver.MER_AI = DB.getMERAI_VM();
-			AIDriver.default_HO_AI = DB.getDefaultHOAI_VM();
-			AIDriver.default_MER_AI = DB.getDefaultMERAI_VM();
+			LuaModuleLoader.setup(default_HO_AI, { searchPaths: defaultAISearchPaths });
+			LuaModuleLoader.setup(default_MER_AI, { searchPaths: defaultAISearchPaths });
+			LuaModuleLoader.setup(HO_AI, { searchPaths: customAISearchPaths });
+			LuaModuleLoader.setup(MER_AI, { searchPaths: customAISearchPaths });
+
 			AIDriver.addCTX();
 
 			console.log('Loading Default HOAI...');
-			let files = ['AI/Util.lua', 'AI/Const.lua', 'AI/AI.lua'];
-			let AI_M = 'AI/AI_M.lua';
-			preloadFiles(files, AIDriver.default_HO_AI);
-			await doFiles(files, AIDriver.default_HO_AI);
+			const defaultHoFiles = ['AI/Util.lua', 'AI/Const.lua', 'AI/AI.lua'];
+			await LuaModuleLoader.loadAndExecuteFiles(default_HO_AI, defaultHoFiles, {
+				searchPaths: defaultAISearchPaths
+			});
 
 			console.log('Loading Default MERAI...');
-			loadedFiles = {};
-			loadPromises = [];
-			files.pop();
-			files.push(AI_M);
-			preloadFiles(files, AIDriver.default_MER_AI);
-			await doFiles(files, AIDriver.default_MER_AI);
+			const defaultMerFiles = ['AI/Util.lua', 'AI/Const.lua', 'AI/AI_M.lua'];
+			await LuaModuleLoader.loadAndExecuteFiles(default_MER_AI, defaultMerFiles, {
+				searchPaths: defaultAISearchPaths
+			});
 
-			files = ['AI/USER_AI/Util.lua', 'AI/USER_AI/Const.lua', 'AI/USER_AI/AI.lua'];
-			AI_M = 'AI/USER_AI/AI_M.lua';
-			console.log('Loading Custom HOAI...');
-			preloadFiles(files, AIDriver.HO_AI);
-			await doFiles(files, AIDriver.HO_AI);
+			try {
+				console.log('Loading Custom HOAI...');
+				const customHoFiles = ['AI/USER_AI/Util.lua', 'AI/USER_AI/Const.lua', 'AI/USER_AI/AI.lua'];
+				await LuaModuleLoader.loadAndExecuteFiles(HO_AI, customHoFiles, {
+					searchPaths: customAISearchPaths
+				});
+				AIDriver.CustomAI.HO = true;
+			} catch (customHoError) {
+				if (customHoError && customHoError.code === 'LUA_FILE_NOT_FOUND') {
+					console.warn(
+						'[AIDriver] Custom HO USER_AI files not available, falling back to default HO AI:',
+						customHoError.message || customHoError
+					);
+				} else {
+					console.error(
+						'[AIDriver] Custom HO USER_AI failed to initialize, falling back to default HO AI:',
+						customHoError.message || customHoError
+					);
+				}
+			}
 
-			console.log('Loading Custom MERAI...');
-			loadedFiles = {};
-			loadPromises = [];
-			files.pop();
-			files.push(AI_M);
-			preloadFiles(files, AIDriver.MER_AI);
-			await doFiles(files, AIDriver.MER_AI);
+			try {
+				console.log('Loading Custom MERAI...');
+				const customMerFiles = ['AI/USER_AI/Util.lua', 'AI/USER_AI/Const.lua', 'AI/USER_AI/AI_M.lua'];
+				await LuaModuleLoader.loadAndExecuteFiles(MER_AI, customMerFiles, {
+					searchPaths: customAISearchPaths
+				});
+				AIDriver.CustomAI.MER = true;
+			} catch (customMerError) {
+				if (customMerError && customMerError.code === 'LUA_FILE_NOT_FOUND') {
+					console.warn(
+						'[AIDriver] Custom MER USER_AI files not available, falling back to default MER AI:',
+						customMerError.message || customMerError
+					);
+				} else {
+					console.error(
+						'[AIDriver] Custom MER USER_AI failed to initialize, falling back to default MER AI:',
+						customMerError.message || customMerError
+					);
+				}
+			}
 		} catch (error) {
-			console.error('Error loading AI files:', error);
+			if (error && error.code === 'LUA_FILE_NOT_FOUND') {
+				console.warn('[AIDriver] AI files not available, skipping AI initialization:', error.message || error);
+			} else {
+				console.error('[AIDriver] Failed to initialize AI:', error.message || error);
+			}
 			if (typeof onEnd === 'function') {
 				onEnd();
 			}
@@ -613,16 +540,16 @@ class AIDriver {
 
 			let lua;
 			if (homunculus) {
-				if (Session.homCustomAI) {
-					lua = AIDriver.HO_AI;
+				if (Session.homCustomAI && AIDriver.CustomAI.HO) {
+					lua = HO_AI;
 				} else {
-					lua = AIDriver.default_HO_AI;
+					lua = default_HO_AI;
 				}
 			} else {
-				if (Session.merCustomAI) {
-					lua = AIDriver.MER_AI;
+				if (Session.merCustomAI && AIDriver.CustomAI.MER) {
+					lua = MER_AI;
 				} else {
-					lua = AIDriver.default_MER_AI;
+					lua = default_MER_AI;
 				}
 			}
 			lua.doStringSync(code);

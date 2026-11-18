@@ -8,7 +8,6 @@
  * @author Vincent Thibault
  */
 
-import jQuery from 'Utils/jquery.js';
 import DB from 'DB/DBManager.js';
 import UIManager from 'UI/UIManager.js';
 import Cursor from 'UI/CursorManager.js';
@@ -68,13 +67,32 @@ class MapControl {
 		Mobile.onTouchEnd = onMouseUp.bind(this);
 
 		// Attach events
-		jQuery(Renderer.canvas)
-			.on('mousewheel DOMMouseScroll', onMouseWheel)
-			.on('dragover', onDragOver)
-			.on('drop', onDrop.bind(this));
+		Renderer.canvas.addEventListener('wheel', onMouseWheel);
+		Renderer.canvas.addEventListener('dragover', onDragOver);
+		Renderer.canvas.addEventListener('drop', onDrop.bind(this));
 
-		jQuery(window).on('mousedown.map', onMouseDown.bind(this)).on('mouseup.map', onMouseUp.bind(this));
+		window.addEventListener('mousedown', onMouseDown.bind(this));
+		window.addEventListener('mouseup', onMouseUp.bind(this));
+
+		// A mouseup released over a UI element can be swallowed by the element's
+		// own handler (e.g. scrollbars call stopPropagation), so the bubbling
+		// 'mouseup' above never fires and the camera would keep rotating.
+		// Listen in the capture phase to always catch the release.
+		window.addEventListener('mouseup', onMouseUpCapture, true);
 	}
+}
+
+/**
+ * Stop the camera rotation when the right button is released, even if the
+ * release happens over a UI element that swallows the bubbling mouseup event.
+ */
+function onMouseUpCapture(event) {
+	if (event.which !== 3 || !Camera.action.active) {
+		return;
+	}
+
+	Cursor.setType(Cursor.ACTION.DEFAULT);
+	Camera.rotate(false);
 }
 
 /**
@@ -82,6 +100,11 @@ class MapControl {
  */
 function onMouseDown(event) {
 	const action = (event && event.which) || 1;
+
+	// Skill target selection handles the click itself (right click just cancels it)
+	if (Mouse.state === Mouse.MOUSE_STATE.USESKILL && SkillTargetSelection.onMapMouseDown(event)) {
+		return;
+	}
 
 	if (!Mouse.intersect) {
 		return;
@@ -172,13 +195,9 @@ function onMouseDown(event) {
 						Session.autoFollow = true;
 						onAutoFollow();
 					}
-
-					// Right click on a NPC/Mob/Unit
-					entityOver.onMouseDown();
-					entityOver.onFocus();
-					EntityManager.setFocusEntity(entityOver);
 				}
 
+				// Right click only rotates the camera here.
 				Cursor.setType(Cursor.ACTION.ROTATE);
 				Camera.rotate(true);
 			}
@@ -208,11 +227,11 @@ function onMouseUp(event) {
 				ET = entity.constructor;
 				entity.onMouseUp();
 
-				// Entity lock is only on MOB type (except when Touch Targeting is active)
+				// Touch Targeting retains any selected entity independently of /nc.
 				if (
-					Preferences.noctrl === false ||
-					(![ET.TYPE_MOB, ET.TYPE_NPC_ABR, ET.TYPE_NPC_BIONIC].includes(entity.objecttype) &&
-						!Session.TouchTargeting)
+					!Session.TouchTargeting &&
+					(Preferences.noctrl === false ||
+						![ET.TYPE_MOB, ET.TYPE_NPC_ABR, ET.TYPE_NPC_BIONIC].includes(entity.objecttype))
 				) {
 					EntityManager.setFocusEntity(null);
 					entity.onFocusEnd();
@@ -248,7 +267,7 @@ function onMouseUp(event) {
  */
 function onMouseWheel(event) {
 	if (Mouse.state === Mouse.MOUSE_STATE.USESKILL) {
-		if (event.originalEvent.wheelDelta > 0) {
+		if (event.deltaY < 0) {
 			SkillTargetSelection.setSkillLevelDelta(1);
 		} else {
 			SkillTargetSelection.setSkillLevelDelta(-1);
@@ -256,16 +275,7 @@ function onMouseWheel(event) {
 		return;
 	}
 	// Zooming on the scene
-	// Cross browser delta
-	let delta;
-	if (event.originalEvent.wheelDelta) {
-		delta = event.originalEvent.wheelDelta / 120;
-		if (window.opera) {
-			delta = -delta;
-		}
-	} else if (event.originalEvent.detail) {
-		delta = -event.originalEvent.detail;
-	}
+	const delta = event.deltaY < 0 ? 1 : event.deltaY > 0 ? -1 : 0;
 
 	Camera.setZoom(delta);
 }
@@ -275,7 +285,7 @@ function onMouseWheel(event) {
  */
 function onDragOver(event) {
 	event.stopImmediatePropagation();
-	return false;
+	event.preventDefault();
 }
 
 /**
@@ -285,39 +295,44 @@ function onDrop(event) {
 	let data;
 
 	try {
-		data = JSON.parse(event.originalEvent.dataTransfer.getData('Text'));
+		data = JSON.parse(event.dataTransfer.getData('Text'));
 	} catch (e) {
 		console.error(e);
 	}
 
 	// Stop default behavior
+	event.preventDefault();
 	event.stopImmediatePropagation();
 	if (!data) {
-		return false;
+		return;
 	}
 
 	// Hacky way to trigger mouseleave (mouseleave isn't
 	// triggered when dragging an object).
 	// ondragleave event is not relyable to do it (not working as intended)
 	if (data.from) {
-		UIManager.getComponent(data.from).ui.trigger('mouseleave');
+		const comp = UIManager.getComponent(data.from);
+		if (comp && comp.ui) {
+			const el = comp.ui[0] || comp.ui;
+			el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+		}
 	}
 
 	// Just support items ?
 	if (data.type !== 'item' || data.from !== 'Inventory') {
-		return false;
+		return;
 	}
 
 	// Can't drop an item on map if Equipment window is open
-	if (Equipment.getUI().ui.is(':visible')) {
+	if (Equipment.ui.is(':visible')) {
 		ChatBox.addText(DB.getMessage(189), ChatBox.TYPE.ERROR, ChatBox.FILTER.ITEM);
-		return false;
+		return;
 	}
 
 	// Item Drop Lock
 	const InventoryVersion = UIManager.getComponent('Inventory').name;
-	if (InventoryVersion !== 'InventoryV0' && Inventory.getUI().itemlock === true) {
-		return false;
+	if (InventoryVersion !== 'InventoryV0' && Inventory.itemlock === true) {
+		return;
 	}
 
 	const item = data.data;
@@ -336,8 +351,6 @@ function onDrop(event) {
 	else {
 		MapControl.onRequestDropItem(item.index, 1);
 	}
-
-	return false;
 }
 
 /**
@@ -417,9 +430,13 @@ function isFreeCell(x, y) {
 
 	EntityManager.forEach(function (entity) {
 		if (
-			entity.objecttype != entity.constructor.TYPE_EFFECT &&
-			entity.objecttype != entity.constructor.TYPE_UNIT &&
-			entity.objecttype != entity.constructor.TYPE_TRAP &&
+			entity !== Session.Entity &&
+			entity.objecttype !== entity.constructor.TYPE_EFFECT &&
+			entity.objecttype !== entity.constructor.TYPE_UNIT &&
+			entity.objecttype !== entity.constructor.TYPE_TRAP &&
+			entity.objecttype !== entity.constructor.TYPE_CART &&
+			entity.objecttype !== entity.constructor.TYPE_FALCON &&
+			entity.objecttype !== entity.constructor.TYPE_WUG &&
 			Math.round(entity.position[0]) === x &&
 			Math.round(entity.position[1]) === y
 		) {

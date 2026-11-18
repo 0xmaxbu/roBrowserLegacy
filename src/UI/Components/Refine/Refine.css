@@ -1,7 +1,18 @@
-#Refine {
-	position: absolute;
-	height: 350px;
+:host {
 	width: 261px;
+	height: 350px;
+}
+
+/* GUIComponent wraps the content in .ui-component-root: let it fill :host,
+   otherwise #Refine's 100% collapses to the titlebar and the window body is cut off */
+.ui-component-root {
+	height: 100%;
+}
+
+#Refine {
+	position: relative;
+	height: 100%;
+	width: 100%;
 }
 
 #Refine .titlebar {
@@ -23,7 +34,6 @@
 	text-shadow: 1px 1px white;
 	vertical-align: -2px;
 	white-space: nowrap;
-	/* chrome bug */
 	display: inline-block;
 	width: 32px;
 	height: 13px;
@@ -179,6 +189,9 @@
 	width: 57px;
 	bottom: 4px;
 	right: 5px;
+	background-color: transparent;
+	background-repeat: no-repeat;
+	border: 0;
 }
 
 #Refine .materials {
@@ -193,7 +206,7 @@
 	position: absolute;
 	height: 53px;
 	width: 46px;
-	background-size: 0px; /* Hide */
+	background-size: 0px;
 }
 
 #Refine .mat_overlay.selected,
@@ -285,8 +298,7 @@
 	left: 85px;
 }
 
-#Refine .refine_disabled,
-#Refine .refine_enabled {
+#Refine .refine_disabled {
 	position: absolute;
 	height: 48px;
 	width: 96px;
@@ -295,7 +307,15 @@
 }
 
 #Refine .refine_enabled {
+	position: absolute;
+	height: 48px;
+	width: 96px;
+	top: -2px;
+	left: -2px;
 	cursor: pointer;
+	background-color: transparent;
+	background-repeat: no-repeat;
+	border: 0;
 }
 
 #Refine .refine_text {
@@ -344,6 +364,9 @@
 	font-weight: bold;
 	align-content: center;
 	cursor: pointer;
+	background-color: transparent;
+	background-repeat: no-repeat;
+	border: 0;
 }
 
 #Refine .refine_cont {
@@ -360,7 +383,6 @@
 }
 
 #Refine .refine_cont.item {
-	/* Override conflicting properties */
 	position: absolute !important;
 	float: none !important;
 	height: 50px !important;
@@ -389,6 +411,13 @@
 	font-weight: bold;
 	align-content: center;
 	cursor: pointer;
+}
+
+#Refine .success_refine_cont_enabled,
+#Refine .fail_refine_cont_enabled {
+	background-color: transparent;
+	background-repeat: no-repeat;
+	border: 0;
 }
 
 #Refine .refine_text_cont {

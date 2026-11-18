@@ -1,16 +1,32 @@
 /**
  * Renderer/EntityAction.js
  *
- * Manage entity action
- *
-/**
- * Renderer/EntityAction.js
- *
- * Manage entity action
+ * Manage entity action (animation state, action mapping, setAction).
  *
  * This file is part of ROBrowser, (http://www.robrowser.com/).
  *
  * @author Vincent Thibault
+ */
+
+/**
+ * @typedef {Object} EntityAnimationState
+ * @property {number} tick Animation start tick
+ * @property {number} frame Current frame index
+ * @property {boolean} repeat Loop animation
+ * @property {boolean} play Play animation flag
+ * @property {boolean} next Next frame ready flag
+ * @property {number} delay Animation frame delay
+ * @property {boolean|Object} save Saved pending action option
+ */
+
+/**
+ * EntityAction mixin
+ * Adds animation action state, action constants, and setAction method to Entity.
+ *
+ * @mixin EntityAction
+ * @property {Action} ACTION Action mapping constants (IDLE, WALK, ATTACK, etc.)
+ * @property {EntityAnimationState} animation Current animation playback state
+ * @property {function(Object): void} setAction Set entity animation action
  */
 
 import DB from 'DB/DBManager.js';
@@ -64,54 +80,69 @@ function setAction(option) {
 	const anim = this.animation;
 
 	if (option.delay) {
-		anim.delay = option.delay + 0;
+		const targetDelay = option.delay < 1000000000 ? Date.now() + option.delay : option.delay;
+		if (targetDelay > Date.now()) {
+			anim.delay = targetDelay;
+			option.delay = 0;
+			anim.save = option;
+			anim.next = false;
+			return;
+		}
 		option.delay = 0;
-		anim.save = option;
-	} else {
-		// Know attack frame based on weapon type
-		if (option.action === this.ACTION.ATTACK) {
-			if (this.objecttype === this.constructor.TYPE_PC) {
-				const attack = DB.getWeaponAction(this.weapon, this._job, this._sex);
-				option.action = [this.ACTION.ATTACK1, this.ACTION.ATTACK2, this.ACTION.ATTACK3][attack];
-			}
-
-			// No action loaded yet
-			if (option.action === -2) {
-				option.action = this.ACTION.ATTACK1;
-			}
-		}
-
-		// FIX: Detect the walk animation change and reset pathfinding route
-		const wasWalking = this.action === this.ACTION.WALK;
-		const newAction =
-			option.action === -1 || typeof option.action === 'undefined' ? this.ACTION.IDLE : option.action;
-		const willWalk = newAction === this.ACTION.WALK;
-
-		if (
-			wasWalking &&
-			!willWalk &&
-			this.walk &&
-			this.walk.total > 0 &&
-			this.objecttype !== this.constructor.TYPE_FALCON &&
-			this.objecttype !== this.constructor.TYPE_WUG
-		) {
-			this.resetRoute();
-		}
-
-		this.action = newAction;
-		anim.tick = Date.now() + 0;
-		anim.delay = 0;
-		anim.frame = option.frame || 0;
-		anim.speed = option.speed || false;
-		anim.length = option.length || false;
-		anim.repeat = option.repeat || false;
-		anim.play = typeof option.play !== 'undefined' ? option.play : true;
-		anim.next = option.next || false;
-		anim.save = false;
-
-		// Reset sounds
-		this.sound.free();
 	}
+	// Know attack frame based on weapon type
+	if (option.action === this.ACTION.ATTACK) {
+		if (this.objecttype === this.constructor.TYPE_PC) {
+			const attack = DB.getWeaponAction(this.weapon, this._job, this._sex);
+			option.action = [this.ACTION.ATTACK1, this.ACTION.ATTACK2, this.ACTION.ATTACK3][attack];
+
+			if (!option.length) {
+				const slice = DB.getAttackSlice(this._job, this.weapon);
+				if (slice) {
+					if (typeof option.frame === 'undefined' || option.frame === 0) {
+						option.frame = slice.frame;
+					}
+					option.length = slice.length;
+				}
+			}
+		}
+
+		// No action loaded yet
+		if (option.action === -2) {
+			option.action = this.ACTION.ATTACK1;
+		}
+	}
+
+	// FIX: Detect the walk animation change and reset pathfinding route
+	const wasWalking = this.action === this.ACTION.WALK;
+	const newAction = option.action === -1 || typeof option.action === 'undefined' ? this.ACTION.IDLE : option.action;
+	const willWalk = newAction === this.ACTION.WALK;
+
+	if (
+		wasWalking &&
+		!willWalk &&
+		!this.isFastMoving &&
+		this.walk &&
+		this.walk.total > 0 &&
+		this.objecttype !== this.constructor.TYPE_FALCON &&
+		this.objecttype !== this.constructor.TYPE_WUG
+	) {
+		this.resetRoute();
+	}
+
+	this.action = newAction;
+	anim.tick = Date.now() + 0;
+	anim.delay = 0;
+	anim.frame = option.frame || 0;
+	anim.speed = option.speed || false;
+	anim.length = option.length || false;
+	anim.repeat = option.repeat || false;
+	anim.play = typeof option.play !== 'undefined' ? option.play : true;
+	anim.next = option.next || false;
+	anim.save = false;
+
+	// Reset sounds
+	this.sound.free();
 }
 
 /**
@@ -144,7 +175,7 @@ export default function Init() {
 
 		case Entity.TYPE_MERC:
 			if (DB.isDoram(this._job)) {
-				// 多兰雇佣兵（召唤师/灵魂驯手/喵喵夏装 4309 等）：身体为玩家级 sprite，
+				// 多兰雇佣兵（召唤师/灵魂驯手/喵喵夏装 30001 等）：身体为玩家级 sprite，
 				// 动作表与玩家完全一致（13 组动作）
 				this.ACTION.IDLE = 0;
 				this.ACTION.WALK = 1;
@@ -255,6 +286,7 @@ export default function Init() {
 			break;
 
 		case Entity.TYPE_FALCON:
+		case Entity.TYPE_CART:
 			this.ACTION.IDLE = 0;
 			this.ACTION.WALK = 1;
 			break;

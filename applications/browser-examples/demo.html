@@ -109,7 +109,7 @@
 					remoteClient: 'https://grf.robrowser.com/',
 					servers: [
 						{
-							display: 'roBrowser Demo Server[PRÉ]',
+							display: 'Your Local Server[PRE]',
 							desc: '2013 demo server',
 							address: '127.0.0.1',
 							port: 6900,
@@ -120,10 +120,11 @@
 							worldMapSettings: { episode: 12 },
 							packetKeys: false,
 							socketProxy: 'ws://localhost:5999',
+							remoteClient: '/remote-client/',
 							adminList: []
 						},
 						{
-							display: 'roBrowser Demo Server[RE]',
+							display: 'Your Local Server[RE]',
 							desc: '2025 demo server',
 							address: '127.0.0.1',
 							port: 6900,
@@ -134,24 +135,8 @@
 							worldMapSettings: { episode: 21 },
 							packetKeys: false,
 							socketProxy: 'ws://localhost:5999',
+							remoteClient: '/remote-client/',
 							adminList: []
-						},
-						{
-							display: 'Ragna.ro',
-							desc: 'Ragna.ro [1/1/1] Renewal II',
-							address: 'ragna.ro',
-							port: 6900,
-							version: 30,
-							langtype: 240,
-							packetver: 20120410,
-							renewal: true,
-							worldMapSettings: { episode: 15 },
-							packetKeys: false,
-							socketProxy: 'wss://ragna.ro:5999',
-							remoteClient: 'https://client.ragna.ro/',
-							adminList: [2000000, 2000001],
-							FirstPersonCamera: true,
-							ThirdPersonCamera: true
 						},
 						{
 							display: 'NiktoutRO Chaos',
@@ -200,8 +185,7 @@
 					saveFiles: false,
 					ThirdPersonCamera: false,
 					transitionDuration: 500,
-					restoreChatFocus: false,
-					useSystemFolderFont: false
+					restoreChatFocus: false
 				};
 				var RO = new ROBrowser(ROConfig);
 				RO.start();
@@ -211,13 +195,17 @@
 				var xhr = new XMLHttpRequest();
 				xhr.open('GET', url, true);
 				xhr.responseType = 'json';
+				xhr.timeout = 1000;
 				xhr.onload = function () {
 					var status = xhr.status;
-					if (status === 200) {
-						callback(null, xhr.response);
-					} else {
-						callback(status, xhr.response);
-					}
+					if (status === 200) callback(null, xhr.response);
+					else callback(status, xhr.response);
+				};
+				xhr.onerror = function () {
+					callback(-1, null);
+				};
+				xhr.ontimeout = function () {
+					callback(-1, null);
 				};
 				xhr.send();
 			};

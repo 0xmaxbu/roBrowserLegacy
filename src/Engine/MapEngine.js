@@ -9,7 +9,6 @@
  * @author Vincent Thibault
  */
 
-import jQuery from 'Utils/jquery.js';
 import DB from 'DB/DBManager.js';
 import Configs from 'Core/Configs.js';
 import SoundManager from 'Audio/SoundManager.js';
@@ -29,6 +28,7 @@ import MapControl from 'Controls/MapControl.js';
 import Mouse from 'Controls/MouseEventHandler.js';
 import KEYS from 'Controls/KeyEventHandler.js';
 import UIManager from 'UI/UIManager.js';
+import UIVersionManager from 'UI/UIVersionManager.js';
 import EffectManager from 'Renderer/EffectManager.js';
 import Escape from 'UI/Components/Escape/Escape.js';
 import ChatBox from 'UI/Components/ChatBox/ChatBox.js';
@@ -37,7 +37,6 @@ import StatusConst from 'DB/Status/StatusState.js';
 import CheckAttendance from 'UI/Components/CheckAttendance/CheckAttendance.js';
 import WinStats from 'UI/Components/WinStats/WinStats.js';
 import Inventory from 'UI/Components/Inventory/Inventory.js';
-import Storage from 'UI/Components/Storage/Storage.js';
 import CartItems from 'UI/Components/CartItems/CartItems.js';
 import Vending from 'UI/Components/Vending/Vending.js';
 import VendingReport from 'UI/Components/VendingReport/VendingReport.js';
@@ -54,6 +53,11 @@ import FPS from 'UI/Components/FPS/FPS.js';
 import PartyFriends from 'UI/Components/PartyFriends/PartyFriends.js';
 import Guild from 'UI/Components/Guild/Guild.js';
 import WorldMap from 'UI/Components/WorldMap/WorldMap.js';
+import ButtonBar from 'UI/Components/ButtonBar/ButtonBar.js';
+import PartyPanel from 'UI/Components/PartyPanel/PartyPanel.js';
+import TargetPanel from 'UI/Components/TargetPanel/TargetPanel.js';
+import TargetKeyboard from 'Controls/TargetKeyboard.js';
+import GraphicsSettings from 'Preferences/Graphics.js';
 import SkillListMH from 'UI/Components/SkillListMH/SkillListMH.js';
 import MobileUI from 'UI/Components/MobileUI/MobileUI.js';
 import CashShop from 'UI/Components/CashShop/CashShop.js';
@@ -90,12 +94,6 @@ import PlayerViewEquip from 'UI/Components/PlayerViewEquip/PlayerViewEquip.js';
 import JoystickUI from 'UI/Components/JoystickUI/JoystickUI.js';
 import CashShopIcon from 'UI/Components/CashShopIcon/CashShopIcon.js';
 import Achievement from 'UI/Components/Achievement/Achievement.js';
-import ButtonBar from 'UI/Components/ButtonBar/ButtonBar.js';
-import PartyPanel from 'UI/Components/PartyPanel/PartyPanel.js';
-import TargetPanel from 'UI/Components/TargetPanel/TargetPanel.js';
-import TargetKeyboard from 'Controls/TargetKeyboard.js';
-import GraphicsSettings from 'Preferences/Graphics.js';
-import UILayoutStore from 'UI/UILayoutStore.js';
 
 import MainEngine from './MapEngine/Main.js';
 import MapStateEngine from './MapEngine/MapState.js';
@@ -136,6 +134,9 @@ let _mapName = '';
  */
 let _isInitialised = false;
 
+let _exiting = false;
+let _exitTimer = null;
+
 let snCounter = 0;
 let chatLines = 0;
 
@@ -158,6 +159,8 @@ class MapEngine {
 	 */
 	static init(ip, port, mapName) {
 		_mapName = mapName;
+		_exiting = false;
+		_exitTimer = null;
 
 		// Connect to char server
 		const forceAddress = Configs.get('forceUseAddress');
@@ -192,9 +195,15 @@ class MapEngine {
 
 				// Server send back AID
 				Network.read(fp => {
-					// if PACKETVER < 20070521, client send GID...
-					if (fp.length === 4) {
-						Session.Character.GID = fp.readLong();
+					// PACKETVER < 20070521: the map-server prefixes the stream with a raw
+					// 4-byte account id (no packet header) before the first real packet.
+					// It must be consumed even when TCP coalesces it with following packets;
+					// the previous fp.length === 4 check only worked when the AID arrived in
+					// its own segment, otherwise the parser read the AID as an opcode and
+					// desynced the whole stream.
+					if (PACKETVER.value < 20070521) {
+						Session.AID = fp.readLong();
+						Session.Entity.GID = Session.AID;
 					}
 				});
 
@@ -234,25 +243,18 @@ class MapEngine {
 
 		// Select UI version when needed
 		if (MapEngine.needsUIVerUpdate || !_isInitialised) {
-		if (PACKETVER.value < 20200520) {
-			BasicInfo.selectUIVersion();
+			if (PACKETVER.value < 20200520) {
+				BasicInfo.selectUIVersion();
+			}
 			// CR-02: respect useNewUI=false — force V4 fallback so the panel
 			// matches the suppressed companion panels (ButtonBar/PartyPanel/
-			// TargetPanel/TargetKeyboard are gated at line 741). Without this,
-			// useNewUI:false shows V6 BasicInfo alone without its companions.
+			// TargetPanel/TargetKeyboard). Without this, useNewUI:false shows
+			// V6 BasicInfo alone without its companions.（fork）
 			if (GraphicsSettings.useNewUI === false) {
 				BasicInfo.selectSpecificUIVersion(20180124);
 			}
-		}
-			MiniMap.selectUIVersion();
-			SkillList.selectUIVersion();
-			Quest.selectUIVersion();
-			Equipment.selectUIVersion();
-			PlayerViewEquip.selectUIVersion();
-			WinStats.selectUIVersion();
-			Inventory.selectUIVersion();
-			Storage.selectUIVersion();
-			PartyFriends.selectUIVersion();
+			// Batch-select all map-phase versioned UIs (skips BasicInfo — job-based)
+			UIVersionManager.selectAll();
 		}
 
 		// Do not hook multiple time
@@ -338,17 +340,17 @@ class MapEngine {
 			Escape.prepare();
 			PvPTimer.prepare();
 			PvPCount.prepare();
-			Inventory.getUI().prepare();
+			Inventory.prepare();
 			CartItems.prepare();
 			Vending.prepare();
 			ChangeCart.prepare();
-			Equipment.getUI().prepare();
+			Equipment.prepare();
 			ShortCuts.prepare();
 			ShortCut.prepare();
 			ChatRoomCreate.prepare();
 			Emoticons.prepare();
 			FPS.prepare();
-			PartyFriends.getUI().prepare();
+			PartyFriends.prepare();
 			StatusIcons.prepare();
 			ChatBox.prepare();
 			ChatBoxSettings.prepare();
@@ -437,24 +439,24 @@ class MapEngine {
 		// Init selected UIs when needed
 		if (MapEngine.needsUIVerUpdate || !_isInitialised) {
 			// Prepare UIs
-			MiniMap.getUI().prepare();
-			SkillList.getUI().prepare();
+			MiniMap.prepare();
+			SkillList.prepare();
 			if (PACKETVER.value < 20200520) {
-				BasicInfo.getUI().prepare();
+				BasicInfo.prepare();
 			}
-			Equipment.getUI().prepare();
-			Quest.getUI().prepare();
-			WinStats.getUI().prepare();
+			Equipment.prepare();
+			Quest.prepare();
+			WinStats.prepare();
 			PartyFriends.selectUIVersion();
 
 			// Bind UIs
-			WinStats.getUI().onRequestUpdate = onRequestStatUpdate;
-			Equipment.getUI().onUnEquip = onUnEquip;
-			Equipment.getUI().onConfigUpdate = onConfigUpdate;
-			Equipment.getUI().onEquipItem = onEquipItem;
-			Equipment.getUI().onRemoveOption = onRemoveOption;
-			Inventory.getUI().onUseItem = onUseItem;
-			Inventory.getUI().onEquipItem = onEquipItem;
+			WinStats.onRequestUpdate = onRequestStatUpdate;
+			Equipment.onUnEquip = onUnEquip;
+			Equipment.onConfigUpdate = onConfigUpdate;
+			Equipment.onEquipItem = onEquipItem;
+			Equipment.onRemoveOption = onRemoveOption;
+			Inventory.onUseItem = onUseItem;
+			Inventory.onEquipItem = onEquipItem;
 
 			// Avoid zone server change init
 			MapEngine.needsUIVerUpdate = false;
@@ -492,7 +494,7 @@ function onPingLive(pkt) {
 function onConfig(pkt) {
 	switch (pkt.Config) {
 		case 0:
-			Equipment.getUI().setEquipConfig(pkt.Value);
+			Equipment.setEquipConfig(pkt.Value);
 			ChatBox.addText(DB.getMessage(1358 + (pkt.Value ? 1 : 0)), ChatBox.TYPE.INFO, ChatBox.FILTER.PUBLIC_LOG);
 			break;
 		case 1:
@@ -508,7 +510,7 @@ function onConfig(pkt) {
 			ChatBox.addText(DB.getMessage(3282 + (pkt.Value ? 0 : 1)), ChatBox.TYPE.INFO, ChatBox.FILTER.PUBLIC_LOG);
 			break;
 		case 5:
-			Equipment.getUI().setCostumeConfig(pkt.Value);
+			Equipment.setCostumeConfig(pkt.Value);
 			break;
 		default:
 			console.error('[PACKET_ZC_CONFIG] Unknown Config Type %d (value:%d)', pkt.Config, pkt.Value);
@@ -522,7 +524,7 @@ function onConfig(pkt) {
  */
 function onConfigNotify(pkt) {
 	if (typeof pkt.show_eq_flag !== 'undefined') {
-		Equipment.getUI().setEquipConfig(pkt.show_eq_flag);
+		Equipment.setEquipConfig(pkt.show_eq_flag);
 		ChatBox.addText(DB.getMessage(1358 + (pkt.show_eq_flag ? 1 : 0)), ChatBox.TYPE.INFO, ChatBox.FILTER.PUBLIC_LOG);
 	}
 	if (typeof pkt.pet_autofeeding_flag !== 'undefined') {
@@ -553,7 +555,8 @@ function onConfigNotify(pkt) {
  * @param {object} pkt - PACKET.ZC.AID
  */
 function onReceiveAccountID(pkt) {
-	Session.Character.GID = pkt.AID;
+	Session.AID = pkt.AID;
+	Session.Entity.GID = pkt.AID;
 }
 
 /**
@@ -562,7 +565,6 @@ function onReceiveAccountID(pkt) {
  * @param {object} pkt - PACKET.ZC.ACCEPT_ENTER
  */
 function onConnectionAccepted(pkt) {
-	Session.Entity = new Entity(Session.Character);
 	Session.Entity.onWalkEnd = onWalkEnd;
 
 	if ('sex' in pkt && pkt.sex < 2) {
@@ -574,11 +576,15 @@ function onConnectionAccepted(pkt) {
 	Session.hasParty = false;
 	Session.isPartyLeader = false;
 	Session.hasGuild = false;
-	Session.guildRight = 0;
+	Session.guildPermission = 0;
+	GuildEngine.resetForNewCharacter();
+
+	// No reply comes for an /ex or /in sent on the previous connection
+	ChatBox.PrivateMessageStorage.blockNicks.length = 0;
 
 	Session.homunId = 0;
 
-	Session.Entity.clevel = Session.Character.level;
+	// clevel is already populated by Entity.set() in the Player constructor
 
 	Session.mapState = {
 		property: 0,
@@ -596,15 +602,15 @@ function onConnectionAccepted(pkt) {
 	};
 
 	if (PACKETVER.value >= 20200520) {
-		BasicInfo.selectUIVersionWithJob(DB.getJobClass(Session.Character.job));
-		BasicInfo.getUI().prepare();
+		BasicInfo.selectUIVersionWithJob(DB.getJobClass(Session.Entity.job));
+		BasicInfo.prepare();
 	}
 
-	BasicInfo.getUI().update('blvl', Session.Character.level);
-	BasicInfo.getUI().update('jlvl', Session.Character.joblevel);
-	BasicInfo.getUI().update('zeny', Session.Character.money);
-	BasicInfo.getUI().update('name', Session.Character.name);
-	BasicInfo.getUI().update('job', Session.Character.job);
+	BasicInfo.update('blvl', Session.Entity.clevel);
+	BasicInfo.update('jlvl', Session.Entity.joblevel);
+	BasicInfo.update('zeny', Session.Entity.money);
+	BasicInfo.update('name', Session.Entity.display.name);
+	BasicInfo.update('job', Session.Entity.job);
 
 	// Fix http://forum.robrowser.com/?topic=32177.0
 	onMapChange({
@@ -629,12 +635,16 @@ function onConnectionRefused(pkt) {
  * @param {object} pkt - PACKET.ZC.NPCACK_MAPMOVE
  */
 function onMapChange(pkt) {
-	jQuery(window).off('keydown.map');
-
 	MapRenderer.onLoad = () => {
 		Session.Entity.set({
 			PosDir: [pkt.xPos, pkt.yPos, 0],
-			GID: Session.Character.GID
+			// Use Session.AID rather than Session.Entity.GID here:
+			// EntityManager removes Session.Entity during map transition, which
+			// triggers Entity.clean() and sets this.GID = -1. Reading the GID
+			// back from the entity at this point would produce -1.
+			// Session.AID (account ID) equals the player's entity GID on the
+			// map server and is never mutated by entity cleanup.
+			GID: Session.AID
 		});
 		EntityManager.add(Session.Entity);
 		if (Session.Entity.effectState & StatusConst.EffectState.FALCON) {
@@ -672,6 +682,12 @@ function onMapChange(pkt) {
 			});
 			EntityManager.add(Session.Entity.wug);
 		}
+		if (Session.hasCart || Session.Entity.hasCart) {
+			const realCartNum = DB.isSuperNovice(Session.Entity._job)
+				? 0
+				: Session.CartNum || Session.Entity.CartNum || 1;
+			Session.Entity.setCart(true, realCartNum);
+		}
 		// free and load aura so it loads in new map
 		Session.Entity.aura.free();
 		Session.Entity.aura.load(EffectManager);
@@ -694,30 +710,30 @@ function onMapChange(pkt) {
 		Camera.init();
 
 		// Add Game UI
-		MiniMap.getUI().append();
-		MiniMap.getUI().setMap(MapRenderer.currentMap);
+		MiniMap.append();
+		MiniMap.setMap(MapRenderer.currentMap);
 		if (Configs.get('enableMapName')) {
 			MapName.setMap(MapRenderer.currentMap);
 			MapName.append();
 		}
 		ChatBox.append();
 		ChatBoxSettings.append();
-		BasicInfo.getUI().append();
+		BasicInfo.append();
 		Escape.append();
-		Inventory.getUI().append();
+		Inventory.append();
 		CartItems.append();
 		Vending.append();
 		ChangeCart.append();
 		CartDecoration.append();
-		Equipment.getUI().append();
+		Equipment.append();
 		ShortCuts.append();
 		StatusIcons.append();
 		ShortCut.append();
 		ChatRoomCreate.append();
 		Emoticons.append();
-		SkillList.getUI().append();
+		SkillList.append();
 		FPS.append();
-		PartyFriends.getUI().append();
+		PartyFriends.append();
 		Guild.append();
 		WorldMap.append();
 		SkillListMH.homunculus.append();
@@ -734,9 +750,9 @@ function onMapChange(pkt) {
 			PCGoldTimer.append();
 		}
 
-		WinStats.getUI().append();
+		WinStats.append();
 
-		Quest.getUI().append();
+		Quest.append();
 
 		if (Configs.get('enableCashShop')) {
 			CashShopIcon.append();
@@ -744,24 +760,26 @@ function onMapChange(pkt) {
 
 		if (Configs.get('enableCheckAttendance') && PACKETVER.value >= 20180307) {
 			// 2026-11-11 签到黑屏加固：入场 UI 追加链内任何签到窗口异常都不允许
-			// 中断后续（ButtonBar/PartyPanel/NOTIFY_ACTORINIT），降级 console.error
+			// 中断后续（ButtonBar/PartyPanel/NOTIFY_ACTORINIT），降级 console.error（fork）
 			try {
 				CheckAttendance.append();
 			} catch (e) {
-				console.error('[CheckAttendance] append failed at map entry, skipped:', e);
+				console.error('[MapEngine] CheckAttendance append failed, skipped:', e);
 			}
 		}
 
-		// D-23: apply persisted layout lock before panels append
-		UILayoutStore.setEnabled(!GraphicsSettings.lockLayout);
-
-		// D-22: startup decision from persisted preference (not Configs)
+		// D-22: startup decision from persisted preference (not Config)（fork）
 		if (GraphicsSettings.useNewUI) {
 			ButtonBar.append();
 			PartyPanel.append();
 			TargetPanel.append();
 			TargetKeyboard.init();
 		}
+
+		// 全局生命周期事件：玩家已入图（会话实体生成 + 入场 UI 追加序列完成）。
+		// 机制对齐 main.js 的 'robrowser-ready'（window 原生事件）；每次换图/重入均会派发。
+		// 需要此语义的功能一律订阅本事件，禁止再造入口专用钩子（fork）
+		window.dispatchEvent(new CustomEvent('robrowser-mapentered'));
 
 		// Reload plugins
 		PluginManager.init();
@@ -785,12 +803,6 @@ function onMapChange(pkt) {
 		if (PACKETVER.value >= 20130320) {
 			Network.sendPacket(new PACKET.CZ.BLOCKING_PLAY_CANCEL());
 		}
-
-		// 全局生命周期事件：玩家已入图（会话实体生成 + 入场 UI 追加序列完成）。
-		// 机制对齐 main.js 的 'robrowser-ready'（window 原生事件）；每次换图/重入均会派发。
-		// 需要此语义的功能一律订阅本事件，禁止再造入口专用钩子
-		//（首个订阅方：MapEngine/UIOpen.js 签到弹窗延迟冲刷）。
-		window.dispatchEvent(new Event('robrowser-mapentered'));
 	};
 
 	MapRenderer.setMap(pkt.mapName);
@@ -802,8 +814,61 @@ function onMapChange(pkt) {
  * @param {object} pkt - PACKET.ZC.NPCACK_SERVERMOVE
  */
 function onServerChange(pkt) {
-	jQuery(window).off('keydown.map');
+	Network.expectClose();
 	MapEngine.init(pkt.addr.ip, pkt.addr.port, pkt.mapName);
+}
+
+/**
+ * Resets the per-character UI state shared by the exit and restart flows.
+ * Components that were never prepared have no root element to clean.
+ */
+/**
+ * Clear navigation when leaving the map server.
+ *
+ * Navigation has persistent floor arrows and a cached world-map overlay. These
+ * are not part of the normal canvas/map renderer cleanup, so they must be
+ * explicitly reset before going back to character select or login.
+ */
+function clearNavigationForMapExit() {
+	if (!Navigation) {
+		return;
+	}
+
+	if (typeof Navigation.resetNavigationState === 'function') {
+		Navigation.resetNavigationState({
+			resetMapData: true,
+			terminateWorker: true,
+			clearTitles: true
+		});
+	} else if (typeof Navigation.clear === 'function') {
+		Navigation.clear();
+	}
+
+	if (Navigation.__loaded && typeof Navigation.remove === 'function') {
+		Navigation.remove();
+	}
+}
+
+function cleanGameUI() {
+	clearNavigationForMapExit();
+	WhisperBox.clearAll();
+
+	const tasks = [
+		[BasicInfo, 'remove'],
+		[PlayerViewEquip, 'remove'],
+		[StatusIcons, 'clean'],
+		[ChatBox, 'clean'],
+		[ShortCut, 'clean'],
+		[Quest, 'clean'],
+		[PartyFriends, 'clean'],
+		[CashShop, 'clean']
+	];
+
+	for (const [target, method] of tasks) {
+		if (target && target.__loaded && typeof target[method] === 'function') {
+			target[method]();
+		}
+	}
 }
 
 /**
@@ -814,7 +879,8 @@ function onExitRequest() {
 	Network.sendPacket(pkt);
 
 	// Wait a second, if no answer from the server, then close it.
-	Events.setTimeout(() => {
+	_exitTimer = Events.setTimeout(() => {
+		_exitTimer = null;
 		onExitSuccess();
 	}, 1000);
 }
@@ -834,11 +900,24 @@ function onExitFail(pkt) {
  * @param {object} pkt - PACKET.ZC.REFUSE_QUIT
  */
 function onExitSuccess() {
+	if (_exiting) {
+		return;
+	}
+	_exiting = true;
+
+	if (_exitTimer !== null) {
+		Events.clearTimeout(_exitTimer);
+		_exitTimer = null;
+	}
+
 	if (PACKETVER.value >= 20170315 && Session.WebToken) {
 		ShortCut.saveToServer();
 	}
 
-	WhisperBox.clearAll();
+	GuildEngine.guild_id = 0;
+	cleanGameUI();
+	Session.Achievement = null;
+	Mouse.intersect = false;
 	UIManager.removeComponents();
 	Network.close();
 	Renderer.stop();
@@ -884,24 +963,9 @@ function onRestartAnswer(pkt) {
 		// Have to wait 10sec
 		ChatBox.addText(DB.getMessage(502), ChatBox.TYPE.ERROR, ChatBox.FILTER.PUBLIC_LOG);
 	} else {
-		WhisperBox.clearAll();
 		GuildEngine.guild_id = 0;
-		BasicInfo.getUI().remove();
-		PlayerViewEquip.getUI().remove();
-		StatusIcons.clean();
-		ChatBox.clean();
-		ShortCut.clean();
-		Quest.getUI().clean();
-		PartyFriends.getUI().clean();
-		ButtonBar.remove();
-		PartyPanel.remove();
-		TargetPanel.remove();
-		TargetKeyboard.cleanup();
-		CashShop.clean();
 		Session.Achievement = null;
 		Mouse.intersect = false;
-		MapRenderer.free();
-		Renderer.stop();
 		onRestart();
 	}
 }
@@ -914,18 +978,6 @@ function onDisconnectAnswer(pkt) {
 	switch (pkt.result) {
 		// Disconnect
 		case 0:
-			WhisperBox.clearAll();
-			BasicInfo.getUI().remove();
-			PlayerViewEquip.getUI().remove();
-			StatusIcons.clean();
-			ChatBox.clean();
-			ShortCut.clean();
-			Quest.getUI().clean();
-			PartyFriends.getUI().clean();
-			ButtonBar.remove();
-			PartyPanel.remove();
-			TargetPanel.remove();
-			TargetKeyboard.cleanup();
 			Renderer.stop();
 			onExitSuccess();
 			break;
@@ -973,6 +1025,8 @@ function onRequestTalk(user, text, target) {
 		pkt.receiver = user;
 		pkt.msg = text;
 		Network.sendPacket(pkt);
+		ChatBox.PrivateMessageStorage.nick = user;
+		ChatBox.PrivateMessageStorage.msg = text;
 		return;
 	}
 
@@ -1002,8 +1056,8 @@ function onRequestTalk(user, text, target) {
 	Network.sendPacket(pkt);
 
 	//Super Novice Chant
-	if (chatLines > 7 && [23, 4045, 4128, 4172, 4190, 4191, 4192, 4193].includes(Session.Entity._job)) {
-		if (Math.floor((BasicInfo.getUI().base_exp / BasicInfo.getUI().base_exp_next) * 1000.0) % 100 == 0) {
+	if (chatLines > 7 && DB.isSuperNovice(Session.Entity._job)) {
+		if (Math.floor((BasicInfo.base_exp / BasicInfo.base_exp_next) * 1000.0) % 100 == 0) {
 			if (text == DB.getMessage(790)) {
 				snCounter = 1;
 			} else if (
@@ -1154,9 +1208,13 @@ function isFreeCell(x, y) {
 
 	EntityManager.forEach(function (entity) {
 		if (
-			entity.objecttype != entity.constructor.TYPE_EFFECT &&
-			entity.objecttype != entity.constructor.TYPE_UNIT &&
-			entity.objecttype != entity.constructor.TYPE_TRAP &&
+			entity !== Session.Entity &&
+			entity.objecttype !== entity.constructor.TYPE_EFFECT &&
+			entity.objecttype !== entity.constructor.TYPE_UNIT &&
+			entity.objecttype !== entity.constructor.TYPE_TRAP &&
+			entity.objecttype !== entity.constructor.TYPE_CART &&
+			entity.objecttype !== entity.constructor.TYPE_FALCON &&
+			entity.objecttype !== entity.constructor.TYPE_WUG &&
 			Math.round(entity.position[0]) === x &&
 			Math.round(entity.position[1]) === y
 		) {
@@ -1310,7 +1368,14 @@ function onConfigUpdate(type, val) {
  * Go back from map-server to char-server
  */
 function onRestart() {
-	import('Engine/CharEngine.js').then(m => m.default.reload());
+	// The map stays drawn under the fade and goes once the screen is black
+	import('Engine/CharEngine.js').then(m =>
+		m.default.reload(() => {
+			cleanGameUI();
+			MapRenderer.free();
+			Renderer.stop();
+		})
+	);
 }
 
 /**

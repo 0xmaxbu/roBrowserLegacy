@@ -20,6 +20,7 @@ import ChatBox from 'UI/Components/ChatBox/ChatBox.js';
 import htmlText from './Emoticons.html?raw';
 import cssText from './Emoticons.css?raw';
 import ShortCuts from 'UI/Components/ShortCuts/ShortCuts.js';
+import whenDrawn from 'UI/WhenDrawn.js';
 
 /**
  * Create Component
@@ -89,10 +90,13 @@ const _preferences = Preferences.get(
  * Initialize UI
  */
 Emoticons.init = function init() {
-	const root = this._shadow || this._host;
+	const root = this.getRoot();
 	const contentEl = root.querySelector('.content');
 
-	Client.loadFiles(
+	// Fetched when the window is first drawn, not on entering the map
+	// (UI/WhenDrawn.js).
+	const loadFiles = (files, callback) => whenDrawn(this._host, () => Client.loadFiles(files, callback));
+	loadFiles(
 		['data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/emotion.act', 'data/sprite/\xc0\xcc\xc6\xd1\xc6\xae/emotion.spr'],
 		(act, spr) => {
 			_action = act;
@@ -169,7 +173,7 @@ Emoticons.onRemove = function onRemove() {
  * @param {number} direction
  */
 Emoticons.movePage = function movePage(direction) {
-	const root = this._shadow || this._host;
+	const root = this.getRoot();
 	const prevBtn = root.querySelector('.prev');
 	const nextBtn = root.querySelector('.next');
 
@@ -279,6 +283,9 @@ function refreshList(contentEl) {
 	const pos = [0, 0];
 
 	contentEl.innerHTML = '';
+	if (!_action) {
+		return; // Still loading: drawn once it has.
+	}
 
 	while (index < end) {
 		const canvas = document.createElement('canvas');

@@ -12,7 +12,6 @@
  * Load dependencies
  */
 import WebGL from 'Utils/WebGL.js';
-import jQuery from 'Utils/jquery.js';
 import glMatrix from 'Utils/gl-matrix.js';
 import Configs from 'Core/Configs.js';
 import GraphicsSettings from 'Preferences/Graphics.js';
@@ -24,6 +23,10 @@ import Camera from 'Renderer/Camera.js';
 import Session from 'Engine/SessionStorage.js';
 import PostProcess from 'Renderer/Effects/PostProcess.js';
 import MemoryManager from 'Core/MemoryManager.js';
+import PerfProbe from 'Core/PerfProbe.js';
+import SpriteBatch from 'Renderer/SpriteBatch.js';
+import EntityComposer from 'Renderer/Entity/EntityComposer.js';
+import FramePacer from 'Renderer/FramePacer.js';
 
 const { mat4 } = glMatrix;
 
@@ -131,6 +134,10 @@ class Renderer {
 	 */
 	static init(param) {
 		if (!this.gl) {
+			// Fixed viewport: see `body.ro-viewport` in UI/Common.css
+			document.body.classList.add('ro-viewport');
+
+			this.canvas.className = 'ro-scene';
 			this.canvas.style.position = 'absolute';
 			this.canvas.style.top = '0px';
 			this.canvas.style.left = '0px';
@@ -143,15 +150,23 @@ class Renderer {
 			this.gl = WebGL.getContext(this.canvas, param);
 			this.isWebGL2 = WebGL.isWebGL2(this.gl);
 
+			// Switches the probe on when the configuration asks for it (Core/PerfProbe.js)
+			PerfProbe.attach(this.gl);
+
 			if (typeof console !== 'undefined' && console.info) {
 				console.info('Renderer using WebGL ' + (this.isWebGL2 ? '2' : '1') + ' context');
 			}
 
-			jQuery(window)
-				.resize(this.onResize.bind(this))
-				.on('contextmenu', function () {
-					return false;
-				});
+			window.addEventListener('resize', this.onResize.bind(this));
+			window.addEventListener('contextmenu', event => {
+				event.preventDefault();
+			});
+
+			// Listen for visual viewport changes (mobile input focus zoom, pinch zoom)
+			// to keep the canvas and camera in sync.
+			if (window.visualViewport) {
+				window.visualViewport.addEventListener('resize', this.onResize.bind(this));
+			}
 
 			this.render(null);
 			this.resize();
@@ -222,6 +237,13 @@ class Renderer {
 
 		// Restart post process active modules
 		PostProcess.restartModules(gl);
+
+		// Sprite batch programs, buffers and atlas pages are rebuilt on next use
+		SpriteBatch.contextRestored();
+
+		// The composite textures died with the lost context: forget them
+		// without trying to delete them.
+		EntityComposer.reset();
 
 		// Trigger resize to reset viewport and framebuffers
 		this.resize();
@@ -326,6 +348,12 @@ class Renderer {
 			this._renderBound = this._render.bind(this);
 		}
 
+		// Every rAF, rendered or not, measures the display's refresh rate.
+		// The fallback timer is not a refresh, so it leaves the limit by time.
+		if (typeof time === 'number') {
+			FramePacer.sample(now);
+		}
+
 		// initialize lastFrameTime on first run
 		if (typeof this._lastFrameTime === 'undefined' || this._lastFrameTime === 0) {
 			this._lastFrameTime = now;
@@ -343,23 +371,24 @@ class Renderer {
 			this.frameLimit = GraphicsSettings.fpslimit;
 		}
 
-		// Throttle when frameLimit > 0
+		// Throttle when frameLimit > 0, in whole display refreshes (Renderer/FramePacer.js)
 		if (this.frameLimit > 0) {
-			const interval = 1000 / this.frameLimit;
-			const elapsed = now - this._lastFrameTime;
+			const next = FramePacer.next(now, this._lastFrameTime, this.frameLimit);
 
-			if (elapsed < interval) {
+			if (next < 0) {
 				// Not enough time elapsed for next allowed frame — schedule next rAF and exit
 				this.updateId = _requestAnimationFrame(this._renderBound);
 				return;
 			}
 
-			// Advance lastFrameTime preserving alignment (avoid time drift)
-			// keep lastFrameTime at nearest interval boundary
-			this._lastFrameTime = now - (elapsed % interval);
+			this._lastFrameTime = next;
 		} else {
 			// No limit => run every rAF
 			this._lastFrameTime = now;
+		}
+
+		if (PerfProbe.enabled) {
+			PerfProbe.frameStart(now);
 		}
 
 		// Use Date.now for serverTick and Events processing, to keep existing behavior intact
@@ -401,6 +430,10 @@ class Renderer {
 
 		Cursor.render(this.tick);
 
+		if (PerfProbe.enabled) {
+			PerfProbe.frameEnd();
+		}
+
 		// Schedule next frame
 		this.updateId = _requestAnimationFrame(this._renderBound);
 	}
@@ -409,7 +442,7 @@ class Renderer {
 	 * Start rendering
 	 */
 	static render(fn) {
-		if (fn) {
+		if (fn && !this.renderCallbacks.includes(fn)) {
 			this.renderCallbacks.push(fn);
 		}
 
@@ -431,6 +464,7 @@ class Renderer {
 			// Reset timing helpers so first rAF initializes cleanly
 			this._lastFrameTime = 0;
 			this._renderBound = this._render.bind(this);
+			Cursor.setSceneDriven(true);
 
 			// Start loop with requestAnimationFrame (safer & sync with browser)
 			this.updateId = _requestAnimationFrame(this._renderBound);
@@ -449,6 +483,10 @@ class Renderer {
 				_cancelAnimationFrame(this.updateId);
 			} catch (e) {
 				console.error(e);
+			}
+			Cursor.setSceneDriven(false);
+			if (PerfProbe.enabled) {
+				PerfProbe.stop();
 			}
 			return;
 		}

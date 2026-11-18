@@ -13,6 +13,9 @@ import Session from 'Engine/SessionStorage.js';
 import Client from 'Core/Client.js';
 import glMatrix from 'Utils/gl-matrix.js';
 
+import DB from 'DB/DBManager.js';
+import StatusState from 'DB/Status/StatusState.js';
+
 // Example mixins (these would be imported from other files)
 import entityControl from 'Controls/EntityControl.js';
 import entityAction from './EntityAction.js';
@@ -36,11 +39,67 @@ import EntityManager from 'Renderer/EntityManager.js';
 const vec3 = glMatrix.vec3;
 const mat4 = glMatrix.mat4;
 
-// Base Entity class
+/**
+ * Base Entity class
+ *
+ * @class Entity
+ *
+ * Base identification & state properties:
+ * @property {number} GID Global ID of the entity
+ * @property {number} AID Account ID of the entity
+ * @property {number} objecttype Type of entity (PC, MOB, NPC, ITEM, etc.)
+ * @property {number} direction Current facing direction (0..7)
+ * @property {number} headDir Facing direction of the head
+ * @property {Float32Array} position [x, y, z] world coordinates
+ * @property {Float32Array} matrix World matrix
+ * @property {number} clevel Base level
+ * @property {number} attack_range Attack range
+ * @property {number} attack_speed Attack speed / delay (amotion)
+ * @property {boolean} isAdmin GM / Admin flag
+ * @property {boolean} hideShadow Whether to draw entity shadow
+ * @property {number} remove_tick Time when entity starts vanishing
+ * @property {number} remove_delay Delay in ms before entity removal
+ *
+ * Prototype view/state properties:
+ * @property {number} _sex Entity gender
+ * @property {number} _job Entity job / ID
+ * @property {number} _head Entity head style
+ * @property {number} _weapon Entity weapon visual
+ * @property {number} _shield Entity shield visual
+ * @property {number} _accessory Upper headgear visual
+ * @property {number} _accessory2 Middle headgear visual
+ * @property {number} _accessory3 Lower headgear visual
+ * @property {number} robe Garment / robe visual
+ * @property {number} _bodypalette Body palette index
+ * @property {number} _headpalette Head palette index
+ * @property {number} _bodyState Body status state
+ * @property {number} _healthState Health status state
+ * @property {number} _effectState Visual effect state flags
+ *
+ * Companion & Cart properties:
+ * @property {boolean} hasCart Whether entity has a cart
+ * @property {number} CartNum Cart style index
+ * @property {Entity|null} falcon Associated Falcon entity
+ * @property {Entity|null} wug Associated Warg entity
+ *
+ * Mixin Subsystems:
+ * @property {Object} walk EntityWalk mixin controller
+ * @property {Object} life EntityLife mixin controller (hp, sp, display)
+ * @property {Object} display EntityDisplay mixin controller (name, title, emblem)
+ * @property {Object} cast EntityCast mixin controller
+ * @property {Object} dialog EntityDialog mixin controller
+ * @property {Object} room EntityRoom mixin controller
+ * @property {Object} emblem EntityEmblem mixin controller
+ * @property {Object} attachments EntityAttachments controller
+ * @property {Object} animations EntityAnimations controller
+ * @property {Object} aura EntityAura controller
+ * @property {Object} dropEffect EntityDropEffect controller
+ */
 class Entity {
 	/**
 	 * Constantes
 	 */
+	static TYPE_CART = -8;
 	static TYPE_WUG = -7;
 	static TYPE_FALCON = -6;
 	static TYPE_EFFECT = -5;
@@ -95,7 +154,8 @@ class Entity {
 			[Entity.TYPE_TRAP]: 0,
 			[Entity.TYPE_EFFECT]: -1,
 			[Entity.TYPE_FALCON]: -1,
-			[Entity.TYPE_WUG]: -1
+			[Entity.TYPE_WUG]: -1,
+			[Entity.TYPE_CART]: -1
 		},
 		Support: {
 			[Entity.TYPE_PC]: 3,
@@ -116,7 +176,8 @@ class Entity {
 			[Entity.TYPE_TRAP]: 0,
 			[Entity.TYPE_EFFECT]: -1,
 			[Entity.TYPE_FALCON]: -1,
-			[Entity.TYPE_WUG]: -1
+			[Entity.TYPE_WUG]: -1,
+			[Entity.TYPE_CART]: -1
 		}
 	};
 
@@ -125,6 +186,15 @@ class Entity {
 		this.boundingRect = { x1: 0, y1: 0, x2: 0, y2: 0 };
 		this.matrix = mat4.create();
 		this.position = vec3.create();
+
+		// GR2 3D body: resolved model path (EntityView) + the renderer instance
+		// handle (EntityRender attaches, EntityManager detaches on removal). Set
+		// here, before the mixins below run, so every mixin method sees them defined.
+		this.gr2 = null;
+		this.gr2Model = null;
+
+		// Overlays hidden while out of the view area (EntityManager)
+		this.culled = false;
 
 		// Apply mixins (adds methods from each module)
 		entityControl.call(this);
@@ -298,19 +368,27 @@ class Entity {
 					);
 					break;
 
-				case 'MoveData':
-					this.position[0] = unit.MoveData[0];
-					this.position[1] = unit.MoveData[1];
-					this.position[2] = Altitude.getCellHeight(unit.MoveData[0], unit.MoveData[1]);
+				case 'MoveData': {
+					const curX = this.position[0];
+					const curY = this.position[1];
+					const isUninitialized = !curX && !curY;
+					const isTooFar = Math.hypot(curX - unit.MoveData[0], curY - unit.MoveData[1]) > 16;
+					if (isUninitialized || isTooFar) {
+						this.position[0] = unit.MoveData[0];
+						this.position[1] = unit.MoveData[1];
+						this.position[2] = Altitude.getCellHeight(unit.MoveData[0], unit.MoveData[1]);
+					}
 					this.walkTo(
 						unit.MoveData[0],
 						unit.MoveData[1],
 						unit.MoveData[2],
 						unit.MoveData[3],
 						undefined,
-						unit.moveStartTime
+						unit.moveStartTime,
+						unit.moveServerEndTime || unit.moveEndTime
 					);
 					break;
+				}
 
 				case 'accessory':
 					this.accessory = unit.accessory;
@@ -330,6 +408,18 @@ class Entity {
 
 				case 'hideShadow':
 					this.hideShadow = unit.hideShadow;
+					break;
+
+				case 'level':
+					this.clevel = unit.level;
+					break;
+
+				case '_followTargetX':
+					this._followTargetX = unit._followTargetX;
+					break;
+
+				case '_followTargetY':
+					this._followTargetY = unit._followTargetY;
 					break;
 
 				default:
@@ -367,8 +457,16 @@ class Entity {
 		this.remove_tick = 0;
 		this.remove_delay = 0;
 
+		if (this.cart) {
+			this.cart.owner = null;
+			EntityManager.remove(this.cart.GID);
+			this.cart = null;
+		}
+		this.owner = null;
 		this.falcon = null;
 		this.wug = null;
+		// Clean return timer (Falcon/Wug)
+		if (this._returnTimer) clearTimeout(this._returnTimer);
 		// Avoid conflict if entity re-appears. Official sets it to -1
 		this.GID = -1;
 	}
@@ -380,6 +478,21 @@ class Entity {
 	 * @return {boolean} removed immediatly ?
 	 */
 	remove(type) {
+		const is_pc = this.objecttype === Entity.TYPE_PC;
+		const is_falcon = this.objecttype === Entity.TYPE_FALCON;
+		const is_wug = this.objecttype === Entity.TYPE_WUG;
+		const is_cart = this.objecttype === Entity.TYPE_CART;
+		if (this.cart) {
+			if (type === Entity.VT.DEAD) {
+				// Cart ignores DEAD in its own remove(); unregister it so its GID is freed
+				const cart = this.cart;
+				cart.owner = null;
+				EntityManager.remove(cart.GID);
+			} else {
+				this.cart.remove(type);
+			}
+			this.cart = null;
+		}
 		switch (type) {
 			case Entity.VT.OUTOFSIGHT:
 				this.clean();
@@ -388,10 +501,7 @@ class Entity {
 				break;
 
 			case Entity.VT.DEAD: {
-				const is_pc = this.objecttype === Entity.TYPE_PC;
-				const is_falcon = this.objecttype === Entity.TYPE_FALCON;
-				const is_wug = this.objecttype === Entity.TYPE_WUG;
-				if (!is_falcon) {
+				if (!is_falcon && !is_cart) {
 					this.setAction({
 						action: this.ACTION.DIE,
 						repeat: is_pc,
@@ -417,6 +527,101 @@ class Entity {
 				this.remove_tick = Date.now();
 				this.remove_delay = 0;
 				break;
+		}
+	}
+
+	/**
+	 * Attach or remove pushcart companion entity
+	 *
+	 * @param {boolean} enabled
+	 * @param {number} [cartNum]
+	 */
+	setCart(enabled, cartNum) {
+		this.hasCart = !!enabled;
+		if (typeof cartNum === 'number') {
+			this.CartNum = cartNum;
+		}
+
+		if (this.hasCart) {
+			const realCartNum = DB.isSuperNovice(this._job) ? 0 : this.CartNum || 1;
+			const cartJob = 'CART_' + realCartNum;
+
+			if (!this.cart) {
+				const cart = new Entity();
+				cart.set({
+					objecttype: Entity.TYPE_CART,
+					GID: this.GID + '_CART',
+					job: cartJob,
+					speed: this.walk ? this.walk.speed : 150,
+					name: '',
+					hp: -1,
+					maxhp: -1
+				});
+
+				const RIDING_MASK =
+					StatusState.EffectState.RIDING |
+					StatusState.EffectState.DRAGON1 |
+					StatusState.EffectState.DRAGON2 |
+					StatusState.EffectState.DRAGON3 |
+					StatusState.EffectState.DRAGON4 |
+					StatusState.EffectState.DRAGON5 |
+					StatusState.EffectState.WUGRIDER |
+					StatusState.EffectState.MADOGEAR;
+				const isMounted = this.costume !== 0 || !!(this._allRidingState & RIDING_MASK);
+				const retDist = isMounted ? 1.6 : 1.0;
+				const angle = (6 - this.direction) * (Math.PI / 4);
+				const behindDx = -Math.cos(angle);
+				const behindDy = -Math.sin(angle);
+
+				cart.position[0] = this.position[0] + behindDx * retDist;
+				cart.position[1] = this.position[1] + behindDy * retDist;
+				cart.position[2] = Altitude.getCellHeight(cart.position[0], cart.position[1]);
+				cart.direction = this.direction;
+				cart.depth = this.depth;
+
+				cart.setAction({
+					action: cart.ACTION.IDLE,
+					frame: 0,
+					play: false,
+					repeat: true
+				});
+
+				this.cart = cart;
+				cart.owner = this;
+				EntityManager.add(cart);
+			} else {
+				if (this.cart.job !== cartJob) {
+					this.cart.job = cartJob;
+				}
+				const RIDING_MASK =
+					StatusState.EffectState.RIDING |
+					StatusState.EffectState.DRAGON1 |
+					StatusState.EffectState.DRAGON2 |
+					StatusState.EffectState.DRAGON3 |
+					StatusState.EffectState.DRAGON4 |
+					StatusState.EffectState.DRAGON5 |
+					StatusState.EffectState.WUGRIDER |
+					StatusState.EffectState.MADOGEAR;
+				const isMounted = this.costume !== 0 || !!(this._allRidingState & RIDING_MASK);
+				const retDist = isMounted ? 1.6 : 1.0;
+				const cdist = Math.hypot(
+					this.cart.position[0] - this.position[0],
+					this.cart.position[1] - this.position[1]
+				);
+				if (cdist > 5.0) {
+					const angle = (6 - this.direction) * (Math.PI / 4);
+					const behindDx = -Math.cos(angle);
+					const behindDy = -Math.sin(angle);
+					this.cart.position[0] = this.position[0] + behindDx * retDist;
+					this.cart.position[1] = this.position[1] + behindDy * retDist;
+					this.cart.position[2] = Altitude.getCellHeight(this.cart.position[0], this.cart.position[1]);
+					this.cart.direction = this.direction;
+				}
+			}
+		} else if (this.cart) {
+			this.cart.owner = null;
+			EntityManager.remove(this.cart.GID);
+			this.cart = null;
 		}
 	}
 
@@ -575,8 +780,43 @@ Entity.prototype.targetGID = 0;
 Entity.prototype.isOverWeight = false;
 Entity.prototype.falcon = null;
 Entity.prototype.wug = null;
+Entity.prototype.cart = null;
+Entity.prototype.owner = null;
 Entity.prototype.hideShadow = false;
 Entity.prototype.call_flag = 0;
+Object.defineProperty(Entity.prototype, 'level', {
+	get() {
+		return this.clevel;
+	},
+	set(val) {
+		this.clevel = val;
+	},
+	enumerable: true,
+	configurable: true
+});
+
+/**
+ * Player-specific fields — declared on Entity.prototype so Entity.set() can
+ * auto-map them from server packets (charselect, status updates, etc.).
+ *
+ * The whitelist gate in set() uses Entity.prototype.hasOwnProperty() which does
+ * NOT walk the prototype chain, so any field only on Player.prototype is
+ * invisible to it. Entity.prototype already hosts player-specific state
+ * (clevel, hasCart, falcon, call_flag, etc.), so this follows the established
+ * pattern.
+ */
+
+// ── Job level ────────────────────────────────────────────────────────────────
+Entity.prototype.joblevel = 0; // StatusProperty.JOBLEVEL / charselect 'joblevel'
+
+// ── Economy ───────────────────────────────────────────────────────────────────
+Entity.prototype.money = 0; // StatusProperty.MONEY (zeny) / charselect 'money'
+Entity.prototype.weight = 0; // StatusProperty.WEIGHT
+Entity.prototype.max_weight = 0; // StatusProperty.MAXWEIGHT
+
+// ── Player-only flags ─────────────────────────────────────────────────────────
+Entity.prototype.intravision = false; // PACKET.ZC.STATE_CHANGE3 (GM invisibility)
+
 /**
  * @var {integer} tick to remove
  */

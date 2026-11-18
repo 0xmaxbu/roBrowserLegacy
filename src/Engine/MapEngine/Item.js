@@ -25,6 +25,7 @@ import CartItems from 'UI/Components/CartItems/CartItems.js';
 import Equipment from 'UI/Components/Equipment/Equipment.js';
 import PlayerViewEquip from 'UI/Components/PlayerViewEquip/PlayerViewEquip.js';
 import SwitchEquip from 'UI/Components/SwitchEquip/SwitchEquip.js';
+import { resolveEntityWeapons } from 'Engine/MapEngine/OffhandWeapon.js';
 import Storage from 'UI/Components/Storage/Storage.js';
 import MakeItemSelection from 'UI/Components/MakeItemSelection/MakeItemSelection.js';
 import ItemListWindowSelection from 'UI/Components/MakeItemSelection/ItemListWindowSelection.js';
@@ -88,7 +89,7 @@ function onItemPickAnswer(pkt) {
 		ChatBox.FILTER.ITEM
 	);
 
-	Inventory.getUI().addItem(pkt);
+	Inventory.addItem(pkt);
 }
 
 /**
@@ -97,7 +98,7 @@ function onItemPickAnswer(pkt) {
  * @param {object} pkt - PACKET.ZC.EQUIPMENT_ITEMLIST
  */
 function onInventorySetList(pkt) {
-	Inventory.getUI().setItems(pkt.itemInfo || pkt.ItemInfo);
+	Inventory.setItems(pkt.itemInfo || pkt.ItemInfo);
 }
 
 /**
@@ -106,7 +107,7 @@ function onInventorySetList(pkt) {
  * @param {object} pkt - PACKET.ZC.ITEM_THROW_ACK
  */
 function onIventoryRemoveItem(pkt) {
-	Inventory.getUI().removeItem(pkt.Index, pkt.count || pkt.Count || 0);
+	Inventory.removeItem(pkt.Index, pkt.count || pkt.Count || 0);
 }
 
 /**
@@ -116,7 +117,7 @@ function onIventoryRemoveItem(pkt) {
  */
 function onEquipementTakeOff(pkt) {
 	if (pkt.result) {
-		const item = Equipment.getUI().unEquip(pkt.index, pkt.wearLocation);
+		const item = Equipment.unEquip(pkt.index, pkt.wearLocation);
 
 		if (item) {
 			item.WearState = 0;
@@ -129,44 +130,62 @@ function onEquipementTakeOff(pkt) {
 			);
 
 			if (!(pkt.wearLocation & EquipLocation.AMMO)) {
-				Inventory.getUI().addItem(item);
+				Inventory.addItem(item);
 			}
 		}
 
 		if (pkt.wearLocation & EquipLocation.HEAD_TOP) {
-			Session.Entity.accessory2 = Equipment.getUI().checkEquipLoc(EquipLocation.COSTUME_HEAD_TOP);
+			Session.Entity.accessory2 = Equipment.checkEquipLoc(EquipLocation.COSTUME_HEAD_TOP);
 		}
 		if (pkt.wearLocation & EquipLocation.HEAD_MID) {
-			Session.Entity.accessory3 = Equipment.getUI().checkEquipLoc(EquipLocation.COSTUME_HEAD_MID);
+			Session.Entity.accessory3 = Equipment.checkEquipLoc(EquipLocation.COSTUME_HEAD_MID);
 		}
 		if (pkt.wearLocation & EquipLocation.HEAD_BOTTOM) {
-			Session.Entity.accessory = Equipment.getUI().checkEquipLoc(EquipLocation.COSTUME_HEAD_BOTTOM);
+			Session.Entity.accessory = Equipment.checkEquipLoc(EquipLocation.COSTUME_HEAD_BOTTOM);
 		}
 		if (pkt.wearLocation & EquipLocation.GARMENT) {
-			Session.Entity.robe = Equipment.getUI().checkEquipLoc(EquipLocation.COSTUME_ROBE);
+			Session.Entity.robe = Equipment.checkEquipLoc(EquipLocation.COSTUME_ROBE);
 		}
 		if (pkt.wearLocation & EquipLocation.WEAPON) {
-			Session.Entity.weapon = 0;
+			const resolved = resolveEntityWeapons(
+				0,
+				Session.Entity.shield,
+				Session.Entity,
+				Session.Entity,
+				Inventory,
+				Equipment
+			);
+			Session.Entity.weapon = resolved.weapon;
+			Session.Entity.shield = resolved.shield;
 		}
 		if (pkt.wearLocation & EquipLocation.SHIELD) {
-			Session.Entity.shield = 0;
+			const resolved = resolveEntityWeapons(
+				Session.Entity.weapon,
+				0,
+				Session.Entity,
+				Session.Entity,
+				Inventory,
+				Equipment
+			);
+			Session.Entity.weapon = resolved.weapon;
+			Session.Entity.shield = resolved.shield;
 		}
 		if (pkt.wearLocation & EquipLocation.COSTUME_HEAD_TOP) {
-			Session.Entity.accessory2 = Equipment.getUI().checkEquipLoc(EquipLocation.HEAD_TOP);
+			Session.Entity.accessory2 = Equipment.checkEquipLoc(EquipLocation.HEAD_TOP);
 		}
 		if (pkt.wearLocation & EquipLocation.COSTUME_HEAD_MID) {
-			Session.Entity.accessory3 = Equipment.getUI().checkEquipLoc(EquipLocation.HEAD_MID);
+			Session.Entity.accessory3 = Equipment.checkEquipLoc(EquipLocation.HEAD_MID);
 		}
 		if (pkt.wearLocation & EquipLocation.COSTUME_HEAD_BOTTOM) {
-			Session.Entity.accessory = Equipment.getUI().checkEquipLoc(EquipLocation.HEAD_BOTTOM);
+			Session.Entity.accessory = Equipment.checkEquipLoc(EquipLocation.HEAD_BOTTOM);
 		}
 		if (pkt.wearLocation & EquipLocation.COSTUME_ROBE) {
-			Session.Entity.robe = Equipment.getUI().checkEquipLoc(EquipLocation.GARMENT);
+			Session.Entity.robe = Equipment.checkEquipLoc(EquipLocation.GARMENT);
 		}
 
 		if (PACKETVER.value >= 20170208) {
 			// Remove from Switch Window as well
-			if (!Inventory.getUI().isInEquipSwitchList(pkt.wearLocation)) {
+			if (!Inventory.isInEquipSwitchList(pkt.wearLocation)) {
 				SwitchEquip.unEquip(pkt.index, pkt.wearLocation);
 			}
 		}
@@ -180,15 +199,22 @@ function onEquipementTakeOff(pkt) {
  */
 function onItemEquip(pkt) {
 	if (pkt.result == 1) {
-		const item = Inventory.getUI().removeItem(pkt.index, 1);
-		Equipment.getUI().equip(item, pkt.wearLocation);
+		const item = Inventory.removeItem(pkt.index, 1);
+		// The equip window draws headgear and garments from wItemSpriteNumber,
+		// which only the inventory lists sent at login carry. An item received
+		// later (pickup, NPC, trade) has none, so it drew nothing until relog.
+		// The ack's view id is the same number (0 for slots not drawn).
+		if (item && pkt.viewid !== undefined) {
+			item.wItemSpriteNumber = pkt.viewid;
+		}
+		Equipment.equip(item, pkt.wearLocation);
 		ChatBox.addText(DB.getItemName(item) + ' ' + DB.getMessage(170), ChatBox.TYPE.BLUE, ChatBox.FILTER.ITEM);
 
 		// Variables for Headgear Checks
-		const CostumeCheckTop = Equipment.getUI().checkEquipLoc(EquipLocation.COSTUME_HEAD_TOP);
-		const CostumeCheckMid = Equipment.getUI().checkEquipLoc(EquipLocation.COSTUME_HEAD_MID);
-		const CostumeCheckBot = Equipment.getUI().checkEquipLoc(EquipLocation.COSTUME_HEAD_BOTTOM);
-		const CostumeCheckRobe = Equipment.getUI().checkEquipLoc(EquipLocation.COSTUME_ROBE);
+		const CostumeCheckTop = Equipment.checkEquipLoc(EquipLocation.COSTUME_HEAD_TOP);
+		const CostumeCheckMid = Equipment.checkEquipLoc(EquipLocation.COSTUME_HEAD_MID);
+		const CostumeCheckBot = Equipment.checkEquipLoc(EquipLocation.COSTUME_HEAD_BOTTOM);
+		const CostumeCheckRobe = Equipment.checkEquipLoc(EquipLocation.COSTUME_ROBE);
 
 		// Display
 		if (pkt.wearLocation & EquipLocation.HEAD_TOP) {
@@ -204,11 +230,19 @@ function onItemEquip(pkt) {
 			Session.Entity.robe = CostumeCheckRobe ? CostumeCheckRobe : pkt.viewid;
 		}
 
-		if (pkt.wearLocation & EquipLocation.WEAPON) {
-			Session.Entity.weapon = pkt.viewid;
-		}
-		if (pkt.wearLocation & EquipLocation.SHIELD) {
-			Session.Entity.shield = pkt.viewid;
+		if (pkt.wearLocation & EquipLocation.WEAPON || pkt.wearLocation & EquipLocation.SHIELD) {
+			const weaponVal = pkt.wearLocation & EquipLocation.WEAPON ? pkt.viewid : Session.Entity.weapon;
+			const shieldVal = pkt.wearLocation & EquipLocation.SHIELD ? pkt.viewid : Session.Entity.shield;
+			const resolved = resolveEntityWeapons(
+				weaponVal,
+				shieldVal,
+				Session.Entity,
+				Session.Entity,
+				Inventory,
+				Equipment
+			);
+			Session.Entity.weapon = resolved.weapon;
+			Session.Entity.shield = resolved.shield;
 		}
 
 		// costume override regular equips
@@ -239,7 +273,7 @@ function onItemEquip(pkt) {
 function onItemUseAnswer(pkt) {
 	if (!pkt.hasOwnProperty('AID') || Session.Entity.GID === pkt.AID) {
 		if (pkt.result) {
-			Inventory.getUI().updateItem(pkt.index, pkt.count);
+			Inventory.updateItem(pkt.index, pkt.count);
 		} else {
 			// should we show a msg in chatbox ?
 		}
@@ -266,10 +300,10 @@ Equipment.onCheckPlayerEquipment = function onCheckPlayerEquipment(AID) {
  * @param {object} pkt - ZC_EQUIPWIN_MICROSCOPE
  */
 function onShowPlayerEquip(pkt) {
-	PlayerViewEquip.getUI().append();
-	PlayerViewEquip.getUI().setTitleBar(pkt.characterName);
-	PlayerViewEquip.getUI().setEquipmentData(pkt.ItemInfo);
-	PlayerViewEquip.getUI().setChar2Render(pkt);
+	PlayerViewEquip.append();
+	PlayerViewEquip.setTitleBar(pkt.characterName);
+	PlayerViewEquip.setEquipmentData(pkt.ItemInfo);
+	PlayerViewEquip.setChar2Render(pkt);
 }
 
 /**
@@ -278,8 +312,8 @@ function onShowPlayerEquip(pkt) {
  * @param {object} pkt - PACKET_ZC_EQUIP_ARROW
  */
 function onArrowEquipped(pkt) {
-	const item = Inventory.getUI().getItemByIndex(pkt.index);
-	Equipment.getUI().equip(item, EquipLocation.AMMO);
+	const item = Inventory.getItemByIndex(pkt.index);
+	Equipment.equip(item, EquipLocation.AMMO);
 }
 
 /**
@@ -309,7 +343,7 @@ function onItemCompositionList(pkt) {
 		return;
 	}
 
-	const card = Inventory.getUI().getItemByIndex(_cardComposition);
+	const card = Inventory.getItemByIndex(_cardComposition);
 
 	ItemSelection.append();
 	ItemSelection.setList(pkt.ITIDList);
@@ -335,8 +369,8 @@ function onItemCompositionResult(pkt) {
 	switch (pkt.result) {
 		case 0: {
 			// success
-			const item = Inventory.getUI().removeItem(pkt.equipIndex, 1);
-			const card = Inventory.getUI().removeItem(pkt.cardIndex, 1);
+			const item = Inventory.removeItem(pkt.equipIndex, 1);
+			const card = Inventory.removeItem(pkt.cardIndex, 1);
 
 			if (item) {
 				for (let i = 0; i < 4; ++i) {
@@ -345,7 +379,7 @@ function onItemCompositionResult(pkt) {
 						break;
 					}
 				}
-				Inventory.getUI().addItem(item);
+				Inventory.addItem(item);
 			}
 			break;
 		}
@@ -364,10 +398,10 @@ function onRefineResult(pkt) {
 	if (Configs.get('enableRefineUI') && PACKETVER.value >= 20161012) {
 		import('UI/Components/Refine/Refine.js').then(m => m.default.onRefineResult(pkt));
 	} else {
-		const item = Inventory.getUI().removeItem(pkt.itemIndex, 1);
+		const item = Inventory.removeItem(pkt.itemIndex, 1);
 		if (item) {
 			item.RefiningLevel = pkt.RefiningLevel;
-			Inventory.getUI().addItem(item);
+			Inventory.addItem(item);
 		}
 
 		switch (pkt.result) {
@@ -416,6 +450,15 @@ function onCartSetInfo(pkt) {
 
 function onCartRemoveItem(pkt) {
 	CartItems.removeItem(pkt.index, pkt.count);
+}
+
+function onCartOff() {
+	Session.hasCart = false;
+	if (Session.Entity) {
+		Session.Entity._statusCart = false;
+		Session.Entity.setCart(false);
+	}
+	CartItems.remove();
 }
 
 CartItems.reqRemoveItem = function ReqRemoveItem(index, count) {
@@ -568,7 +611,7 @@ function onBodyItemSize(pkt) {
 	if (pkt) {
 		const baselimit = 100; // Base Limit
 		const newlimit = baselimit + pkt.type;
-		Inventory.getUI().ui.find('.mcnt').text(newlimit);
+		Inventory.ui.find('.mcnt').text(newlimit);
 	}
 }
 
@@ -593,14 +636,14 @@ function onRecoverPenaltyOverweight(pkt) {
 function onItemListNormal(pkt) {
 	switch (pkt.invType) {
 		case 0:
-			Inventory.getUI().setItems(pkt.itemInfo || pkt.ItemInfo);
+			Inventory.setItems(pkt.itemInfo || pkt.ItemInfo);
 			break;
 		case 1:
 			CartItems.setItems(pkt.itemInfo || pkt.ItemInfo);
 			break;
 		case 2:
-			Storage.getUI().append();
-			Storage.getUI().setItems(pkt.itemInfo || pkt.ItemInfo);
+			Storage.append();
+			Storage.setItems(pkt.itemInfo || pkt.ItemInfo);
 			break;
 		default:
 			throw new Error("[PACKET.ZC.SPLIT_SEND_ITEMLIST_NORMAL] - Unknown invType '" + pkt.invType + "'.");
@@ -615,13 +658,13 @@ function onItemListNormal(pkt) {
 function onItemListEquip(pkt) {
 	switch (pkt.invType) {
 		case 0:
-			Inventory.getUI().setItems(pkt.itemInfo || pkt.ItemInfo);
+			Inventory.setItems(pkt.itemInfo || pkt.ItemInfo);
 			break;
 		case 1:
 			CartItems.setItems(pkt.itemInfo || pkt.ItemInfo);
 			break;
 		case 2:
-			Storage.getUI().setItems(pkt.itemInfo || pkt.ItemInfo);
+			Storage.setItems(pkt.itemInfo || pkt.ItemInfo);
 			break;
 		default:
 			throw new Error("[PACKET.ZC.SPLIT_SEND_ITEMLIST_NORMAL] - Unknown invType '" + pkt.invType + "'.");
@@ -640,7 +683,7 @@ function onFavItemList(pkt) {
 	if (pkt) {
 		// So if favorite is 0, we send 1 to change item.PlaceETCTab to 1
 		const isfavitem = pkt.favorite ? 0 : 1;
-		Inventory.getUI().updatePlaceETCTab(pkt.index, isfavitem);
+		Inventory.updatePlaceETCTab(pkt.index, isfavitem);
 	}
 }
 
@@ -650,8 +693,8 @@ function onFavItemList(pkt) {
 function onSwitchEquipList(pkt) {
 	if (pkt && pkt.ItemInfo) {
 		pkt.ItemInfo.forEach(function (item) {
-			if (Inventory.getUI().getItemByIndex(item.index)) {
-				Inventory.getUI().addItemtoSwitch(item.index);
+			if (Inventory.getItemByIndex(item.index)) {
+				Inventory.addItemtoSwitch(item.index);
 			}
 		});
 	}
@@ -664,7 +707,7 @@ function onSwitchEquipAdd(pkt) {
 	if (pkt) {
 		switch (pkt.flag) {
 			case 0:
-				Inventory.getUI().addItemtoSwitch(pkt.index);
+				Inventory.addItemtoSwitch(pkt.index);
 				break;
 			case 1:
 			case 2:
@@ -682,7 +725,7 @@ function onSwitchEquipRemove(pkt) {
 	if (pkt) {
 		switch (pkt.flag) {
 			case 0:
-				Inventory.getUI().removeItemFromSwitch(pkt.index);
+				Inventory.removeItemFromSwitch(pkt.index);
 				break;
 			case 1:
 				break;
@@ -734,6 +777,7 @@ export default function ItemEngine() {
 	Network.hookPacket(PACKET.ZC.ACK_WEAR_EQUIP_V5, onItemEquip);
 	Network.hookPacket(PACKET.ZC.DELETE_ITEM_FROM_BODY, onIventoryRemoveItem);
 	Network.hookPacket(PACKET.ZC.DELETE_ITEM_FROM_CART, onCartRemoveItem);
+	Network.hookPacket(PACKET.ZC.CARTOFF, onCartOff);
 	Network.hookPacket(PACKET.ZC.USE_ITEM_ACK, onItemUseAnswer);
 	Network.hookPacket(PACKET.ZC.USE_ITEM_ACK2, onItemUseAnswer);
 	Network.hookPacket(PACKET.ZC.EQUIP_ARROW, onArrowEquipped);
@@ -770,6 +814,6 @@ export default function ItemEngine() {
 	Network.hookPacket(PACKET.ZC.REQ_WEAR_SWITCHEQUIP_ADD_RESULT, onSwitchEquipAdd);
 	Network.hookPacket(PACKET.ZC.REQ_WEAR_SWITCHEQUIP_REMOVE_RESULT, onSwitchEquipRemove);
 
-	Inventory.getUI().onUseCard = onUseCard;
-	Inventory.getUI().reqMoveItemToCart = reqMoveItemToCart;
+	Inventory.onUseCard = onUseCard;
+	Inventory.reqMoveItemToCart = reqMoveItemToCart;
 }
