@@ -23,7 +23,7 @@ const versionInfo = {
 	default: BasicInfoV0,
 	common: {
 		20200520: BasicInfoV5, // not sure the exact client date that started supporting 4th Jobs
-		20191223: BasicInfoV0, // 2026-11-18 PREVIEW 第2轮：切 V0（basewin_bg 真老素材，280x120）供运营对比确认，定案后归档
+		20191223: BasicInfo, // 2026-11-18 PREVIEW: 切 roBrowser 原版 V1（basewin_bg2 素材，220x135 布局）供运营确认，定案后归档
 		20180124: BasicInfoV4,
 		20160101: BasicInfoV3,
 		20090601: BasicInfo
