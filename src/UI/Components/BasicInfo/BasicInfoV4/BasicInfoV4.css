@@ -189,13 +189,13 @@
 #BasicInfoV4 .buttons button {
 	width: 100%;
 	min-width: 0;
-	height: 44px;
+	height: 48px; /* 34 图标 + 2px 间距 + 12px 文字（2026-11-19 E2E 反馈：字号≥12px、间距≥2px） */
 	border: none;
 	margin: 0;
 	padding: 0;
 	background-color: transparent;
 	background-repeat: no-repeat;
-	background-position: center 6px;
+	background-position: center top;
 	background-size: 32px 34px; /* 贴图原生尺寸（bt_*.bmp 均 32x34）：26x26 非整数缩小会吞掉细边框行致右侧/四角缺角（2026-11-19 E2E 修复） */
 	image-rendering: pixelated;
 	position: relative;
@@ -245,11 +245,12 @@
 	color: #fff;
 	padding: 0;
 	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	overflow: visible;
 	width: 100%;
-	font-size: 0.48rem;
-	line-height: 1;
+	font-size: 12px;
+	line-height: 12px;
+	margin-top: 2px;
+	letter-spacing: -0.5px;
 	text-align: center;
 }
 
@@ -258,9 +259,10 @@
 	width: 35px;
 	height: 40px;
 	border: none;
-	position: relative;
-	top: -6px;
-	left: 0;
+	position: absolute;
+	top: 0;
+	left: 50%;
+	transform: translateX(-50%);
 	display: none;
 }
 #BasicInfoV4 .buttons button:active .btn_overlay {
