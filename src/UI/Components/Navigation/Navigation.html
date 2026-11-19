@@ -3,7 +3,7 @@
 		<div class="left" data-background="basic_interface/titlebar_left.bmp"></div>
 		<div class="center" data-background="basic_interface/titlebar_mid.bmp"></div>
 		<div class="right" data-background="basic_interface/titlebar_right.bmp"></div>
-		<div class="title">Navigation</div>
+		<div class="title" data-text="6100">Navigation</div>
 		<ui-button
 			class="restore"
 			bg="basic_interface/sys_mini_off.bmp"
@@ -22,10 +22,10 @@
 	<div class="content">
 		<div class="search-container">
 			<select class="search-type">
-				<option value="ALL">all</option>
-				<option value="NPC">npc</option>
-				<option value="MOB">mob</option>
-				<option value="MAP">map</option>
+				<option value="ALL" data-text="6101">all</option>
+				<option value="NPC" data-text="6102">npc</option>
+				<option value="MOB" data-text="6103">mob</option>
+				<option value="MAP" data-text="6104">map</option>
 			</select>
 			<div class="search-left" data-background="basic_interface/txtbox_l.bmp"></div>
 			<div class="search-middle" data-background="basic_interface/txtbox_m.bmp"></div>
@@ -51,7 +51,7 @@
 					class="services-checkbox"
 					title="Allow transport/service routes such as airship, boat, Kafra, town guide, and similar NPC services."
 				>
-					<input type="checkbox" class="services-toggle" /> Services
+					<input type="checkbox" class="services-toggle" /> <span data-text="6105">Services</span>
 				</label>
 			</div>
 			<div class="location-title"></div>
@@ -72,7 +72,7 @@
 		<div class="result-view">
 			<div class="result-header">
 				<span class="search-icon official-search-result-icon"></span>
-				<span class="result-count">Search result[0]</span>
+				<span class="result-count" data-text="6106">Search result[0]</span>
 				<span class="selected-result-link"></span>
 			</div>
 			<div class="result-body">
@@ -81,7 +81,7 @@
 				</div>
 				<div class="result-right-panel">
 					<div class="result-detail-panel">
-						<div class="detail-empty">Search for a monster, NPC, or map.</div>
+						<div class="detail-empty" data-text="6108">Search for a monster, NPC, or map.</div>
 						<div class="detail-content">
 							<div class="detail-title-row">
 								<span class="detail-type-badge"></span>
@@ -105,7 +105,7 @@
 							class="result-services-checkbox"
 							title="Allow transport/service routes such as airship, boat, Kafra, town guide, and similar NPC services."
 						>
-							<input type="checkbox" class="services-toggle" /> service
+							<input type="checkbox" class="services-toggle" /> <span data-text="6105">service</span>
 						</label>
 						<ui-button
 							class="nav-action share-action"
@@ -127,7 +127,7 @@
 	<div class="footer">
 		<label class="minimize-toggle-label">
 			<input type="checkbox" class="minimize-toggle" />
-			<span>Minimize</span>
+			<span data-text="6109">Minimize</span>
 		</label>
 		<div class="footer-actions">
 			<ui-button
@@ -146,11 +146,11 @@
 		<div class="coordinates-bar">
 			<div class="map-name"></div>
 			<div class="mouse-info">
-				<span class="mouse-label">Mouse:</span>
+				<span class="mouse-label" data-text="6110">Mouse:</span>
 				<span class="mouse-coordinates"></span>
 			</div>
 			<div class="target-info">
-				<span class="target-label">Target:</span>
+				<span class="target-label" data-text="6111">Target:</span>
 				<span class="target-coordinates"></span>
 			</div>
 		</div>

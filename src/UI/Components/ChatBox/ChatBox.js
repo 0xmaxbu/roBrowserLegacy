@@ -1793,7 +1793,12 @@ ChatBox.applyFontScale = function applyFontScale() {
 		el.style.fontFamily = 'Arial';
 		el.style.fontSize = `${fontSize}px`;
 	// Tab labels — match chat content font size（fork）
-	root.querySelector('.header input').style.fontSize = `${fontSize}px`;
+	// 2026-11-19 修复：上游 #1317 迁移后 ChatBox.html 无 .header input，
+	// 原裸访问在地图加载链上抛 null.style 中断进图（jQuery 版为空集合静默跳过）
+	const headerInput = root.querySelector('.header input');
+	if (headerInput) {
+		headerInput.style.fontSize = `${fontSize}px`;
+	}
 
 	});
 

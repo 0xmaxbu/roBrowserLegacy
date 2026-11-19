@@ -156,7 +156,7 @@ export function createQuest(config) {
 				}
 			});
 
-			Client.loadFile(`${DB.INTERFACE_PATH}renew_questui/bg_quest1.bmp`, data => {
+			Client.loadThemedFile(`${DB.INTERFACE_PATH}renew_questui/bg_quest1.bmp`, data => {
 				const el = root.querySelector('.titlebar');
 				if (el) {
 					el.style.backgroundImage = `url(${data})`;
@@ -633,7 +633,7 @@ export function createQuest(config) {
 					root.querySelector('#active-quest-list').style.display = '';
 			}
 
-			Client.loadFile(`${DB.INTERFACE_PATH}renew_questui/${background_image}.bmp`, data => {
+			Client.loadThemedFile(`${DB.INTERFACE_PATH}renew_questui/${background_image}.bmp`, data => {
 				const titlebar = root.querySelector('.titlebar');
 				if (titlebar) {
 					titlebar.style.backgroundImage = `url(${data})`;

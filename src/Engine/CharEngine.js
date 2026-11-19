@@ -157,8 +157,11 @@ function onCharacterListChunk(pkt) {
 	pkt.charInfo.forEach(charInfo => {
 		CharSelect.addCharacter(charInfo);
 	});
-	if (typeof ChSel.refreshAfterCharacterList === 'function') {
-		ChSel.refreshAfterCharacterList();
+	// 2026-11-19 修复：ChSel 是 onConnectionAccepted 的局部变量，此处不可见（合并引入的作用域 bug）。
+	// 经版本分发器取当前 UI 实例（CharSelectV3/V4 均有 refreshAfterCharacterList 时才调用）。
+	const ChSelUI = CharSelect.getUI();
+	if (ChSelUI && typeof ChSelUI.refreshAfterCharacterList === 'function') {
+		ChSelUI.refreshAfterCharacterList();
 	}
 }
 

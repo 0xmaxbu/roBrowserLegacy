@@ -1728,51 +1728,40 @@ function getSelectedMapMonster(result) {
 }
 
 function getReadableElementName(value) {
-	const elements = ['Neutral', 'Water', 'Earth', 'Fire', 'Wind', 'Poison', 'Holy', 'Dark', 'Ghost', 'Undead'];
-
-	return elements[value] || 'Neutral';
+	// i18n: msgstringtable 6114-6123（zh 覆盖见 LangOverlayData，2026-11-19）
+	return DB.getMessage(6114 + (Number(value) || 0), 'Neutral');
 }
 
 function getReadableRaceName(value) {
-	const races = [
-		'Formless',
-		'Undead',
-		'Brute',
-		'Plant',
-		'Insect',
-		'Fish',
-		'Demon',
-		'Demi-Human',
-		'Angel',
-		'Dragon',
-		'Boss',
-		'Non-Boss'
-	];
-
-	return races[value] || 'Unknown';
+	// i18n: msgstringtable 6124-6135
+	if (value === undefined || value === null || Number(value) < 0 || Number(value) > 11) {
+		return DB.getMessage(6112, 'Unknown');
+	}
+	return DB.getMessage(6124 + Number(value), 'Unknown');
 }
 
 function getReadableSizeName(value) {
-	const sizes = ['Small', 'Medium', 'Large'];
-	return sizes[value] || 'Medium';
+	// i18n: msgstringtable 6136-6138
+	return DB.getMessage(6136 + (Number(value) || 0), 'Medium');
 }
 
 function getSpawnRateLabel(amount) {
 	amount = Number(amount) || 0;
 
+	// i18n: msgstringtable 6139-6143
 	if (amount >= 60) {
-		return 'Very High';
+		return DB.getMessage(6139, 'Very High');
 	}
 	if (amount >= 25) {
-		return 'High';
+		return DB.getMessage(6140, 'High');
 	}
 	if (amount >= 10) {
-		return 'Average';
+		return DB.getMessage(6141, 'Average');
 	}
 	if (amount >= 3) {
-		return 'Low';
+		return DB.getMessage(6142, 'Low');
 	}
-	return 'Very Low';
+	return DB.getMessage(6143, 'Very Low');
 }
 
 function getSelectedResultTarget(result) {

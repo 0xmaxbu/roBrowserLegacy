@@ -167,9 +167,10 @@ class AchievementComponent extends GUIComponent {
 	}
 
 	updateHeaderAndView() {
-		if (this._host.style.display === 'none') return;
-
 		const root = this.getRoot();
+		// 2026-11-19 修复：窗口未挂载时（如进图时成就封包先到）root 为 null，直接跳过（合并引入）
+		if (!root || this._host.style.display === 'none') return;
+
 		const ach = Session.Achievement || { rank: 0, total_points: 0, list: {} };
 
 		root.querySelector('.js-rank').textContent = ach.rank;

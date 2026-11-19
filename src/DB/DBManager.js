@@ -544,6 +544,11 @@ class DB {
 		// Lua 运行时（HOAI/MERAI 宠物 AI）异步初始化；延迟到 lazyInit 保证模块导入零副作用（上游测试环境要求）
 		startLua();
 		console.log('Loading DB files...');
+		// 2026-11-19 修复：上游合并后 LoginEngine 链式调用 DB.lazyInit().catch()，
+		// 本方法必须返回 Promise（表加载计数完成时 resolve），否则 undefined.catch 直接崩。
+		const promise = new Promise(resolve => {
+			DB._notifyLazyComplete = resolve;
+		});
 		// Callback
 		DB.index = 0;
 		DB.count = 0;
@@ -561,9 +566,60 @@ class DB {
 					// Force cleanup of DB file data (lua, txt, csv, bson blobs) that are no longer needed
 					// gl is null here because we may not have a WebGL context yet during lazy loading
 					MemoryManager.forceClean(null, /\.(lub|lua|txt|csv|bson)$/i);
+					// 上游架构：完成时回调 DB.onReady（Online.js 用它触发 LoginEngine.init，见 DBBootstrap.js:100）
+					if (DB.onReady) {
+						DB.onReady();
+					}
+					if (DB._notifyLazyComplete) {
+						DB._notifyLazyComplete();
+					}
 				}
 			};
 		}
+
+		// 2026-11-19 修复：上游合并丢失了旧 init() 的 4 个基础表加载（msgstringtable/
+		// mapnametable/mp3nametable/resnametable）——聊天框 NO MSG、地图音乐、地图别名失效。
+		// 按合并前 init() 原样回填，纳入同一计数体系（onLoad()）。
+		loadTable(
+			'data/mp3nametable.txt',
+			'#',
+			2,
+			function (_index, key, val) {
+				(MapTable[key] || (MapTable[key] = {})).mp3 = val;
+			},
+			onLoad()
+		);
+		loadTable(
+			'data/mapnametable.txt',
+			'#',
+			2,
+			function (_index, key, val) {
+				(MapTable[key] || (MapTable[key] = {})).name = val;
+			},
+			onLoad(),
+			true
+		);
+		const loadmsg = onLoad();
+		loadTable(
+			'data/msgstringtable.txt',
+			'#',
+			1,
+			(_index, val) => {
+				MsgStringTable[_index] = val;
+			},
+			() => loadCSV('data/msgstringtable.csv', MsgStringTable, 0, 1, loadmsg),
+			true
+		);
+
+		loadTable(
+			'data/resnametable.txt',
+			'#',
+			2,
+			function (_index, key, val) {
+				DB.mapalias[key] = val;
+			},
+			onLoad()
+		);
 
 		// CSV Tables - Client Date is not sure since when they were added
 		if (PACKETVER.value >= 20230302) {
@@ -1082,6 +1138,8 @@ class DB {
 		import('Core/AIDriver.js').then(module => {
 			module.default.initAI(onAIDriverLoaded);
 		});
+
+		return promise;
 	}
 	static getHOAI_VM() {
 		return HO_AI;
