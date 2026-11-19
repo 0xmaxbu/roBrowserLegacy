@@ -330,8 +330,9 @@ class LoginEngine {
 		}
 
 		// 4. 同步到服务端 @langtype（NPC 对话语言由服务端 F_MSG 控制）
-		if (Session.Entity && Session.Entity.display) {
-			const name = Session.Entity.display.name;
+		// 只以 Session.Entity 存在为准（display 是头顶名渲染开关，进图早期为 false）
+		if (Session.Entity) {
+			const name = (Session.Entity.display && Session.Entity.display.name) || Session.Entity.name || '';
 			const langCmd = (lang === 'zh') ? '@langtype chn' : '@langtype english';
 			const langPkt = new PACKET.CZ.REQUEST_CHAT();
 			langPkt.msg = name + ' : ' + langCmd;
@@ -376,7 +377,7 @@ class LoginEngine {
 	 * 同步标记 ro_player_lang_synced 防止每次进图重复发送。
 	 */
 	static syncLangtypeToServer() {
-		if (!Session.Entity || !Session.Entity.display) {
+		if (!Session.Entity) {
 			return;
 		}
 
@@ -387,13 +388,19 @@ class LoginEngine {
 				return;
 			}
 
+			// 注意：不要用 Session.Entity.display 作前置条件——
+			// EntityDisplay 构造时 display=false（头顶名开关），进图事件瞬间
+			// 实体尚未渲染，display 仍为 false，会导致永远提前返回（2026-11-21 修复）。
+			// 名字不参与服务端命令解析（is_atcommand 只取 " : " 后半段），
+			// 此处仅用于聊天包格式（"name : message"）拼装。
+			const name = (Session.Entity.display && Session.Entity.display.name) || Session.Entity.name || '';
 			const langCmd = (lang === 'zh') ? '@langtype chn' : '@langtype english';
 			const langPkt = new PACKET.CZ.REQUEST_CHAT();
-			langPkt.msg = Session.Entity.display.name + ' : ' + langCmd;
+			langPkt.msg = name + ' : ' + langCmd;
 			Network.sendPacket(langPkt);
 			localStorage.setItem('ro_player_lang_synced', lang);
 		} catch (e) {
-			// localStorage 不可用时每次进图会重发一次，@langtype 幂等无害
+			console.error('[LangSync] send @langtype failed:', e);
 		}
 	}
 }
