@@ -254,14 +254,13 @@
 }
 
 #BasicInfoV4 .buttons .btn_overlay {
-	width: 26px;
-	height: 26px;
+	pointer-events: none;
+	width: 35px;
+	height: 40px;
 	border: none;
-	position: absolute;
-	top: 6px;
-	left: 50%;
-	transform: translateX(-50%);
-	z-index: 10;
+	position: relative;
+	top: -6px;
+	left: 0;
 	display: none;
 }
 #BasicInfoV4 .buttons button:active .btn_overlay {
