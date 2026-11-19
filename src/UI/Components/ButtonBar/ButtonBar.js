@@ -1,12 +1,14 @@
 /**
  * UI/Components/ButtonBar/ButtonBar.js
  *
- * Bottom-right button bar (D-06.4, D-25). 5 common buttons with RO-original
+ * Bottom-right button bar (D-06.4, D-25). 6 common buttons with RO-original
  * BMP icons + Chinese labels (D-08), plus a toggle button that opens a
  * self-contained popup (BLOCK-2: standalone, no legacy popup-menu dependency)
  * listing the remaining BasicInfoV4 window actions (MED-5: full 15-case).
  *
  * Phase 12-04 (REVIEWS.md BLOCK-2/MED-4/MED-5 addressed).
+ * 2026-11-19: bot（挂机）按钮下线（用户反馈）；客服按钮改用 bt_booking.bmp；
+ * ICON_BASE 修复为 DB.INTERFACE_PATH（原缺韩文前缀全部 404）。
  *
  * Case identifiers mirror BasicInfoV4.js:104-159 exactly (MED-4) — note the
  * upstream typo `'achievment'` is preserved to match the V4 switch.
@@ -41,18 +43,22 @@ import cssText from './ButtonBar.css?raw';
 const ButtonBar = new GUIComponent('ButtonBar', cssText);
 ButtonBar.render = () => htmlText;
 
-// D-09 BMP icon mapping (GRF path prefix). MED-4: ids match BasicInfoV4.js switch cases.
-const ICON_BASE = 'data/texture/';
+// D-09 BMP icon mapping. 2026-11-19 修复：原 ICON_BASE='data/texture/' 缺少韩文
+// 接口目录前缀，全部图标 404（curl 实测）；改用 DB.INTERFACE_PATH（与 BasicInfoV4
+// data-background 同一解析链路）后正常命中 GRF。同日：bot（挂机）按钮下线，
+// support（客服）按钮由 CSS 纯文本改用官方 bt_booking.bmp（人物+对话气泡）。
+const ICON_BASE = DB.INTERFACE_PATH;
 const COMMON_ICONS = {
     item:   'menu_icon/bt_item.bmp',
     skill:  'menu_icon/bt_skill.bmp',
     info:   'menu_icon/bt_status.bmp',
     equip:  'menu_icon/bt_equip.bmp',
+    support: 'menu_icon/bt_booking.bmp',
     toggle: 'menu_icon/bt_menu_normal.bmp'
 };
 
 // MED-5: FULL 15-case popup list (verified against BasicInfoV4.js:104-159).
-// Excludes the 5 common buttons (item/skill/info/equip/bot) which are already on the bar.
+// Excludes the bar's own buttons (item/skill/info/equip/support/toggle) which are already on the bar.
 // 'battle' is NOT in BasicInfoV4 switch — correctly omitted.
 const POPUP_ITEMS = [
     { id: 'party',       label: '队伍', icon: 'menu_icon/bt_party.bmp' },
@@ -111,7 +117,8 @@ ButtonBar._bindClicks = function _bindClicks() {
 // MED-4 + MED-5: cases are the EXACT BasicInfoV4.js:104-159 identifiers.
 // Cross-checked against source: item:105 / info:108 / equip:111 / skill:114 /
 // option:117 / party:120 / guild:123 / quest:126 / map:129 / bank:132 /
-// attendance:135-138 / mail:140 / navigation:143 / achievment:146-149 / bot:151-158.
+// attendance:135-138 / mail:140 / navigation:143 / achievment:146-149.
+// ('bot' removed 2026-11-19 along with its button.)
 ButtonBar._onAction = function _onAction(action) {
     if (action === 'toggle') { this._togglePopup(); return; }
     switch (action) {
@@ -137,15 +144,10 @@ ButtonBar._onAction = function _onAction(action) {
                 Achievement.toggle();                             // :146-149
             }
             break;
-        case 'bot':
-            // BasicInfoV4.js:151-158 — Phase 11-02 BotAutoHunt plugin bridge.
-            if (window.botAutoHunt && typeof window.botAutoHunt.toggle === 'function') {
-                window.botAutoHunt.toggle();
-            }
-            break;
         case 'support':
-            // P1 玩家自助：客服中心（Plugins/SupportCenter）。
-            // 与 bot 同款 null-safe bridge。
+            // P1 玩家自助：客服中心（Plugins/SupportCenter，工单/订单自查）。
+            // Null-safe bridge：插件被禁用或初始化失败时不报错。
+            // 2026-11-19：'bot' case 已随挂机按钮下线删除。
             if (window.supportCenter && typeof window.supportCenter.toggle === 'function') {
                 window.supportCenter.toggle();
             }

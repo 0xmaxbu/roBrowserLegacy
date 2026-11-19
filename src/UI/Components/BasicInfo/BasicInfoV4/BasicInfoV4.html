@@ -249,35 +249,22 @@
 		<!--<button class="reputation" data-background="menu_icon/" data-hover="menu_icon/" data-down="menu_icon/"></button> -->
 
 		<!--
-			Bot Auto-Hunt toggle (Phase 11-02).
-			Uses the RO native .ui-btn CSS button (Common.css:62-136) instead of a BMP
-			sprite, since no dedicated menu icon exists for this custom feature.
-			The 22x22px sizing matches the neighbouring .buttons button rule; the
-			inline font-size keeps the "Bot" label legible inside the small tile.
-			Click is dispatched in BasicInfoV4.js via window.botAutoHunt.toggle()
-			(null-safe: plugin may not be loaded if PacketManager disabled it).
-		-->
-		<button
-			id="bot"
-			class="event_add_cursor"
-			style="font-size: 0.55rem; line-height: 22px; text-align: center; color: #3f3f3f; text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.85);"
-		>
-			<span class="name" data-text="5519">Bot Auto-Hunt</span>
-			<span data-text="5520">Bot</span>
-		</button>
-
-		<!--
-			Support Center（P1 玩家自助，ADR-0002）——与 bot 按钮同款 CSS 按钮。
-			Click → BasicInfoV4.js case 'support' → window.supportCenter.toggle()
+			Support Center（P1 玩家自助，ADR-0002）。
+			Click → BasicInfoCommon.js dispatchButton case 'support' → window.supportCenter.toggle()
 			（Plugins/SupportCenter，工单/充值订单自查）。
+			2026-11-19 用户反馈：bot 按钮下线；客服按钮弃用 CSS 纯文本样式，改用官方
+			menu_icon/bt_booking.bmp（人物+对话气泡，语义最贴近"联系客服"，本面板未被占用），
+			写法与其余按钮一致（data-background 正常态 + data-down 按压态，32x34 原生尺寸）。
+			文案接入多语言体系：英文默认 "Support"（按钮盒 41px 内短词不截断），
+			中文由 LangOverlayData 5528 = '客服' 覆盖（ID 段 5500-5999）。
 		-->
 		<button
 			id="support"
 			class="event_add_cursor"
-			style="font-size: 0.55rem; line-height: 22px; text-align: center; color: #3f3f3f; text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.85);"
+			data-background="menu_icon/bt_booking.bmp"
+			data-down="menu_icon/bt_booking_press.bmp"
 		>
-			<span class="name">Support Center</span>
-			<span>客服</span>
+			<span class="name" data-text="5528">Support</span>
 		</button>
 	</div>
 </div>

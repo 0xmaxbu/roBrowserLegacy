@@ -152,17 +152,10 @@ export function createBasicInfo(config) {
 			case 'repute':
 				Reputation.toggle();
 				break;
-			case 'bot':
-				// Phase 11-02: BotAutoHunt plugin bridge.（fork 移植）
-				// Plugin loads via PluginManager; toggle is null-safe in case the
-				// plugin is disabled or failed to initialise.
-				if (window.botAutoHunt && typeof window.botAutoHunt.toggle === 'function') {
-					window.botAutoHunt.toggle();
-				}
-				break;
 			case 'support':
 				// P1 玩家自助：客服中心（Plugins/SupportCenter，工单/订单自查）。（fork 移植）
-				// 与 bot 同款 null-safe bridge。
+				// Null-safe bridge：插件被禁用或初始化失败时不报错。
+				// 2026-11-19：'bot' case 已随自动战斗按钮下线删除。
 				if (window.supportCenter && typeof window.supportCenter.toggle === 'function') {
 					window.supportCenter.toggle();
 				}

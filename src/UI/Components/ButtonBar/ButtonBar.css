@@ -5,7 +5,6 @@
 .bb-icon { width: 28px; height: 28px; image-rendering: pixelated; }
 .bb-label { font-size: 0.6rem; color: #3d3326; margin-top: 1px; }
 .bb-btn:hover { background: rgba(60,50,40,0.15); }
-.bb-bot .bb-label { font-size: 0.7rem; line-height: 28px; color: #3d3326; } /* CSS text button, no BMP */
 /* BLOCK-2: popup is a child of .bb-root, positioned by JS via style.top/left */
 .bb-popup { position: fixed; background: rgba(245,240,225,0.95); border-radius: 4px; padding: 4px;
             display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; max-width: 200px;
