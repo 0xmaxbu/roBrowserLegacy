@@ -869,6 +869,10 @@ function cleanGameUI() {
 			target[method]();
 		}
 	}
+
+	// TargetKeyboard 是 Control 模块，不在 UIManager 组件表内，需显式清理（2026-11-19 回归修复：
+	// fork 曾在 onRestartAnswer/onDisconnectAnswer 显式调用，合并后 cleanGameUI 未收录，退出地图后监听器泄漏）
+	TargetKeyboard.cleanup();
 }
 
 /**

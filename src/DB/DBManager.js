@@ -566,7 +566,7 @@ class DB {
 					// Force cleanup of DB file data (lua, txt, csv, bson blobs) that are no longer needed
 					// gl is null here because we may not have a WebGL context yet during lazy loading
 					MemoryManager.forceClean(null, /\.(lub|lua|txt|csv|bson)$/i);
-					// 上游架构：完成时回调 DB.onReady（Online.js 用它触发 LoginEngine.init，见 DBBootstrap.js:100）
+					// 上游架构：完成时回调 DB.onReady（由 LoginEngine.js 赋值并触发 LoginEngine.init；DBBootstrap.js:100 的同名回调属死路径加载计划）
 					if (DB.onReady) {
 						DB.onReady();
 					}
@@ -738,7 +738,7 @@ class DB {
 											import('DB/Effects/EffectTable.js'),
 											import('DB/Skills/SkillEffect.js')
 										]).then(([EffectTable, SkillEffect]) => {
-											mergeEz2Effects(EffectTable.default, SkillEffect.default);
+											mergeEz2Effects(EffectTable.default, SkillEffect.default, Ez2streffect); // 第三参为 BSON 数据源，缺失则合并静默全丢（2026-11-19 回归修复：模块化后调用点未适配）
 											bsonOnLoad();
 										});
 									});

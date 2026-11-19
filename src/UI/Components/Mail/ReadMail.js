@@ -282,7 +282,7 @@ function onItemOver(event) {
 	const overlay = root.querySelector('.container_item .overlay');
 	if (overlay) {
 		overlay.style.display = 'block';
-		overlay.textContent = `${DB.getItemName(item)} ${item.count || 1} ea`;
+		overlay.textContent = `${DB.getItemName(item)} ${item.count || 1}${LangOverlay.getItemUnit()}`;
 
 	if (item.IsIdentified) {
 			overlay.classList.remove('grey');

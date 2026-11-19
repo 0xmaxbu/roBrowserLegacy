@@ -24,7 +24,6 @@ vi.mock('UI/Components/ChatBox/ChatBox.js', () => ({
 	default: { addText: () => {}, TYPE: {}, FILTER: {} }
 }));
 vi.mock('UI/UIManager.js', () => ({ default: { addComponent: c => c } }));
-vi.mock('UI/UIComponent.js', () => ({ default: class UIComponentStub {} }));
 
 import { decodeMsgMarkup } from 'UI/Components/Rodex/Rodex.js';
 

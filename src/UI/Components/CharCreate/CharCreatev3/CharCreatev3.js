@@ -24,6 +24,6 @@ export default createCharCreate({
 	modelCanvasSelector: '#canvas_model',
 	nameInputSelector: '#char_name',
 	nameInputEvent: 'click',
-	cancelSelectors: ['.button.close'],
+	cancelSelectors: ['.button.close', '.button.cancel'], // .button.cancel 为 fork 020ca70c 加的中文取消按钮，工厂化时绑定丢失（2026-11-19 回归修复）
 	makeSelector: '.button.make'
 });

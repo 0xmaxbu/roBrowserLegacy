@@ -133,6 +133,21 @@ export function createActorResourcePaths(DB, SexTable) {
 				return null;
 			}
 
+			// 多兰（含喵喵雇佣兵外观 30001）：身体调色板在 도람족/body/ 子目录
+			// （2026-11-19 合并回归修复：e4229940 的 isDoram 分支在 services 化迁移中丢失，
+			//   召唤师一族染色板曾路由到人形目录 404；C2/C4 审计发现并实测确认）
+			if (DB.isDoram(id)) {
+				return (
+					'data/palette/\xb5\xb5\xb6\xf7\xc1\xb7/body/' +
+					PaletteTable[id] +
+					'_' +
+					SexTable[sex] +
+					'_' +
+					pal +
+					'.pal'
+				);
+			}
+
 			// A `costume_1` body's palettes carry the body's own `_1` after the
 			// palette number: costume_1/<job>_<sex>_<pal>_1.pal.
 			const costume = String(PaletteTable[id]).startsWith('costume_1/') ? '_1' : '';
@@ -169,7 +184,9 @@ export function createActorResourcePaths(DB, SexTable) {
 		}
 
 		static getHeadPalPath(id, pal, job, sex) {
-			if (job === 4218 || job === 4220) {
+			// 多兰系全部职业（含 30001/Spirit Handler）：头饰染色在 도람족/머리 目录
+			// （2026-11-19 合并回归修复：恢复 e4229940 放宽的 isDoram 判定，上游回退为硬编码 4218/4220）
+			if (DB.isDoram(job)) {
 				return (
 					'data/palette/\xb5\xb5\xb6\xf7\xc1\xb7/\xb8\xd3\xb8\xae/\xb8\xd3\xb8\xae' +
 					(HairIndexTable[sex + 2][id] || id) +

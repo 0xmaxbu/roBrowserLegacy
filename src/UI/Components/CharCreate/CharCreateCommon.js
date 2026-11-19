@@ -79,8 +79,6 @@ const CAP = {
 	}
 };
 
-const RACE_MARK = `${DB.INTERFACE_PATH}make_character/select_mark_cha_create.bmp`;
-
 /**
  * The buttons for one hairstyle, one in each race/gender list. A list with
  * fewer styles keeps empty .styleN cells to hold the grid; those get no frame.
@@ -267,7 +265,7 @@ export function createCharCreate(config) {
 
 			_model.render = true;
 			_model.entity.set({
-				sex: GENDER.MALE,
+				sex: _accountSex, // 性别继承账号（RO 角色性别继承注册时选定，2026-11-19 合并回归修复：上游工厂化丢失 fork V3 修复）
 				job: RACE.HUMAN,
 				head: 1,
 				headpalette: 0,
@@ -687,6 +685,11 @@ export function createCharCreate(config) {
 
 		switch (type) {
 			case TYPE.GENDER:
+				// 性别锁定为账号性别：服务端会拒绝不匹配的建角性别
+				// （2026-11-19 合并回归修复：恢复 fork V3 的性别锁，上游工厂化时丢失）
+				if (value !== _accountSex) {
+					return;
+				}
 				_model.entity.sex = value;
 
 				if (_model.entity.sex == GENDER.MALE) {
@@ -709,18 +712,9 @@ export function createCharCreate(config) {
 			case TYPE.RACE:
 				_model.entity.job = value;
 				_model.entity.head = 1;
-
-				if (_model.entity.job === RACE.HUMAN) {
-					Client.loadFile(RACE_MARK, dataURI => {
-						root.querySelector('.race_select .human label').style.backgroundImage = `url(${dataURI})`;
-					});
-					root.querySelector('.race_select .doram label').style.backgroundImage = 'none';
-				} else {
-					root.querySelector('.race_select .human label').style.backgroundImage = 'none';
-					Client.loadFile(RACE_MARK, dataURI => {
-						root.querySelector('.race_select .doram label').style.backgroundImage = `url(${dataURI})`;
-					});
-				}
+				// 种族卡不再设置背景图：select_mark_cha_create.bmp 是纯品红透明键色图，
+				// 作 CSS 背景会糊成粉色块；边框/气泡/横线已由底图提供，无需额外背景。
+				// （2026-11-19 合并回归修复：恢复 fork 020ca70c 移除，上游工厂化时复活）
 
 				break;
 
@@ -754,7 +748,7 @@ export function createCharCreate(config) {
 
 			case TYPE.DEFAULT:
 				updateCharacterCap(TYPE.RACE, RACE.HUMAN);
-				updateCharacterCap(TYPE.GENDER, GENDER.MALE);
+				updateCharacterCap(TYPE.GENDER, _accountSex); // 性别锁定为账号性别
 				_model.entity.headpalette = 0;
 				break;
 		}
