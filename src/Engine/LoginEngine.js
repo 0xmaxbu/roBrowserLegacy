@@ -80,14 +80,23 @@ class LoginEngine {
 		UIManager.removeComponents();
 		Session.LangType = 'langtype' in server ? parseInt(server.langtype, 10) : 1; // default to SERVICETYPE_AMERICA
 
-		// 恢复本地语言偏好（Phase 14）：登录时从 localStorage 读取归一化语言码
+		// 语言偏好恢复（Phase 14 / URL 参数扩展）：
+		// 1) URL 参数 ?lang=zh|en 优先级最高（运营链接直接控制语言，并持久化到本地）
+		// 2) 其次 localStorage 本地偏好（ro_player_lang）
+		// 3) 都没有时保持 Session.PlayerLang 默认值 'zh'
 		try {
-			const savedLang = localStorage.getItem('ro_player_lang');
-			if (savedLang === 'zh' || savedLang === 'en') {
-				Session.PlayerLang = savedLang;
+			const urlLang = new URLSearchParams(window.location.search).get('lang');
+			if (urlLang === 'zh' || urlLang === 'en') {
+				localStorage.setItem('ro_player_lang', urlLang);
+				Session.PlayerLang = urlLang;
+			} else {
+				const savedLang = localStorage.getItem('ro_player_lang');
+				if (savedLang === 'zh' || savedLang === 'en') {
+					Session.PlayerLang = savedLang;
+				}
 			}
 		} catch (e) {
-			// localStorage 可能不可用（隐私模式 / 非 DOM 环境）
+			// localStorage / URLSearchParams 可能不可用（隐私模式 / 非 DOM 环境）
 		}
 
 		// Renewal switch
@@ -327,6 +336,12 @@ class LoginEngine {
 			const langPkt = new PACKET.CZ.REQUEST_CHAT();
 			langPkt.msg = name + ' : ' + langCmd;
 			Network.sendPacket(langPkt);
+			// 记录同步标记，进图同步钩子（robrowser-mapentered）据此防重复发送
+			try {
+				localStorage.setItem('ro_player_lang_synced', lang);
+			} catch (e) {
+				// localStorage 可能不可用
+			}
 		}
 
 		// 5. 持久化到 localStorage
@@ -347,7 +362,46 @@ class LoginEngine {
 			// ChatBox 未初始化
 		}
 	}
+
+	/**
+	 * 进图后把客户端语言偏好同步到服务端（写 #langtype 账号变量）。
+	 *
+	 * 背景：服务端 MOTD / msg_txt 按 sd->langtype 取文案，而新账号无
+	 * #langtype 变量时服务端默认英文（pc.cpp pc_reg_received）；客户端
+	 * Session.PlayerLang 默认 'zh'，两端默认不一致会导致玩家看到
+	 * 客户端中文但服务端消息英文。通过 @langtype 指令对齐两端。
+	 *
+	 * 时机：'robrowser-mapentered' 事件（MapEngine.js 每次进图/换图派发），
+	 * 此时 map-server 连接已建立，@langtype 聊天指令可被服务端接收。
+	 * 同步标记 ro_player_lang_synced 防止每次进图重复发送。
+	 */
+	static syncLangtypeToServer() {
+		if (!Session.Entity || !Session.Entity.display) {
+			return;
+		}
+
+		const lang = Session.PlayerLang;
+		try {
+			const synced = localStorage.getItem('ro_player_lang_synced');
+			if (synced === lang) {
+				return;
+			}
+
+			const langCmd = (lang === 'zh') ? '@langtype chn' : '@langtype english';
+			const langPkt = new PACKET.CZ.REQUEST_CHAT();
+			langPkt.msg = Session.Entity.display.name + ' : ' + langCmd;
+			Network.sendPacket(langPkt);
+			localStorage.setItem('ro_player_lang_synced', lang);
+		} catch (e) {
+			// localStorage 不可用时每次进图会重发一次，@langtype 幂等无害
+		}
+	}
 }
+
+// 每次进入地图后，把客户端语言偏好同步到服务端 @langtype（见 syncLangtypeToServer）
+window.addEventListener('robrowser-mapentered', () => {
+	LoginEngine.syncLangtypeToServer();
+});
 
 /**
  * Trying to connect to Login server
