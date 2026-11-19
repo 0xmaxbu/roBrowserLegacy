@@ -247,11 +247,13 @@
 	white-space: nowrap;
 	overflow: visible;
 	width: 100%;
-	font-size: 12px;
-	line-height: 12px;
+	font-size: 11px;
+	line-height: 11px;
 	margin-top: 2px;
 	letter-spacing: -0.5px;
 	text-align: center;
+	/* RO 像素字标准黑描边：四字标签（任务列表/世界地图）对称溢出时保持字形边界可辨 */
+	text-shadow: 1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000;
 }
 
 #BasicInfoV4 .buttons .btn_overlay {
